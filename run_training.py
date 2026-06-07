@@ -1,0 +1,186 @@
+ticker,name,sector
+AAPL,Apple Inc,Technology
+MSFT,Microsoft Corporation,Technology
+NVDA,NVIDIA Corporation,Technology
+GOOGL,Alphabet Inc,Technology
+AMZN,Amazon.com Inc,Consumer Discretionary
+META,Meta Platforms Inc,Technology
+TSLA,Tesla Inc,Consumer Discretionary
+BRK.B,Berkshire Hathaway,Financials
+UNH,UnitedHealth Group,Health Care
+JPM,JPMorgan Chase,Financials
+V,Visa Inc,Financials
+XOM,Exxon Mobil,Energy
+LLY,Eli Lilly,Health Care
+MA,Mastercard,Financials
+JNJ,Johnson & Johnson,Health Care
+HD,Home Depot,Consumer Discretionary
+AVGO,Broadcom Inc,Technology
+PG,Procter & Gamble,Consumer Staples
+MRK,Merck & Co,Health Care
+COST,Costco Wholesale,Consumer Staples
+ABBV,AbbVie Inc,Health Care
+CVX,Chevron Corporation,Energy
+CRM,Salesforce Inc,Technology
+WMT,Walmart Inc,Consumer Staples
+BAC,Bank of America,Financials
+NFLX,Netflix Inc,Communication Services
+AMD,Advanced Micro Devices,Technology
+KO,Coca-Cola Company,Consumer Staples
+PEP,PepsiCo Inc,Consumer Staples
+TMO,Thermo Fisher Scientific,Health Care
+LIN,Linde plc,Materials
+ORCL,Oracle Corporation,Technology
+ACN,Accenture plc,Technology
+CSCO,Cisco Systems,Technology
+ABT,Abbott Laboratories,Health Care
+MCD,McDonald's Corporation,Consumer Discretionary
+WFC,Wells Fargo,Financials
+ADBE,Adobe Inc,Technology
+DHR,Danaher Corporation,Health Care
+AXP,American Express,Financials
+TXN,Texas Instruments,Technology
+NKE,Nike Inc,Consumer Discretionary
+PM,Philip Morris,Consumer Staples
+MS,Morgan Stanley,Financials
+NEE,NextEra Energy,Utilities
+RTX,RTX Corporation,Industrials
+BMY,Bristol-Myers Squibb,Health Care
+AMGN,Amgen Inc,Health Care
+INTC,Intel Corporation,Technology
+IBM,International Business Machines,Technology
+QCOM,Qualcomm Inc,Technology
+INTU,Intuit Inc,Technology
+SPGI,S&P Global Inc,Financials
+LOW,Lowe's Companies,Consumer Discretionary
+CAT,Caterpillar Inc,Industrials
+T,AT&T Inc,Communication Services
+SBUX,Starbucks Corporation,Consumer Discretionary
+ISRG,Intuitive Surgical,Health Care
+HON,Honeywell International,Industrials
+UPS,United Parcel Service,Industrials
+DE,Deere & Company,Industrials
+GILD,Gilead Sciences,Health Care
+GS,Goldman Sachs,Financials
+BLK,BlackRock Inc,Financials
+ADP,Automatic Data Processing,Technology
+SCHW,Charles Schwab,Financials
+MDLZ,Mondelez International,Consumer Staples
+PLD,Prologis Inc,Real Estate
+AMAT,Applied Materials,Technology
+ELV,Elevance Health,Health Care
+COP,ConocoPhillips,Energy
+PANW,Palo Alto Networks,Technology
+REGN,Regeneron Pharmaceuticals,Health Care
+MU,Micron Technology,Technology
+SO,Southern Company,Utilities
+SYK,Stryker Corporation,Health Care
+CI,Cigna Group,Health Care
+LRCX,Lam Research,Technology
+ADI,Analog Devices,Technology
+KLAC,KLA Corporation,Technology
+SNPS,Synopsys Inc,Technology
+CDNS,Cadence Design Systems,Technology
+CB,Chubb Limited,Financials
+EW,Edwards Lifesciences,Health Care
+DUK,Duke Energy,Utilities
+CME,CME Group,Financials
+MMC,Marsh & McLennan,Financials
+GE,GE Aerospace,Industrials
+EOG,EOG Resources,Energy
+ITW,Illinois Tool Works,Industrials
+EQIX,Equinix Inc,Real Estate
+FCX,Freeport-McMoRan,Materials
+SLB,SLB,Energy
+AON,Aon plc,Financials
+PYPL,PayPal Holdings,Financials
+PH,Parker-Hannifin,Industrials
+MRNA,Moderna Inc,Health Care
+CTAS,Cintas Corporation,Industrials
+MCO,Moody's Corporation,Financials
+PSA,Public Storage,Real Estate
+OXY,Occidental Petroleum,Energy
+USB,U.S. Bancorp,Financials
+HCA,HCA Healthcare,Health Care
+TGT,Target Corporation,Consumer Discretionary
+F,Ford Motor Company,Consumer Discretionary
+GM,General Motors,Consumer Discretionary
+CL,Colgate-Palmolive,Consumer Staples
+ORLY,O'Reilly Automotive,Consumer Discretionary
+AZO,AutoZone Inc,Consumer Discretionary
+APH,Amphenol Corporation,Technology
+CARR,Carrier Global,Industrials
+MSI,Motorola Solutions,Technology
+MCHP,Microchip Technology,Technology
+SHW,Sherwin-Williams,Materials
+FDX,FedEx Corporation,Industrials
+PCAR,PACCAR Inc,Industrials
+AIG,American International Group,Financials
+ROP,Roper Technologies,Technology
+BDX,Becton Dickinson,Health Care
+MNST,Monster Beverage,Consumer Staples
+HUM,Humana Inc,Health Care
+GD,General Dynamics,Industrials
+NSC,Norfolk Southern,Industrials
+EMR,Emerson Electric,Industrials
+IDXX,IDEXX Laboratories,Health Care
+DXCM,DexCom Inc,Health Care
+KMB,Kimberly-Clark,Consumer Staples
+A,Agilent Technologies,Health Care
+IQV,IQVIA Holdings,Health Care
+GEHC,GE HealthCare,Health Care
+LHX,L3Harris Technologies,Industrials
+WELL,Welltower Inc,Real Estate
+OTIS,Otis Worldwide,Industrials
+ROK,Rockwell Automation,Industrials
+CTVA,Corteva Inc,Materials
+IR,Ingersoll Rand,Industrials
+ROST,Ross Stores,Consumer Discretionary
+BIIB,Biogen Inc,Health Care
+TROW,T. Rowe Price,Financials
+STZ,Constellation Brands,Consumer Staples
+YUM,Yum! Brands,Consumer Discretionary
+EXC,Exelon Corporation,Utilities
+MSCI,MSCI Inc,Financials
+VRSK,Verisk Analytics,Industrials
+PRU,Prudential Financial,Financials
+AFL,Aflac Incorporated,Financials
+ALL,Allstate Corporation,Financials
+FAST,Fastenal Company,Industrials
+XEL,Xcel Energy,Utilities
+CPRT,Copart Inc,Industrials
+CTSH,Cognizant Technology,Technology
+VICI,VICI Properties,Real Estate
+GWW,W.W. Grainger,Industrials
+AWK,American Water Works,Utilities
+KR,Kroger Company,Consumer Staples
+ILMN,Illumina Inc,Health Care
+CBRE,CBRE Group,Real Estate
+ZBH,Zimmer Biomet,Health Care
+KEYS,Keysight Technologies,Technology
+MTD,Mettler-Toledo,Health Care
+WAT,Waters Corporation,Health Care
+HAL,Halliburton Company,Energy
+BKR,Baker Hughes,Energy
+DVN,Devon Energy,Energy
+FANG,Diamondback Energy,Energy
+MPC,Marathon Petroleum,Energy
+VLO,Valero Energy,Energy
+PSX,Phillips 66,Energy
+WMB,Williams Companies,Energy
+KMI,Kinder Morgan,Energy
+OKE,ONEOK Inc,Energy
+SPY,SPDR S&P 500 ETF,Benchmark
+QQQ,Invesco QQQ Trust,Benchmark
+IWM,iShares Russell 2000,Benchmark
+XLK,Technology Select Sector SPDR,Sector ETF
+XLF,Financial Select Sector SPDR,Sector ETF
+XLE,Energy Select Sector SPDR,Sector ETF
+XLV,Health Care Select Sector SPDR,Sector ETF
+XLI,Industrial Select Sector SPDR,Sector ETF
+XLY,Consumer Discretionary Select Sector SPDR,Sector ETF
+XLP,Consumer Staples Select Sector SPDR,Sector ETF
+XLRE,Real Estate Select Sector SPDR,Sector ETF
+XLB,Materials Select Sector SPDR,Sector ETF
+XLU,Utilities Select Sector SPDR,Sector ETF
+XLC,Communication Services Select Sector SPDR,Sector ETF

@@ -1,0 +1,24 @@
+# atlas-research environment variables
+# Copy to .env and fill in values. Never commit .env.
+
+# ── Database ──────────────────────────────────────────────────
+DATABASE_URL=postgresql://atlas:password@localhost:5432/atlas_research
+
+# ── Universe ──────────────────────────────────────────────────
+UNIVERSE_CSV=config/universe.csv
+
+# ── Download ──────────────────────────────────────────────────
+DOWNLOAD_BATCH_SIZE=50
+DOWNLOAD_BATCH_DELAY_S=2.0
+BACKFILL_YEARS=15
+
+# ── Features ──────────────────────────────────────────────────
+FEATURE_VERSION=v1
+
+# ── Pipeline ─────────────────────────────────────────────────
+PIPELINE_CRON=0 2 * * 1-5
+PIPELINE_TIMEZONE=America/New_York
+
+# ── Logging ───────────────────────────────────────────────────
+LOG_LEVEL=INFO
+LOG_FORMAT=console
