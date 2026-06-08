@@ -128,7 +128,9 @@ def get_bars(ticker: str, start: date | None = None, end: date | None = None) ->
         return pd.DataFrame(columns=["date","open","high","low","close","adjusted_close","volume"])
 
     df = pd.DataFrame(rows, columns=["date","open","high","low","close","adjusted_close","volume"])
-    df["date"] = pd.to_datetime(df["date"])
+    # Keep date as Python date objects (not Timestamps) for consistency.
+    # validate_bars, feature_factory, and label_factory all expect date objects.
+    df["date"] = df["date"].apply(lambda d: d.date() if hasattr(d, "date") and callable(d.date) else d)
     return df
 
 
@@ -172,12 +174,25 @@ def upsert_features(ticker: str, snap_date: date, features: dict[str, float | No
     if not features:
         return 0
 
+    def _to_py_float(v):
+        """Convert numpy scalar → plain Python float (or None).
+        psycopg2 cannot bind np.float64 directly — it serialises as
+        the string 'np.float64(...)' which Postgres rejects."""
+        if v is None:
+            return None
+        try:
+            import math
+            f = float(v)
+            return None if (math.isnan(f) or math.isinf(f)) else f
+        except (TypeError, ValueError):
+            return None
+
     rows = [
         {
             "ticker":           ticker,
             "date":             snap_date,
             "feature_name":     name,
-            "feature_value":    value,
+            "feature_value":    _to_py_float(value),
             "feature_version":  version,
             "snapshot_version": snapshot_version,
         }
@@ -412,7 +427,7 @@ def insert_production_export(export_date: date, export_type: str,
     """
     sql = text("""
         INSERT INTO production_exports (export_date, export_type, payload)
-        VALUES (:export_date, :export_type, :payload::jsonb)
+        VALUES (:export_date, :export_type, CAST(:payload AS jsonb))
         RETURNING id
     """)
     with get_connection() as conn:
@@ -523,9 +538,18 @@ def upsert_model_registry(record: dict) -> int:
     Returns the row id.
     """
     import json as _json
-
+    import math as _math
     hyperparams = record.get("hyperparams")
     fold_metrics = record.get("fold_metrics")
+
+    def _sanitise_for_json(obj):
+        if isinstance(obj, float):
+            return None if (_math.isnan(obj) or _math.isinf(obj)) else obj
+        if isinstance(obj, dict):
+            return {k: _sanitise_for_json(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [_sanitise_for_json(v) for v in obj]
+        return obj
 
     sql = text("""
         INSERT INTO model_registry (
@@ -542,10 +566,11 @@ def upsert_model_registry(record: dict) -> int:
             :feature_names, :feature_count, :train_rows, :val_rows,
             :auc, :brier, :ic, :rank_ic, :sharpe,
             :artifact_path, :artifact_hash,
-            :hyperparams::jsonb, :fold_metrics::jsonb,
+            CAST(:hyperparams AS jsonb), CAST(:fold_metrics AS jsonb),
             :promoted, :notes
         )
-        ON CONFLICT DO NOTHING
+        ON CONFLICT (model_name, model_version, target, training_end) DO UPDATE SET
+            updated_at = now()
         RETURNING id
     """)
 
@@ -569,8 +594,8 @@ def upsert_model_registry(record: dict) -> int:
             "sharpe":          record.get("sharpe"),
             "artifact_path":   record.get("artifact_path"),
             "artifact_hash":   record.get("artifact_hash"),
-            "hyperparams":     _json.dumps(hyperparams) if hyperparams else None,
-            "fold_metrics":    _json.dumps(fold_metrics) if fold_metrics else None,
+            "hyperparams":     _json.dumps(_sanitise_for_json(hyperparams)) if hyperparams else None,
+            "fold_metrics":    _json.dumps(_sanitise_for_json(fold_metrics)) if fold_metrics else None,
             "promoted":        record.get("promoted", False),
             "notes":           record.get("notes"),
         }).fetchone()
