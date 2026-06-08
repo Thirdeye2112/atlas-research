@@ -139,20 +139,23 @@ def train_regressor(
     X_tr, y_tr = X_train[:-n_es], y_train[:-n_es]
 
     train_data = lgb.Dataset(X_tr, label=y_tr, feature_name=feature_names)
-    es_data    = lgb.Dataset(X_es, label=y_es, feature_name=feature_names,
-                              reference=train_data)
 
-    callbacks = [
-        lgb.early_stopping(stopping_rounds=50, verbose=False),
-        lgb.log_evaluation(period=-1),
-    ]
-
-    model = lgb.train(
-        p,
-        train_set=train_data,
-        valid_sets=[es_data],
-        callbacks=callbacks,
-    )
+    if len(X_tr) >= 5000:
+        es_data = lgb.Dataset(X_es, label=y_es, feature_name=feature_names,
+                               reference=train_data)
+        callbacks = [
+            lgb.early_stopping(stopping_rounds=20, verbose=False),
+            lgb.log_evaluation(period=-1),
+        ]
+        model = lgb.train(
+            p,
+            train_set=train_data,
+            valid_sets=[es_data],
+            callbacks=callbacks,
+        )
+    else:
+        callbacks = [lgb.log_evaluation(period=-1)]
+        model = lgb.train(p, train_set=train_data, callbacks=callbacks)
 
     importances = {
         "gain":  model.feature_importance(importance_type="gain").tolist(),
@@ -198,20 +201,23 @@ def train_classifier(
     X_tr, y_tr = X_train[:-n_es], y_train[:-n_es]
 
     train_data = lgb.Dataset(X_tr, label=y_tr, feature_name=feature_names)
-    es_data    = lgb.Dataset(X_es, label=y_es, feature_name=feature_names,
-                              reference=train_data)
 
-    callbacks = [
-        lgb.early_stopping(stopping_rounds=50, verbose=False),
-        lgb.log_evaluation(period=-1),
-    ]
-
-    model = lgb.train(
-        p,
-        train_set=train_data,
-        valid_sets=[es_data],
-        callbacks=callbacks,
-    )
+    if len(X_tr) >= 5000:
+        es_data = lgb.Dataset(X_es, label=y_es, feature_name=feature_names,
+                               reference=train_data)
+        callbacks = [
+            lgb.early_stopping(stopping_rounds=20, verbose=False),
+            lgb.log_evaluation(period=-1),
+        ]
+        model = lgb.train(
+            p,
+            train_set=train_data,
+            valid_sets=[es_data],
+            callbacks=callbacks,
+        )
+    else:
+        callbacks = [lgb.log_evaluation(period=-1)]
+        model = lgb.train(p, train_set=train_data, callbacks=callbacks)
 
     importances = {
         "gain":  model.feature_importance(importance_type="gain").tolist(),

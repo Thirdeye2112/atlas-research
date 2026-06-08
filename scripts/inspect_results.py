@@ -123,14 +123,18 @@ def inspect_parquet_health(snap_date: date | None = None) -> None:
     print(f"  Date range: {files[0].stem.split('_')[-1]} → {files[-1].stem.split('_')[-1]}")
     print(f"  Total size: {total_mb:.1f} MB  ({total_mb/len(files):.2f} MB/file avg)")
 
-    # Inspect most recent file (or specified date)
+    # Inspect most recent file (or specified date).
+    # Do NOT use the very last file — it has no labels (future bars don't exist yet).
+    # Sample a file from ~60 trading days ago where labels are fully populated.
     inspect_file = None
     if snap_date:
         candidate = parquet_dir / f"feature_matrix_{snap_date.isoformat()}.parquet"
         if candidate.exists():
             inspect_file = candidate
     if not inspect_file:
-        inspect_file = files[-1]
+        # Use a file ~60 days before the last file (well within label coverage)
+        sample_idx = max(0, len(files) - 65)
+        inspect_file = files[sample_idx]
 
     try:
         import pandas as pd
@@ -198,7 +202,12 @@ def inspect_walk_forward_metrics() -> None:
           f"{'AUC':>7} {'Brier':>7} {'Sharpe':>8} {'Rows':>8}")
     print("  " + "─" * 90)
 
-    rank_ics = []
+    # A fold needs at least 60 val dates to count toward the official WF mean.
+    # Short folds (e.g. partial current year) are shown but flagged as partial.
+    MIN_OFFICIAL_VAL_DATES = 60
+
+    rank_ics_official = []   # >= 60 val dates — used for WF mean IC
+    rank_ics_partial  = []   # < 60 val dates — shown but excluded from mean
     aucs = []
     briers = []
 
@@ -209,35 +218,54 @@ def inspect_walk_forward_metrics() -> None:
         auc = r[6]
         bri = r[7]
         shr = r[8]
-        vr  = r[10]
+        vr  = r[10]   # val_rows
 
+        # Estimate val_dates: val_rows / ~183 tickers ≈ trading days
+        est_val_dates = int(vr / 183) if vr else 0
+        is_partial = est_val_dates < MIN_OFFICIAL_VAL_DATES
+
+        tag = " [partial]" if is_partial else ""
         if ic is not None:
-            rank_ics.append(ic)
-        if auc is not None:
+            if is_partial:
+                rank_ics_partial.append(ic)
+            else:
+                rank_ics_official.append(ic)
+        if auc is not None and not is_partial:
             aucs.append(auc)
-        if bri is not None:
+        if bri is not None and not is_partial:
             briers.append(bri)
 
         print(f"  {model:<28} {window:<24} {fmt(ic):>8} "
-              f"{fmt(auc):>7} {fmt(bri):>7} {fmt(shr):>8} {str(vr or '—'):>8}")
+              f"{fmt(auc):>7} {fmt(bri):>7} {fmt(shr):>8} {str(vr or '—'):>8}{tag}")
 
-    if rank_ics:
+    if rank_ics_official or rank_ics_partial:
         import statistics
+        all_ics = rank_ics_official + rank_ics_partial
         print()
-        print(f"  Summary across {len(rank_ics)} fold(s):")
-        print(f"    Mean Rank IC:   {statistics.mean(rank_ics):.4f}  "
-              f"(std={statistics.stdev(rank_ics):.4f})"
-              if len(rank_ics) > 1 else f"    Rank IC:        {rank_ics[0]:.4f}")
+        n_off = len(rank_ics_official)
+        n_par = len(rank_ics_partial)
+        if n_par:
+            print(f"  Note: {n_par} partial fold(s) (<{MIN_OFFICIAL_VAL_DATES} val dates) excluded from official mean.")
+        if rank_ics_official:
+            print(f"  Official summary ({n_off} full fold(s)):")
+            mean_off = statistics.mean(rank_ics_official)
+            print(f"    WF Mean Rank IC: {mean_off:.4f}  "
+                  f"(std={statistics.stdev(rank_ics_official):.4f})"
+                  if n_off > 1 else f"    WF Rank IC:      {rank_ics_official[0]:.4f}")
+        if rank_ics_partial:
+            print(f"  Partial fold(s) IC (live, excluded from mean): "
+                  + ", ".join(f"{v:.4f}" for v in rank_ics_partial))
         if aucs:
-            print(f"    Mean AUC:       {statistics.mean(aucs):.4f}")
+            print(f"    Mean AUC (full folds): {statistics.mean(aucs):.4f}")
         if briers:
-            print(f"    Mean Brier:     {statistics.mean(briers):.4f}  "
+            print(f"    Mean Brier (full):     {statistics.mean(briers):.4f}  "
                   f"(baseline=0.25)")
 
         # Interpretation guide
         print()
         print("  Interpretation:")
-        mean_ic = statistics.mean(rank_ics) if rank_ics else 0
+        mean_ic = statistics.mean(rank_ics_official) if rank_ics_official else (
+                  statistics.mean(all_ics) if all_ics else 0)
         if mean_ic > 0.04:
             print("    ✓ Rank IC > 0.04 — meaningful signal for equities")
         elif mean_ic > 0.02:

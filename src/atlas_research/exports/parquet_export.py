@@ -205,7 +205,10 @@ def run_parquet_export(
 
     try:
         labels_df = repository.get_labels(snap_date)
-    except Exception:
+        if labels_df is not None and labels_df.empty:
+            log.debug("parquet.no_labels_for_date", date=str(snap_date))
+    except Exception as exc:
+        log.warning("parquet.labels_load_error", date=str(snap_date), error=str(exc))
         labels_df = None
 
     matrix = build_feature_matrix(

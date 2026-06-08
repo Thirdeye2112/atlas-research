@@ -61,7 +61,8 @@ def _build_labels_for_ticker(ticker: str, as_of: date) -> int:
 
     bars = bars.sort_values("date").reset_index(drop=True)
     prices = bars["adjusted_close"].values
-    dates  = bars["date"].dt.date.tolist()
+    # bars["date"] contains plain Python date objects (get_bars no longer uses pd.to_datetime)
+    dates  = bars["date"].tolist()
     highs  = bars["high"].values
     lows   = bars["low"].values
     n      = len(bars)

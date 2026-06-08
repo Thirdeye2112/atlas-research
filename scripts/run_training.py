@@ -81,10 +81,20 @@ def main() -> None:
         datetime.strptime(args.end, "%Y-%m-%d").date() if args.end
         else today
     )
-    start_date = (
-        datetime.strptime(args.start, "%Y-%m-%d").date() if args.start
-        else today.replace(year=today.year - settings.BACKFILL_YEARS)
-    )
+    if args.start:
+        start_date = datetime.strptime(args.start, "%Y-%m-%d").date()
+    else:
+        # Detect actual parquet data start instead of using BACKFILL_YEARS.
+        # BACKFILL_YEARS=15 would set data_start to 2011, but parquet files
+        # only exist from 2019. Using BACKFILL_YEARS causes folds 1-5 to skip.
+        parquet_files = sorted(settings.PARQUET_OUTPUT_DIR.glob("feature_matrix_*.parquet"))
+        if parquet_files:
+            # Parse date from filename: feature_matrix_YYYY-MM-DD.parquet
+            first_name = parquet_files[0].stem  # e.g. "feature_matrix_2019-01-23"
+            start_date = date.fromisoformat(first_name.replace("feature_matrix_", ""))
+            log.info("run_training.parquet_start_detected", start=str(start_date))
+        else:
+            start_date = today.replace(year=today.year - settings.BACKFILL_YEARS)
 
     # ── Baseline or walk-forward ──────────────────────────────
     if args.baseline:

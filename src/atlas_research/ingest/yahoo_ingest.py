@@ -85,10 +85,22 @@ def _process_batch(
     try:
         raw_df = _download_batch(tickers, start_date, yf_end_date)
     except Exception as exc:
+        log.warning("ingest.download_failed", error=str(exc))
         return 0, [(t, str(exc)) for t in tickers]
 
     if raw_df is None or raw_df.empty:
+        log.warning("ingest.empty_download", tickers=tickers[:3])
         return 0, [(t, "no data returned") for t in tickers]
+
+    # Diagnostic: log the raw DataFrame shape and column structure once per batch
+    log.info(
+        "ingest.batch_downloaded",
+        shape=str(raw_df.shape),
+        is_multiindex=isinstance(raw_df.columns, pd.MultiIndex),
+        col_levels=raw_df.columns.nlevels if isinstance(raw_df.columns, pd.MultiIndex) else 1,
+        col_sample=str(list(raw_df.columns[:6])),
+        tickers_in_batch=len(tickers),
+    )
 
     total = 0
     failed = []
@@ -96,12 +108,24 @@ def _process_batch(
         try:
             rows = _extract_ticker_rows(ticker, raw_df)
             if rows:
-                repository.upsert_bars(rows)
+                n = repository.upsert_bars(rows)
                 total += len(rows)
+                log.debug(
+                    "ingest.ticker_ok",
+                    ticker=ticker,
+                    rows=len(rows),
+                    sample_date=str(rows[0]["date"]),
+                    sample_adj_close=rows[0]["adjusted_close"],
+                )
             else:
+                log.warning("ingest.no_rows", ticker=ticker,
+                            df_shape=str(raw_df.shape),
+                            col_sample=str(list(raw_df.columns[:6])))
                 failed.append((ticker, "no rows extracted"))
         except Exception as exc:
-            log.warning("ingest.ticker_error", ticker=ticker, error=str(exc))
+            import traceback
+            log.warning("ingest.ticker_error", ticker=ticker, error=str(exc),
+                        traceback=traceback.format_exc()[-500:])
             failed.append((ticker, str(exc)))
 
     return total, failed
@@ -119,35 +143,59 @@ def _download_batch(tickers: list[str], start: date, end: date) -> pd.DataFrame:
         start=str(start),
         end=str(end),
         interval="1d",
-        auto_adjust=True,   # Close == adjusted_close
+        auto_adjust=False,  # keeps separate Adj Close; we read it explicitly below
         actions=False,
         group_by="ticker",
-        threads=True,
         progress=False,
-        show_errors=False,
     )
 
 
 def _extract_ticker_rows(ticker: str, raw_df: pd.DataFrame) -> list[dict]:
-    """Pull one ticker's bars out of the batch download DataFrame."""
+    """Pull one ticker's bars out of the batch download DataFrame.
+
+    MultiIndex flattening — exact steps in order:
+      1. If ticker in level 0 values → xs(ticker, level=0, axis=1)
+         Elif ticker in level 1 values → xs(ticker, level=1, axis=1)
+         Else → ticker not in this DataFrame, return []
+      2. After xs(), if columns are still MultiIndex → get_level_values(0)
+      3. Lowercase all column names
+      4. Map adj close / adjclose / adjusted close → adjusted_close
+    """
+    df: pd.DataFrame | None = None
+
     if isinstance(raw_df.columns, pd.MultiIndex):
-        try:
+        level0_vals = raw_df.columns.get_level_values(0)
+        level1_vals = raw_df.columns.get_level_values(1)
+
+        if ticker in level0_vals:
+            df = raw_df.xs(ticker, axis=1, level=0).copy()
+        elif ticker in level1_vals:
             df = raw_df.xs(ticker, axis=1, level=1).copy()
-        except KeyError:
+        else:
             return []
     else:
         df = raw_df.copy()
 
-    if df.empty:
+    if df is None or df.empty:
         return []
 
-    df.columns = [c.lower().replace(" ", "_") for c in df.columns]
+    # Step 2: flatten any residual MultiIndex left by xs()
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
 
-    # auto_adjust=True → Close is adjusted; no separate Adj Close column
-    if "close" not in df.columns:
+    # Step 3: lowercase
+    df.columns = [str(c).lower() for c in df.columns]
+
+    # Step 4: normalise adjusted-close column name
+    _adj_aliases = ["adj close", "adjclose", "adjusted close"]
+    adj_col = next((a for a in _adj_aliases if a in df.columns), None)
+
+    if adj_col is None and "close" not in df.columns:
+        log.warning("ingest.missing_close_col", ticker=ticker, cols=list(df.columns))
         return []
 
-    df = df.dropna(subset=["close"])
+    subset = adj_col if adj_col else "close"
+    df = df.dropna(subset=[subset])
     if df.empty:
         return []
 
@@ -155,15 +203,15 @@ def _extract_ticker_rows(ticker: str, raw_df: pd.DataFrame) -> list[dict]:
     for idx, row in df.iterrows():
         bar_date = idx.date() if hasattr(idx, "date") else idx
         rows.append({
-            "ticker": ticker,
-            "date": bar_date,
-            "open": _f(row.get("open")),
-            "high": _f(row.get("high")),
-            "low": _f(row.get("low")),
-            "close": _f(row.get("close")),
-            "adjusted_close": _f(row.get("close")),  # same when auto_adjust=True
-            "volume": _i(row.get("volume")),
-            "source": "yahoo",
+            "ticker":         ticker,
+            "date":           bar_date,
+            "open":           _f(row.get("open")),
+            "high":           _f(row.get("high")),
+            "low":            _f(row.get("low")),
+            "close":          _f(row.get("close")),
+            "adjusted_close": _f(row.get(adj_col)) if adj_col else _f(row.get("close")),
+            "volume":         _i(row.get("volume")),
+            "source":         "yahoo",
         })
     return rows
 

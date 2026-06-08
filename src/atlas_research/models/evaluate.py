@@ -35,6 +35,7 @@ import math
 
 import numpy as np
 import pandas as pd
+import warnings
 from scipy import stats
 
 
@@ -197,8 +198,12 @@ def cross_sectional_ic(
     for _, group in df.groupby(date_col):
         if len(group) < 3:
             continue
-        corr, _ = stats.spearmanr(group[pred_col], group[true_col])
-        if not math.isnan(corr):
+        if group[pred_col].nunique() < 2 or group[true_col].nunique() < 2:
+            continue
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            corr, _ = stats.spearmanr(group[pred_col], group[true_col])
+        if corr is not None and not math.isnan(corr):
             ic_values.append(corr)
 
     if not ic_values:
@@ -249,8 +254,14 @@ def feature_ic_report(
         for _, group in feat_df.groupby(date_col):
             if len(group) < 3:
                 continue
-            corr, _ = stats.spearmanr(group[feat], group[target_col])
-            if not math.isnan(corr):
+            # Constant column → spearmanr returns NaN with a ConstantInputWarning;
+            # suppress it and skip the NaN result cleanly.
+            if group[feat].nunique() < 2 or group[target_col].nunique() < 2:
+                continue
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                corr, _ = stats.spearmanr(group[feat], group[target_col])
+            if corr is not None and not math.isnan(corr):
                 ic_vals.append(corr)
 
         if not ic_vals:
