@@ -1,7 +1,7 @@
 p = r'src\atlas_research\db\repository.py'
 c = open(p).read()
 
-old1 = 'import json as _json\n    hyperparams = record.get("hyperparams")\n    fold_metrics = record.get("fold_metrics")'
+old1 = 'import json as _json\n\n    hyperparams = record.get("hyperparams")\n    fold_metrics = record.get("fold_metrics")'
 new1 = '''import json as _json
     import math as _math
     hyperparams = record.get("hyperparams")
