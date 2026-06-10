@@ -51,4 +51,4 @@ SELECT
     MAX(signal_date)                                AS last_signal
 FROM pattern_signals
 GROUP BY pattern_name, direction
-ORDER BY ABS(mean_fwd_5d) DESC NULLS LAST;
+ORDER BY ABS(ROUND(AVG(fwd_return_5d)::numeric, 6)) DESC NULLS LAST;
