@@ -1,6 +1,6 @@
-#!/usr/bin/env python
+﻿#!/usr/bin/env python
 """
-run_nightly.py — nightly pipeline entry point.
+run_nightly.py â€” nightly pipeline entry point.
 
 Called by cron, systemd, or manually.  Runs the full nightly pipeline
 for today's date (or a specified date).
@@ -63,12 +63,12 @@ def main() -> None:
         skip_ingest=args.skip_ingest,
         skip_features=args.skip_features,
         skip_labels=args.skip_labels,
-        skip_export=args.skip_export,
+        skip_json_export=args.skip_export,
         triggered_by="cli",
     )
 
     status = result["status"]
-    print(f"\nRun {result['run_id']} — {status}")
+    print(f"\nRun {result['run_id']} â€” {status}")
     print(f"  Date:     {result['date']}")
     print(f"  Tickers:  {result['tickers_processed']}")
     print(f"  Bars:     {result['bars_inserted']}")
@@ -80,3 +80,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
