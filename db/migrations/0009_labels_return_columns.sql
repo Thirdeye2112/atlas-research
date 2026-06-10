@@ -1,11 +1,4 @@
-﻿-- =============================================================
--- Migration 0009: Add return columns to labels table
--- The labels table was created by migration 0002 with
--- label_return_5d naming convention, but repository.py and
--- inspect_results.py use return_5d (without label_ prefix).
--- =============================================================
-
-ALTER TABLE labels
+﻿ALTER TABLE labels
     ADD COLUMN IF NOT EXISTS return_1d          DOUBLE PRECISION,
     ADD COLUMN IF NOT EXISTS return_5d          DOUBLE PRECISION,
     ADD COLUMN IF NOT EXISTS return_10d         DOUBLE PRECISION,
