@@ -13,9 +13,11 @@ import statistics
 from dataclasses import dataclass
 from typing import Any
 
+import numpy as np
 from sqlalchemy import text
 
 from atlas_research.db.connection import get_raw_engine
+from atlas_research.features import omni_proxy
 
 
 # ── Data classes ──────────────────────────────────────────────────────────────
@@ -158,16 +160,206 @@ def _eval_high_volume(bars: list[Bar], params: dict) -> list[int]:
     return hits
 
 
+def _eval_nr7(bars: list[Bar], params: dict) -> list[int]:
+    lookback = int(params.get("lookback", 7))
+    hits = []
+    for i in range(lookback - 1, len(bars)):
+        today_range = bars[i].high - bars[i].low
+        if today_range <= 0:
+            continue
+        prior_ranges = [bars[i - k].high - bars[i - k].low for k in range(1, lookback)]
+        if all(today_range < r for r in prior_ranges):
+            hits.append(i)
+    return hits
+
+
+def _eval_breakout_52w_high(bars: list[Bar], params: dict) -> list[int]:
+    lookback = min(252, len(bars))
+    hits = []
+    for i in range(lookback, len(bars)):
+        prior_high = max(b.high for b in bars[i - lookback: i])
+        if bars[i].close > prior_high:
+            hits.append(i)
+    return hits
+
+
+def _eval_volume_climax_down(bars: list[Bar], params: dict) -> list[int]:
+    multiplier = float(params.get("multiplier", 2.0))
+    lookback = int(params.get("lookback", 20))
+    hits = []
+    for i in range(lookback, len(bars)):
+        avg_vol = sum(b.volume for b in bars[i - lookback: i]) / lookback
+        if avg_vol > 0 and bars[i].volume >= multiplier * avg_vol and bars[i].close < bars[i].open:
+            hits.append(i)
+    return hits
+
+
+def _eval_volume_climax_up(bars: list[Bar], params: dict) -> list[int]:
+    multiplier = float(params.get("multiplier", 2.0))
+    lookback = int(params.get("lookback", 20))
+    hits = []
+    for i in range(lookback, len(bars)):
+        avg_vol = sum(b.volume for b in bars[i - lookback: i]) / lookback
+        if avg_vol > 0 and bars[i].volume >= multiplier * avg_vol and bars[i].close > bars[i].open:
+            hits.append(i)
+    return hits
+
+
+def _eval_above_level(bars: list[Bar], params: dict) -> list[int]:
+    threshold = float(params.get("threshold", 30.0))
+    return [i for i, b in enumerate(bars) if b.close > threshold]
+
+
+def _sma(closes: list[float], period: int, end_idx: int) -> float | None:
+    if end_idx < period:
+        return None
+    window = closes[end_idx - period: end_idx]
+    return sum(window) / period
+
+
+def _eval_below_sma(bars: list[Bar], params: dict) -> list[int]:
+    period = int(params.get("period", 200))
+    closes = [b.close for b in bars]
+    hits = []
+    for i in range(period, len(bars)):
+        sma = _sma(closes, period, i)
+        if sma is not None and bars[i].close < sma:
+            hits.append(i)
+    return hits
+
+
+def _eval_above_sma(bars: list[Bar], params: dict) -> list[int]:
+    period = int(params.get("period", 50))
+    closes = [b.close for b in bars]
+    hits = []
+    for i in range(period, len(bars)):
+        sma = _sma(closes, period, i)
+        if sma is not None and bars[i].close > sma:
+            hits.append(i)
+    return hits
+
+
+def _eval_end_of_month(bars: list[Bar], params: dict) -> list[int]:
+    n = int(params.get("n_days", 3))
+    hits = []
+    # Group bar indices by year-month
+    from collections import defaultdict
+    month_groups: dict[str, list[int]] = defaultdict(list)
+    for i, b in enumerate(bars):
+        ym = b.date[:7]  # "YYYY-MM"
+        month_groups[ym].append(i)
+    for indices in month_groups.values():
+        for idx in indices[-n:]:
+            hits.append(idx)
+    return sorted(hits)
+
+
+def _eval_turn_of_month(bars: list[Bar], params: dict) -> list[int]:
+    n = int(params.get("n_days", 3))
+    hits = []
+    from collections import defaultdict
+    month_groups: dict[str, list[int]] = defaultdict(list)
+    for i, b in enumerate(bars):
+        ym = b.date[:7]
+        month_groups[ym].append(i)
+    for indices in month_groups.values():
+        for idx in indices[:n]:
+            hits.append(idx)
+    return sorted(hits)
+
+
+def _eval_day_of_week(bars: list[Bar], params: dict) -> list[int]:
+    import datetime
+    weekday = int(params.get("weekday", 0))  # 0=Mon, 4=Fri
+    hits = []
+    for i, b in enumerate(bars):
+        try:
+            d = datetime.date.fromisoformat(b.date[:10])
+            if d.weekday() == weekday:
+                hits.append(i)
+        except ValueError:
+            pass
+    return hits
+
+
+def _bars_to_arrays(bars: list[Bar]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    close = np.array([b.close for b in bars], dtype=np.float64)
+    high  = np.array([b.high  for b in bars], dtype=np.float64)
+    low   = np.array([b.low   for b in bars], dtype=np.float64)
+    return close, high, low
+
+
+def _eval_omni_cross_up(bars: list[Bar], params: dict) -> list[int]:
+    period = int(params.get("period", 87))
+    close, _, _ = _bars_to_arrays(bars)
+    return omni_proxy.omni_cross_up_indices(close, period)
+
+
+def _eval_omni_cross_down(bars: list[Bar], params: dict) -> list[int]:
+    period = int(params.get("period", 87))
+    close, _, _ = _bars_to_arrays(bars)
+    return omni_proxy.omni_cross_down_indices(close, period)
+
+
+def _eval_omni_green_nd(bars: list[Bar], params: dict) -> list[int]:
+    period = int(params.get("period", 87))
+    n_days = int(params.get("n_days", 3))
+    close, _, _ = _bars_to_arrays(bars)
+    return omni_proxy.omni_above_nd_indices(close, period, n_days)
+
+
+def _eval_omni_red_nd(bars: list[Bar], params: dict) -> list[int]:
+    period = int(params.get("period", 87))
+    n_days = int(params.get("n_days", 3))
+    close, _, _ = _bars_to_arrays(bars)
+    return omni_proxy.omni_below_nd_indices(close, period, n_days)
+
+
+def _eval_oscar_cross_up(bars: list[Bar], params: dict) -> list[int]:
+    period = int(params.get("period", 87))
+    close, high, low = _bars_to_arrays(bars)
+    return omni_proxy.oscar_cross_up_indices(high, low, close, period)
+
+
+def _eval_oscar_cross_down(bars: list[Bar], params: dict) -> list[int]:
+    period = int(params.get("period", 87))
+    close, high, low = _bars_to_arrays(bars)
+    return omni_proxy.oscar_cross_down_indices(high, low, close, period)
+
+
+def _eval_oscar_above_50(bars: list[Bar], params: dict) -> list[int]:
+    period = int(params.get("period", 87))
+    close, high, low = _bars_to_arrays(bars)
+    return omni_proxy.oscar_above_50_indices(high, low, close, period)
+
+
 _EVALUATORS = {
-    "consecutive_down": _eval_consecutive_down,
-    "consecutive_up":   _eval_consecutive_up,
-    "oversold_rsi":     _eval_oversold_rsi,
-    "overbought_rsi":   _eval_overbought_rsi,
-    "gap_down":         _eval_gap_down,
-    "gap_up":           _eval_gap_up,
-    "near_52w_low":     _eval_near_52w_low,
-    "near_52w_high":    _eval_near_52w_high,
-    "high_volume":      _eval_high_volume,
+    "consecutive_down":  _eval_consecutive_down,
+    "consecutive_up":    _eval_consecutive_up,
+    "oversold_rsi":      _eval_oversold_rsi,
+    "overbought_rsi":    _eval_overbought_rsi,
+    "gap_down":          _eval_gap_down,
+    "gap_up":            _eval_gap_up,
+    "near_52w_low":      _eval_near_52w_low,
+    "near_52w_high":     _eval_near_52w_high,
+    "high_volume":       _eval_high_volume,
+    "nr7":               _eval_nr7,
+    "breakout_52w_high": _eval_breakout_52w_high,
+    "volume_climax_down":_eval_volume_climax_down,
+    "volume_climax_up":  _eval_volume_climax_up,
+    "above_level":       _eval_above_level,
+    "below_sma":         _eval_below_sma,
+    "above_sma":         _eval_above_sma,
+    "end_of_month":      _eval_end_of_month,
+    "turn_of_month":     _eval_turn_of_month,
+    "day_of_week":       _eval_day_of_week,
+    "omni_cross_up":     _eval_omni_cross_up,
+    "omni_cross_down":   _eval_omni_cross_down,
+    "omni_green_nd":     _eval_omni_green_nd,
+    "omni_red_nd":       _eval_omni_red_nd,
+    "oscar_cross_up":    _eval_oscar_cross_up,
+    "oscar_cross_down":  _eval_oscar_cross_down,
+    "oscar_above_50":    _eval_oscar_above_50,
 }
 
 

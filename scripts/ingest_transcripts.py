@@ -82,53 +82,82 @@ class Hypothesis:
 
 # ── Text cleaning ─────────────────────────────────────────────────────────────
 
-# Match YouTube VTT timestamp tags: <00:01:23.456> and <c>...</c>
-_TS_TAG = re.compile(r"<\d{2}:\d{2}:\d{2}\.\d+>|</?c>")
+# YouTube VTT timestamp tag pattern
+_TS_TAG = re.compile(r"<\d{2}:\d{2}:\d{2}\.\d+>")
+# Words tagged as newly-added to the display in each VTT cue
+_C_WORD_RE = re.compile(r"<c>\s*([^<]+?)\s*</c>")
 # "Kind: captions Language: en" header line
 _KIND_HDR = re.compile(r"^Kind:\s+captions\s+Language:\s+\w+\s*", re.MULTILINE)
 
 
 def _clean_text(raw: str) -> str:
-    """Strip YouTube VTT artifacts and de-duplicate triple-repetition phrases."""
-    # Remove header
+    """
+    Strip YouTube VTT rolling-window artifact.
+
+    YouTube auto-captions render by prepending the full current display window
+    before each new <c>word</c>. Naively concatenating lines produces:
+        "A B C  A B C D  A B C D E"  (every phrase repeated 2-3×)
+
+    Fix: collect only the <c>-tagged words (uniquely-new per cue) plus the
+    initial untagged prefix of the first cue. This gives clean non-repeated text.
+    Falls back to word-level dedup when no <c> tags are present.
+    """
     text = _KIND_HDR.sub("", raw)
-    # Remove timestamp tags
-    text = _TS_TAG.sub("", text)
-    # Each caption line appears 3× due to VTT rendering artifact.
-    # Strategy: split into sentences by period/newline, de-duplicate consecutive repeats.
-    lines = text.split("\n")
-    deduped = []
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-        # Remove if identical to last N lines (VTT triple-repeat)
-        if deduped and deduped[-1] == line:
-            continue
-        # Also strip lines that are exact suffix of previous (partial repeat)
-        if deduped and len(line) > 10 and deduped[-1].endswith(line):
-            continue
-        deduped.append(line)
+    c_words = _C_WORD_RE.findall(text)
 
-    # Join and do a second pass: remove runs of identical sentences
-    joined = " ".join(deduped)
-    # Collapse multiple spaces
-    joined = re.sub(r"\s{2,}", " ", joined)
-    # Remove repeated adjacent phrases (3+ word sequences repeated within 200 chars)
-    joined = _dedup_phrases(joined)
-    return joined.strip()
+    if c_words:
+        # Primary path: extract <c> tokens (one new word/phrase per cue)
+        words: list[str] = []
+
+        # Initial untagged prefix (text before the first timestamp or <c> tag)
+        init_match = re.match(r"^([^<]+)", text.strip())
+        if init_match:
+            init_text = _TS_TAG.sub("", init_match.group(1))
+            prev_key: str | None = None
+            for w in init_text.split():
+                key = w.lower().strip(",.!?;:'\"")
+                if key and key != prev_key:
+                    words.append(w)
+                    prev_key = key
+
+        words.extend(w.strip() for w in c_words if w.strip())
+        result = " ".join(words)
+    else:
+        # Fallback for segments without <c> tags
+        clean = _TS_TAG.sub("", text)
+        clean = re.sub(r"</?c>", "", clean)
+        clean = re.sub(r"\s{2,}", " ", clean).strip()
+        result = _dedup_word_sequences(clean)
+
+    return re.sub(r"\s{2,}", " ", result).strip()
 
 
-def _dedup_phrases(text: str) -> str:
-    """Remove immediately repeated short phrases (VTT artifact)."""
-    # Match a phrase of 3+ words repeated 2-3 times in a row
-    pattern = re.compile(r"\b((?:\w+\s+){2,10}\w+)\s+\1(\s+\1)?", re.IGNORECASE)
-    for _ in range(5):
-        new = pattern.sub(r"\1", text)
-        if new == text:
-            break
-        text = new
-    return text
+def _dedup_word_sequences(text: str, min_len: int = 5) -> str:
+    """
+    Fallback word-level dedup for non-VTT segments.
+    Removes immediately-repeated sequences of min_len+ words.
+    """
+    words = text.split()
+    n = len(words)
+    out: list[str] = []
+    i = 0
+    while i < n:
+        matched = False
+        max_seq = min(30, (n - i) // 2)
+        for seq_len in range(max_seq, min_len - 1, -1):
+            if tuple(words[i:i + seq_len]) == tuple(words[i + seq_len:i + 2 * seq_len]):
+                out.extend(words[i:i + seq_len])
+                skip = i + seq_len
+                seq_tuple = tuple(words[i:i + seq_len])
+                while skip + seq_len <= n and tuple(words[skip:skip + seq_len]) == seq_tuple:
+                    skip += seq_len
+                i = skip
+                matched = True
+                break
+        if not matched:
+            out.append(words[i])
+            i += 1
+    return " ".join(out)
 
 
 # ── Video session parsing ─────────────────────────────────────────────────────
@@ -247,26 +276,80 @@ A testable claim must have:
 
 Return ONLY a JSON array of hypothesis objects. Return [] if no testable claims are found.
 
+── SECTOR AND TICKER MAPPING ──────────────────────────────────────────────────
+Translate Oscar's language to tradeable symbols:
+
+Sectors → ETFs:
+  "tech" / "technology" / "semiconductors" → XLK
+  "financials" / "banks" / "finance"        → XLF
+  "energy" / "oil" / "crude oil"            → XLE
+  "healthcare" / "health" / "biotech"       → XLV
+  "industrials" / "industrial"              → XLI
+  "consumer staples" / "staples"            → XLP
+  "utilities"                               → XLU
+  "consumer discretionary" / "retail"       → XLY
+  "materials" / "commodities" / "copper"    → XLB
+  "real estate" / "REIT"                    → XLRE
+  "communication" / "media" / "telecom"     → XLC
+  "gold" / "precious metals"               → GLD
+  "bonds" / "treasuries" / "fixed income"  → TLT
+  "small caps" / "Russell"                 → IWM
+  "Nasdaq" / "QQQ" / "tech-heavy"          → QQQ
+  "Dow" / "blue chips" / "DJIA"            → DIA
+  "S&P" / "SPY" / "the market"             → SPY
+  "VIX" / "volatility" / "fear index"      → VIX
+
+Named stocks (AAPL, NVDA, TSLA, etc.) → use ticker directly.
+
+── CONDITION TYPES ────────────────────────────────────────────────────────────
+Standard:
+  "consecutive_down"  — N days closing lower
+  "consecutive_up"    — N days closing higher
+  "oversold_rsi"      — RSI below threshold
+  "overbought_rsi"    — RSI above threshold
+  "gap_down"          — gap-down open > pct%
+  "gap_up"            — gap-up open > pct%
+  "near_52w_low"      — within pct% of 52-week low
+  "near_52w_high"     — within pct% of 52-week high
+  "high_volume"       — volume > N× 20-day avg
+  "above_level"       — price / index above absolute threshold (use for VIX > 30)
+  "below_sma"         — price below N-day moving average (use for "below 200-day")
+  "above_sma"         — price above N-day moving average
+
+Macro/seasonal:
+  "seasonal"          — time-of-year pattern (end_of_month, january_first_week, Q4)
+  "fed_event"         — pattern around Fed meeting (pre_fomc, post_fomc)
+  "macro_event"       — CPI, jobs, earnings-related
+  "sector_rotation"   — money flowing from one sector to another
+
+── TIME-BASED PARAMETERS ──────────────────────────────────────────────────────
+  "end of month"           → condition_type: "seasonal", params: {"period": "end_of_month"}
+  "first week of year"     → condition_type: "seasonal", params: {"period": "january_first_week"}
+  "before Fed meeting"     → condition_type: "fed_event",  params: {"timing": "pre_fomc"}
+  "after CPI"              → condition_type: "macro_event", params: {"event": "cpi_release"}
+  "Q4" / "fourth quarter"  → condition_type: "seasonal",  params: {"quarter": 4}
+
+── FIELD SCHEMA ───────────────────────────────────────────────────────────────
 Each object must have exactly these fields:
 {
   "extracted_claim": "Plain English description of the testable hypothesis",
-  "market_object": "SPY" | "QQQ" | "AAPL" | "universe" | null,
-  "condition": "consecutive_down" | "consecutive_up" | "oversold_rsi" | "overbought_rsi" | "gap_down" | "gap_up" | "near_52w_low" | "near_52w_high" | "high_volume" | "price_above_ma" | "price_below_ma" | "earnings_beat" | "other",
-  "condition_params": {"n_days": 3} | {"threshold": 30} | {"period": 50} | {} | null,
+  "market_object": "SPY" | "QQQ" | "XLK" | "VIX" | "AAPL" | "universe" | null,
+  "condition": one of the condition type strings above,
+  "condition_params": {"n_days": 3} | {"threshold": 30} | {"period": 200} | {"period": "end_of_month"} | {} | null,
   "target": "forward_return_1d" | "forward_return_5d" | "forward_return_10d" | "forward_return_20d",
   "horizons": [5] | [1, 5] | [5, 10] | [10, 20] | [1],
   "direction": "mean_reversion_long" | "momentum_long" | "momentum_short" | "mean_reversion_short" | "neutral",
   "regime_filter": "bull_only" | "bear_only" | null,
-  "sector_filter": "technology" | "energy" | "healthcare" | null,
-  "confidence_prior": 0.3-0.9 (float, how confidently the educator asserts this),
-  "source_text": "verbatim quote (max 200 chars) that generated this claim"
+  "sector_filter": "XLK" | "XLE" | "XLF" | null,
+  "confidence_prior": 0.3-0.9 (float),
+  "source_text": "verbatim quote max 200 chars"
 }
 
-confidence_prior guidelines:
-- 0.8-0.9: Educator explicitly states a specific rule they trade by (e.g., "When SPY drops 5 days in a row, I always buy")
-- 0.6-0.7: Clear directional assertion with reasoning (e.g., "This pattern usually leads to a bounce")
-- 0.4-0.5: Suggestive observation (e.g., "tends to", "often", "historically")
-- 0.3: Vague or anecdotal (e.g., "sometimes", "might")"""
+── CONFIDENCE GUIDELINES ──────────────────────────────────────────────────────
+  0.8-0.9: Educator states a specific rule they trade by ("When SPY drops 5 days, I always buy")
+  0.6-0.7: Clear directional assertion with reasoning ("usually leads to a bounce")
+  0.4-0.5: Suggestive observation ("tends to", "often", "historically")
+  0.3:     Vague or anecdotal ("sometimes", "might")"""
 
 
 def extract_hypotheses(
@@ -337,8 +420,9 @@ Extract all testable market hypotheses. Return JSON array only."""
 
 # ── Database operations ───────────────────────────────────────────────────────
 
-def make_source_id(video_id: str) -> str:
-    return hashlib.sha256(f"carboni:{video_id}".encode()).hexdigest()[:32]
+def make_source_id(raw_title: str) -> str:
+    """Hash the full raw title line — unique per video, no collision from shared tokens."""
+    return hashlib.sha256(f"carboni:{raw_title}".encode()).hexdigest()[:32]
 
 
 def upsert_source(conn, session: VideoSession, source_id: str, chunk_count: int):
@@ -425,13 +509,16 @@ def run_ingestion(
     max_videos: int = 50,
     start_from: int = 0,
     dry_run: bool = False,
+    skip_extract: bool = False,
 ) -> dict:
     api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        print("ERROR: ANTHROPIC_API_KEY not set. Add it to atlas-research/.env")
-        sys.exit(1)
+    if not skip_extract and not dry_run:
+        if not api_key:
+            print("ERROR: ANTHROPIC_API_KEY not set. Add it to atlas-research/.env")
+            print("       Re-run with --skip-extract to ingest sources/chunks without hypothesis extraction.")
+            sys.exit(1)
 
-    client = anthropic.Anthropic(api_key=api_key)
+    client = anthropic.Anthropic(api_key=api_key or "sk-dummy") if not skip_extract and not dry_run else None
     engine = get_raw_engine()
 
     print(f"Reading transcript file...")
@@ -463,7 +550,7 @@ def run_ingestion(
             print("  Skipping (too short)")
             continue
 
-        source_id = make_source_id(session.video_id)
+        source_id = make_source_id(session.raw_title)
         chunks = chunk_session(session)
         print(f"  {len(chunks)} chunks")
 
@@ -479,13 +566,17 @@ def run_ingestion(
             upsert_source(conn, session, source_id, len(chunks))
 
         for chunk in chunks:
-            # Only call API for chunks with substantive content
             words_in_chunk = len(chunk.text.split())
             if words_in_chunk < 50:
                 continue
 
             with engine.begin() as conn:
                 chunk_id = upsert_chunk(conn, source_id, chunk)
+
+            stats["chunks_processed"] += 1
+
+            if skip_extract:
+                continue
 
             hyps = extract_hypotheses(client, session, chunk)
             stats["api_calls"] += 1
@@ -497,12 +588,12 @@ def run_ingestion(
                             session_hypotheses += 1
                             stats["hypotheses_extracted"] += 1
 
-            stats["chunks_processed"] += 1
-
             # Brief pause to respect rate limits
             time.sleep(0.2)
 
-        print(f"  → {session_hypotheses} hypotheses extracted")
+        action = "chunks stored" if skip_extract else "hypotheses extracted"
+        count = stats["chunks_processed"] if skip_extract else session_hypotheses
+        print(f"  → {session_hypotheses} hypotheses | {stats['chunks_processed']} chunks stored")
         stats["sessions_processed"] += 1
 
     return stats
@@ -547,7 +638,8 @@ def main():
     parser.add_argument("--max-videos", type=int, default=50, help="Max videos to process")
     parser.add_argument("--start-from", type=int, default=0, help="Start from video index N")
     parser.add_argument("--dry-run", action="store_true", help="Parse but don't call API or DB")
-    parser.add_argument("--show-only", action="store_true", help="Only show existing hypotheses")
+    parser.add_argument("--skip-extract", action="store_true", help="Write sources+chunks to DB, skip Claude extraction")
+    parser.add_argument("--show-only", "--show", action="store_true", help="Only show existing hypotheses")
     args = parser.parse_args()
 
     if args.show_only:
@@ -559,6 +651,7 @@ def main():
         max_videos=args.max_videos,
         start_from=args.start_from,
         dry_run=args.dry_run,
+        skip_extract=args.skip_extract,
     )
     elapsed = time.time() - t0
 

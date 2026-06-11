@@ -30,6 +30,7 @@ import pandas as pd
 
 from atlas_research.features import (
     momentum,
+    omni_proxy,
     regime,
     relative_strength,
     trend,
@@ -81,6 +82,7 @@ def build_features(
     features.update(momentum.compute(close))
     features.update(volatility.compute(close, high, low))
     features.update(volume.compute(close, vol))
+    features.update(omni_proxy.compute(close, high, low))
 
     # ── Relative strength + regime (require SPY) ─────────────
     if spy_bars is not None and len(spy_bars) >= MIN_BARS:
@@ -136,6 +138,7 @@ def build_features_from_arrays(
     features.update(momentum.compute(close))
     features.update(volatility.compute(close, high, low))
     features.update(volume.compute(close, vol))
+    features.update(omni_proxy.compute(close, high, low))
 
     if spy_close is not None and len(spy_close) >= MIN_BARS:
         min_len = min(len(close), len(spy_close))

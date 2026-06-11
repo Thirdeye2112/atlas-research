@@ -184,3 +184,11 @@ XLRE,Real Estate Select Sector SPDR,Sector ETF,,NYSE
 XLB,Materials Select Sector SPDR,Sector ETF,,NYSE
 XLU,Utilities Select Sector SPDR,Sector ETF,,NYSE
 XLC,Communication Services Select Sector SPDR,Sector ETF,,NYSE
+DIA,SPDR Dow Jones Industrial Average ETF,Benchmark,,NYSE
+GLD,SPDR Gold Shares,Commodity,,NYSE
+TLT,iShares 20+ Year Treasury Bond ETF,Fixed Income,,NASDAQ
+UUP,Invesco DB US Dollar Index Bullish Fund,Currency,,NYSE
+HYG,iShares iBoxx High Yield Corporate Bond ETF,Fixed Income,,NYSE
+LQD,iShares iBoxx Investment Grade Corporate Bond ETF,Fixed Income,,NYSE
+^VIX,CBOE Volatility Index,Volatility,,CBOE
+^TNX,CBOE 10-Year Treasury Note Yield,Rate,,CBOE
