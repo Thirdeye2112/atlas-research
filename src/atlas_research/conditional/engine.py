@@ -379,6 +379,182 @@ def _eval_ema_lows_green_slope(bars: list[Bar], params: dict) -> list[int]:
     return omni_proxy.ema_lows_green_slope_indices(low, close, period, slope_bars)
 
 
+# ── Calendar evaluators ───────────────────────────────────────────────────────
+# These query market_calendar for event dates. Results are module-level cached
+# so subsequent tickers in the same run don't re-query the DB.
+
+_calendar_cache: dict[str, set[str]] = {}
+
+
+def _load_calendar_dates(event_type: str, proximity_days: int = 0) -> set[str]:
+    import datetime
+    cache_key = f"{event_type}:{proximity_days}"
+    if cache_key in _calendar_cache:
+        return _calendar_cache[cache_key]
+    try:
+        with get_raw_engine().connect() as conn:
+            rows = conn.execute(text(
+                "SELECT date::text FROM market_calendar WHERE event_type = :et ORDER BY date"
+            ), {"et": event_type}).fetchall()
+    except Exception:
+        _calendar_cache[cache_key] = set()
+        return set()
+    if proximity_days == 0:
+        result: set[str] = {r[0] for r in rows}
+    else:
+        result = set()
+        for r in rows:
+            d = datetime.date.fromisoformat(r[0])
+            for off in range(-proximity_days, proximity_days + 1):
+                result.add((d + datetime.timedelta(days=off)).isoformat())
+    _calendar_cache[cache_key] = result
+    return result
+
+
+def _eval_fomc_proximity(bars: list[Bar], params: dict) -> list[int]:
+    proximity = int(params.get("proximity_days", 0))
+    fomc_dates = _load_calendar_dates("fomc_meeting", proximity_days=proximity)
+    return [i for i, b in enumerate(bars) if b.date[:10] in fomc_dates]
+
+
+def _eval_opex_week(bars: list[Bar], params: dict) -> list[int]:
+    import datetime
+    opex_dates = _load_calendar_dates("options_expiry")
+    opex_weeks: set[str] = set()
+    for ds in opex_dates:
+        d = datetime.date.fromisoformat(ds)
+        monday = d - datetime.timedelta(days=d.weekday())
+        opex_weeks.add(monday.isoformat())
+    hits = []
+    for i, b in enumerate(bars):
+        d = datetime.date.fromisoformat(b.date[:10])
+        monday = d - datetime.timedelta(days=d.weekday())
+        if monday.isoformat() in opex_weeks:
+            hits.append(i)
+    return hits
+
+
+def _eval_triple_witching_week(bars: list[Bar], params: dict) -> list[int]:
+    import datetime
+    tw_dates = _load_calendar_dates("triple_witching")
+    tw_weeks: set[str] = set()
+    for ds in tw_dates:
+        d = datetime.date.fromisoformat(ds)
+        monday = d - datetime.timedelta(days=d.weekday())
+        tw_weeks.add(monday.isoformat())
+    hits = []
+    for i, b in enumerate(bars):
+        d = datetime.date.fromisoformat(b.date[:10])
+        monday = d - datetime.timedelta(days=d.weekday())
+        if monday.isoformat() in tw_weeks:
+            hits.append(i)
+    return hits
+
+
+# ── Sector rotation evaluators ────────────────────────────────────────────────
+# Query sector_relative_strength once per sector ticker, cache results.
+
+_sector_rank_cache: dict[str, dict[str, int]] = {}
+_sector_rs20d_cache: dict[str, dict[str, float]] = {}
+
+
+def _load_sector_ranks(sector_ticker: str) -> dict[str, int]:
+    if sector_ticker in _sector_rank_cache:
+        return _sector_rank_cache[sector_ticker]
+    try:
+        with get_raw_engine().connect() as conn:
+            rows = conn.execute(text("""
+                SELECT date::text, rank_among_sectors
+                FROM sector_relative_strength
+                WHERE sector_ticker = :t AND rank_among_sectors IS NOT NULL
+                ORDER BY date
+            """), {"t": sector_ticker}).fetchall()
+    except Exception:
+        _sector_rank_cache[sector_ticker] = {}
+        return {}
+    result = {r[0]: int(r[1]) for r in rows}
+    _sector_rank_cache[sector_ticker] = result
+    return result
+
+
+def _load_sector_rs20d(sector_ticker: str) -> dict[str, float]:
+    if sector_ticker in _sector_rs20d_cache:
+        return _sector_rs20d_cache[sector_ticker]
+    try:
+        with get_raw_engine().connect() as conn:
+            rows = conn.execute(text("""
+                SELECT date::text, rs_vs_spy_20d
+                FROM sector_relative_strength
+                WHERE sector_ticker = :t AND rs_vs_spy_20d IS NOT NULL
+                ORDER BY date
+            """), {"t": sector_ticker}).fetchall()
+    except Exception:
+        _sector_rs20d_cache[sector_ticker] = {}
+        return {}
+    result = {r[0]: float(r[1]) for r in rows}
+    _sector_rs20d_cache[sector_ticker] = result
+    return result
+
+
+def _eval_sector_leading_nd(bars: list[Bar], params: dict) -> list[int]:
+    sector_ticker = str(params.get("sector_ticker", "XLV"))
+    rank_threshold = int(params.get("rank_threshold", 2))
+    n_days = int(params.get("n_days", 20))
+    rank_by_date = _load_sector_ranks(sector_ticker)
+    if not rank_by_date:
+        return []
+    hits = []
+    for i in range(n_days - 1, len(bars)):
+        if all(rank_by_date.get(bars[i - k].date[:10], 99) <= rank_threshold
+               for k in range(n_days)):
+            hits.append(i)
+    return hits
+
+
+def _eval_xly_vs_xlp(bars: list[Bar], params: dict) -> list[int]:
+    xly_rs = _load_sector_rs20d("XLY")
+    xlp_rs = _load_sector_rs20d("XLP")
+    if not xly_rs or not xlp_rs:
+        return []
+    hits = []
+    for i, b in enumerate(bars):
+        dt = b.date[:10]
+        if dt in xly_rs and dt in xlp_rs and xly_rs[dt] > xlp_rs[dt]:
+            hits.append(i)
+    return hits
+
+
+def _eval_iwm_vs_spy(bars: list[Bar], params: dict) -> list[int]:
+    outperform_pct = float(params.get("outperform_pct", 2.0)) / 100.0
+    n_days = int(params.get("n_days", 10))
+    try:
+        with get_raw_engine().connect() as conn:
+            iwm_rows = conn.execute(text(
+                "SELECT date::text, close FROM raw_bars WHERE ticker='IWM' ORDER BY date"
+            )).fetchall()
+            spy_rows = conn.execute(text(
+                "SELECT date::text, close FROM raw_bars WHERE ticker='SPY' ORDER BY date"
+            )).fetchall()
+    except Exception:
+        return []
+    iwm_close = {r[0]: float(r[1]) for r in iwm_rows}
+    spy_close = {r[0]: float(r[1]) for r in spy_rows}
+    dates_sorted = sorted(set(iwm_close) & set(spy_close))
+    date_idx = {d: i for i, d in enumerate(dates_sorted)}
+    iwm_arr = [iwm_close[d] for d in dates_sorted]
+    spy_arr = [spy_close[d] for d in dates_sorted]
+
+    # Find dates where IWM n_days return > SPY n_days return + outperform_pct
+    outperforming_dates: set[str] = set()
+    for j in range(n_days, len(dates_sorted)):
+        iwm_ret = (iwm_arr[j] - iwm_arr[j - n_days]) / iwm_arr[j - n_days]
+        spy_ret = (spy_arr[j] - spy_arr[j - n_days]) / spy_arr[j - n_days]
+        if iwm_ret - spy_ret >= outperform_pct:
+            outperforming_dates.add(dates_sorted[j])
+
+    return [i for i, b in enumerate(bars) if b.date[:10] in outperforming_dates]
+
+
 _EVALUATORS = {
     "consecutive_down":  _eval_consecutive_down,
     "consecutive_up":    _eval_consecutive_up,
@@ -413,6 +589,14 @@ _EVALUATORS = {
     "ema_lows_green_slope": _eval_ema_lows_green_slope,
     "hma_cross_up":         _eval_hma_cross_up,
     "hma_cross_down":       _eval_hma_cross_down,
+    # Calendar evaluators
+    "fomc_proximity":        _eval_fomc_proximity,
+    "opex_week":             _eval_opex_week,
+    "triple_witching_week":  _eval_triple_witching_week,
+    # Sector rotation evaluators
+    "sector_leading_nd":     _eval_sector_leading_nd,
+    "xly_vs_xlp":            _eval_xly_vs_xlp,
+    "iwm_vs_spy":            _eval_iwm_vs_spy,
 }
 
 
