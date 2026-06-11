@@ -125,7 +125,7 @@ def main() -> None:
         log.error("init_db.db_unreachable")
         sys.exit(1)
 
-    run_schema(reset=args.reset)
+    # run_schema skipped — schema managed by migrations
     n = seed_securities()
     m = seed_feature_metadata()
 
