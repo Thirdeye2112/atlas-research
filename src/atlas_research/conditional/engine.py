@@ -301,6 +301,38 @@ def _eval_omni_cross_down(bars: list[Bar], params: dict) -> list[int]:
     return omni_proxy.omni_cross_down_indices(close, period)
 
 
+def _eval_ema_lows_cross_up(bars: list[Bar], params: dict) -> list[int]:
+    period = int(params.get("period", 87))
+    close, _, low = _bars_to_arrays(bars)
+    return omni_proxy.ema_lows_cross_up_indices(low, close, period)
+
+
+def _eval_ema_lows_cross_down(bars: list[Bar], params: dict) -> list[int]:
+    period = int(params.get("period", 87))
+    close, _, low = _bars_to_arrays(bars)
+    return omni_proxy.ema_lows_cross_down_indices(low, close, period)
+
+
+def _eval_ema_lows_support(bars: list[Bar], params: dict) -> list[int]:
+    period = int(params.get("period", 87))
+    touch_pct = float(params.get("touch_pct", 0.005))
+    close, _, low = _bars_to_arrays(bars)
+    open_ = np.array([b.open for b in bars], dtype=np.float64)
+    return omni_proxy.ema_lows_support_indices(low, close, open_, period, touch_pct)
+
+
+def _eval_hma_cross_up(bars: list[Bar], params: dict) -> list[int]:
+    period = int(params.get("period", 87))
+    close, _, _ = _bars_to_arrays(bars)
+    return omni_proxy.hma_cross_up_indices(close, period)
+
+
+def _eval_hma_cross_down(bars: list[Bar], params: dict) -> list[int]:
+    period = int(params.get("period", 87))
+    close, _, _ = _bars_to_arrays(bars)
+    return omni_proxy.hma_cross_down_indices(close, period)
+
+
 def _eval_omni_green_nd(bars: list[Bar], params: dict) -> list[int]:
     period = int(params.get("period", 87))
     n_days = int(params.get("n_days", 3))
@@ -353,13 +385,18 @@ _EVALUATORS = {
     "end_of_month":      _eval_end_of_month,
     "turn_of_month":     _eval_turn_of_month,
     "day_of_week":       _eval_day_of_week,
-    "omni_cross_up":     _eval_omni_cross_up,
-    "omni_cross_down":   _eval_omni_cross_down,
-    "omni_green_nd":     _eval_omni_green_nd,
-    "omni_red_nd":       _eval_omni_red_nd,
-    "oscar_cross_up":    _eval_oscar_cross_up,
-    "oscar_cross_down":  _eval_oscar_cross_down,
-    "oscar_above_50":    _eval_oscar_above_50,
+    "omni_cross_up":        _eval_omni_cross_up,
+    "omni_cross_down":      _eval_omni_cross_down,
+    "omni_green_nd":        _eval_omni_green_nd,
+    "omni_red_nd":          _eval_omni_red_nd,
+    "oscar_cross_up":       _eval_oscar_cross_up,
+    "oscar_cross_down":     _eval_oscar_cross_down,
+    "oscar_above_50":       _eval_oscar_above_50,
+    "ema_lows_cross_up":    _eval_ema_lows_cross_up,
+    "ema_lows_cross_down":  _eval_ema_lows_cross_down,
+    "ema_lows_support":     _eval_ema_lows_support,
+    "hma_cross_up":         _eval_hma_cross_up,
+    "hma_cross_down":       _eval_hma_cross_down,
 }
 
 
