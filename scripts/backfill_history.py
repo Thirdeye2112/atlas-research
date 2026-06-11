@@ -72,6 +72,7 @@ def run_backfill(
     skip_features: bool = False,
     skip_labels: bool = False,
     skip_parquet: bool = False,
+    force_parquet: bool = False,
 ) -> None:
     if not check_connection():
         log.error("backfill.db_unreachable")
@@ -123,7 +124,7 @@ def run_backfill(
 
     # ── Step 4: Export daily parquet matrices ─────────────────
     if not skip_parquet:
-        _run_parquet_export_loop(start_date, end_date)
+        _run_parquet_export_loop(start_date, end_date, force=force_parquet)
     else:
         log.info("backfill.parquet_skipped")
 
@@ -228,7 +229,7 @@ def _run_features_ticker_loop(
     log.info("backfill.features_done", total_eav_rows=total_eav_rows)
 
 
-def _run_parquet_export_loop(start_date: date, end_date: date) -> None:
+def _run_parquet_export_loop(start_date: date, end_date: date, force: bool = False) -> None:
     """
     Export one parquet file per trading date across the full backfill range.
 
@@ -256,9 +257,8 @@ def _run_parquet_export_loop(start_date: date, end_date: date) -> None:
         # Normalise to date object
         snap_date = d if isinstance(d, date) else d.date() if hasattr(d, "date") else d
 
-        # Skip if parquet already exists (safe to re-run)
         fpath = settings.PARQUET_OUTPUT_DIR / f"feature_matrix_{snap_date.isoformat()}.parquet"
-        if fpath.exists():
+        if fpath.exists() and not force:
             skipped += 1
             continue
 
@@ -288,6 +288,8 @@ def main() -> None:
     parser.add_argument("--skip-features",  action="store_true")
     parser.add_argument("--skip-labels",    action="store_true")
     parser.add_argument("--skip-parquet",   action="store_true")
+    parser.add_argument("--force-parquet",  action="store_true",
+                        help="Overwrite existing parquet files (e.g. after adding features)")
     args = parser.parse_args()
 
     end_date = (
@@ -305,6 +307,7 @@ def main() -> None:
         skip_features=args.skip_features,
         skip_labels=args.skip_labels,
         skip_parquet=args.skip_parquet,
+        force_parquet=args.force_parquet,
     )
 
 

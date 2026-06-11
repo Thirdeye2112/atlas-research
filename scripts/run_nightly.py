@@ -1,19 +1,12 @@
 ﻿#!/usr/bin/env python
 """
-run_nightly.py â€” nightly pipeline entry point.
-
-Called by cron, systemd, or manually.  Runs the full nightly pipeline
-for today's date (or a specified date).
+run_nightly.py — Nightly pipeline entry point.
 
 Usage:
     python scripts/run_nightly.py
-    python scripts/run_nightly.py --date 2026-06-06
     python scripts/run_nightly.py --skip-ingest
-    python scripts/run_nightly.py --skip-features
-    python scripts/run_nightly.py --force-full    # re-download full history
-
-Cron example (02:00 ET weekdays):
-    0 2 * * 1-5 cd /app && python scripts/run_nightly.py >> logs/nightly.log 2>&1
+    python scripts/run_nightly.py --skip-ingest --skip-labels
+    python scripts/run_nightly.py --date 2026-06-01
 """
 
 from __future__ import annotations
@@ -35,17 +28,17 @@ from atlas_research.pipelines.nightly_pipeline import run_nightly
 from atlas_research.utils.logging import configure_logging, get_logger
 
 configure_logging(level=settings.LOG_LEVEL, fmt=settings.LOG_FORMAT)
-log = get_logger("run_nightly")
+log = get_logger("run_nightly_cli")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run the nightly atlas-research pipeline")
-    parser.add_argument("--date",          default=None,  help="Date YYYY-MM-DD (default: today)")
-    parser.add_argument("--force-full",    action="store_true", help="Re-download full history")
+    parser = argparse.ArgumentParser(description="Atlas Research -- nightly pipeline")
+    parser.add_argument("--date",          default=None,  help="Run date YYYY-MM-DD (default: today)")
     parser.add_argument("--skip-ingest",   action="store_true")
     parser.add_argument("--skip-features", action="store_true")
     parser.add_argument("--skip-labels",   action="store_true")
-    parser.add_argument("--skip-export",   action="store_true")
+    parser.add_argument("--skip-parquet",  action="store_true")
+    parser.add_argument("--force-ingest",  action="store_true")
     args = parser.parse_args()
 
     run_date = (
@@ -54,30 +47,29 @@ def main() -> None:
     )
 
     if not check_connection():
-        log.error("run_nightly.db_unreachable")
+        log.error("nightly.db_unreachable")
         sys.exit(1)
 
     result = run_nightly(
-        run_date,
-        force_full_ingest=args.force_full,
+        run_date=run_date,
+        force_full_ingest=args.force_ingest,
         skip_ingest=args.skip_ingest,
         skip_features=args.skip_features,
         skip_labels=args.skip_labels,
-        skip_json_export=args.skip_export,
+        skip_parquet=args.skip_parquet,
         triggered_by="cli",
     )
 
-    status = result["status"]
-    print(f"\nRun {result['run_id']} â€” {status}")
-    print(f"  Date:     {result['date']}")
-    print(f"  Tickers:  {result['tickers_processed']}")
-    print(f"  Bars:     {result['bars_inserted']}")
-    print(f"  Features: {result['features_generated']}")
-    print(f"  Labels:   {result['labels_generated']}")
+    status = result.get("status", "unknown")
+    run_id = result.get("run_id", "?")
 
-    sys.exit(0 if status == "complete" else 1)
+    print(f"\nRun {run_id} -- {status}")
+    print(f"  Date:     {result.get('date', run_date)}")
+    print(f"  Tickers:  {result.get('tickers_processed', '?')}")
+    print(f"  Bars:     {result.get('bars_inserted', '?')}")
+    print(f"  Features: {result.get('features_generated', '?')}")
+    print(f"  Labels:   {result.get('labels_generated', '?')}")
 
 
 if __name__ == "__main__":
     main()
-
