@@ -303,33 +303,60 @@ def compute(
     close: np.ndarray,
     high: np.ndarray,
     low: np.ndarray,
+    open_: np.ndarray | None = None,
 ) -> dict[str, float | None]:
     """
-    Compute OMNI proxy features for the final bar.
-    Uses EMA-of-lows as the primary OMNI candidate (better candle-bottom tracking).
+    Compute OMNI proxy and OSCAR features for the final bar.
+
+    Primary OMNI: EMA(Low, 82) — confirmed as Oscar Carboni's OMNI indicator.
+    Secondary: EMA(Low, 87), HMA(87), OSCAR(87).
     """
     n = len(close)
     result: dict[str, float | None] = {}
-    PERIOD = 87
 
-    # ── Primary OMNI: EMA of lows, 87-period ────────────────────────────────
-    if n >= PERIOD + 5:
-        e_lows = ema_lows(low, PERIOD)
-        cur = float(e_lows[-1])
-        prev = float(e_lows[-6])
-        result["omni_87_distance"] = (close[-1] - cur) / cur if cur != 0 else None
-        result["omni_87_slope"]    = (cur - prev) / abs(prev) if prev != 0 and not np.isnan(prev) else None
-        result["omni_87_above"]    = 1.0 if close[-1] > cur else 0.0
-        result["omni_87_value"]    = cur  # raw indicator value
+    # ── Primary OMNI: EMA of lows, period 82 (confirmed) ────────────────────
+    P82 = 82
+    if n >= P82 + 6:
+        e82 = ema_lows(low, P82)
+        cur82 = float(e82[-1])
+        prev82 = float(e82[-6])
+        result["omni_82_value"]    = cur82
+        result["omni_82_above"]    = 1.0 if close[-1] > cur82 else 0.0
+        result["omni_82_distance"] = (close[-1] - cur82) / cur82 if cur82 != 0 else None
+        # slope: fractional change over 5 bars (scale-invariant)
+        result["omni_82_slope"]    = (cur82 - prev82) / abs(prev82) if prev82 != 0 and not np.isnan(prev82) else None
+        # bounce: low within 0.5% of OMNI and today closed bullish
+        if open_ is not None:
+            dist = abs(low[-1] - cur82) / cur82 if cur82 > 0 else float("inf")
+            result["omni_82_bounce"] = 1.0 if dist <= 0.005 and close[-1] > open_[-1] else 0.0
+        else:
+            result["omni_82_bounce"] = None
+    else:
+        result["omni_82_value"]    = None
+        result["omni_82_above"]    = None
+        result["omni_82_distance"] = None
+        result["omni_82_slope"]    = None
+        result["omni_82_bounce"]   = None
+
+    # ── EMA of lows, period 87 (secondary) ──────────────────────────────────
+    P87 = 87
+    if n >= P87 + 6:
+        e87 = ema_lows(low, P87)
+        cur87 = float(e87[-1])
+        prev87 = float(e87[-6])
+        result["omni_87_distance"] = (close[-1] - cur87) / cur87 if cur87 != 0 else None
+        result["omni_87_slope"]    = (cur87 - prev87) / abs(prev87) if prev87 != 0 and not np.isnan(prev87) else None
+        result["omni_87_above"]    = 1.0 if close[-1] > cur87 else 0.0
+        result["omni_87_value"]    = cur87
     else:
         result["omni_87_distance"] = None
         result["omni_87_slope"]    = None
         result["omni_87_above"]    = None
         result["omni_87_value"]    = None
 
-    # ── HMA 87 (secondary — lower lag) ──────────────────────────────────────
-    if n >= PERIOD + 15:
-        h87 = hma(close, PERIOD)
+    # ── HMA 87 (lower lag) ───────────────────────────────────────────────────
+    if n >= P87 + 15:
+        h87 = hma(close, P87)
         hval = float(h87[-1])
         result["hma_87_distance"] = (close[-1] - hval) / hval if hval != 0 and not np.isnan(hval) else None
         result["hma_87_above"]    = 1.0 if (not np.isnan(hval) and close[-1] > hval) else 0.0
@@ -338,8 +365,8 @@ def compute(
         result["hma_87_above"]    = None
 
     # ── OSCAR 87-period ──────────────────────────────────────────────────────
-    if n >= PERIOD:
-        osc = oscar(high, low, close, PERIOD)
+    if n >= P87:
+        osc = oscar(high, low, close, P87)
         val = float(osc[-1])
         if not np.isnan(val):
             result["oscar_87_value"]    = val
@@ -356,6 +383,7 @@ def compute(
 
 def _empty() -> dict[str, None]:
     return {k: None for k in [
+        "omni_82_value", "omni_82_above", "omni_82_distance", "omni_82_slope", "omni_82_bounce",
         "omni_87_distance", "omni_87_slope", "omni_87_above", "omni_87_value",
         "hma_87_distance", "hma_87_above",
         "oscar_87_value", "oscar_87_above_50",
@@ -497,6 +525,34 @@ def oscar_above_50_indices(
 ) -> list[int]:
     osc = oscar(high, low, close, period)
     return [i for i in range(period, len(close)) if not np.isnan(osc[i]) and osc[i] > 50.0]
+
+
+def ema_lows_above_nd_indices(
+    low: np.ndarray, close: np.ndarray, period: int, n_days: int
+) -> list[int]:
+    """Indices where close > EMA(low, period) for n_days consecutive bars."""
+    ind = ema_lows(low, period)
+    hits = []
+    for i in range(period + n_days - 1, len(close)):
+        if any(np.isnan(ind[i - k]) for k in range(n_days)):
+            continue
+        if all(close[i - k] > ind[i - k] for k in range(n_days)):
+            hits.append(i)
+    return hits
+
+
+def ema_lows_green_slope_indices(
+    low: np.ndarray, close: np.ndarray, period: int, slope_bars: int = 5
+) -> list[int]:
+    """Indices where close > EMA(low, period) AND indicator slope is positive."""
+    ind = ema_lows(low, period)
+    hits = []
+    for i in range(period + slope_bars, len(close)):
+        if np.isnan(ind[i]) or np.isnan(ind[i - slope_bars]):
+            continue
+        if close[i] > ind[i] and ind[i] > ind[i - slope_bars]:
+            hits.append(i)
+    return hits
 
 
 def compare_periods(

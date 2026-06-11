@@ -74,6 +74,7 @@ def build_features(
     high   = bars["high"].to_numpy(dtype=np.float64)
     low    = bars["low"].to_numpy(dtype=np.float64)
     vol    = bars["volume"].to_numpy(dtype=np.float64)
+    open_  = bars["open"].to_numpy(dtype=np.float64) if "open" in bars.columns else None
 
     features: dict[str, float | None] = {}
 
@@ -82,7 +83,7 @@ def build_features(
     features.update(momentum.compute(close))
     features.update(volatility.compute(close, high, low))
     features.update(volume.compute(close, vol))
-    features.update(omni_proxy.compute(close, high, low))
+    features.update(omni_proxy.compute(close, high, low, open_))
 
     # ── Relative strength + regime (require SPY) ─────────────
     if spy_bars is not None and len(spy_bars) >= MIN_BARS:

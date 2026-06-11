@@ -60,18 +60,27 @@ Atlas Research conditional probability engine — signal categories, patterns, a
 
 **Implementation note:** Calendar patterns look at returns of the full SP500 universe on these dates, not a filtered sub-universe.
 
-### 6. OMNI Proxy — 87-Period EMA (migration 0013)
-**Hypothesis:** Oscar Carboni's proprietary OMNI indicator ≈ price relationship to 87-period EMA.
+### 6. OMNI — EMA(Low, 82), Confirmed (migrations 0013, 0014, 0015)
+
+**Confirmed formula: EMA(Low, 82)**  
+Oscar describes OMNI as landing "on the bottom of candles." Backtests confirm EMA(Low, 82) sits at the candle floor (99.1% of bars above the low) with a 81.9% hit rate for SPY 20-day forward returns after cross-up.
 
 | Pattern | Condition | Notes |
 |---------|-----------|-------|
-| omni_87_cross_up | Price crosses above 87 EMA | OMNI "turns green" |
-| omni_87_cross_down | Price crosses below 87 EMA | OMNI "turns red" |
-| omni_87_green_3d | Price above 87 EMA for 3+ days | Sustained green OMNI |
-| omni_87_red_3d | Price below 87 EMA for 3+ days | Sustained red OMNI |
-| spy_omni_87_cross_up/down | Same, SPY only | Single-ticker for direct SPY prediction |
+| omni_82_cross_up | Close crosses above EMA(Low, 82) | OMNI "turns green" |
+| omni_82_cross_down | Close crosses below EMA(Low, 82) | OMNI "turns red" |
+| omni_82_above_3d | Close above OMNI for 3+ days | Sustained green |
+| omni_82_bounce | Low within 0.5% of OMNI + Close > Open | Support hold entry |
+| omni_82_green_slope | Above OMNI AND slope rising | Strongest long condition |
 
-**ML features added:** `omni_87_distance` (% from EMA), `omni_87_slope` (5-bar EMA slope), `omni_87_above` (binary)
+**ML features added (ALL_FEATURES v1.5):**
+- `omni_82_value` — raw indicator value
+- `omni_82_above` — 1.0 if Close > OMNI
+- `omni_82_distance` — (Close − OMNI) / OMNI (%)
+- `omni_82_slope` — fractional change in OMNI over 5 bars
+- `omni_82_bounce` — support hold binary
+
+**SPY 20-day cross-up hit rate: 81.9% (n=94, 2011–2026)**
 
 ### 7. OSCAR Oscillator — Fibonacci Periods (migration 0013)
 **Formula:** OSCAR(N) = smoothed stochastic  
@@ -148,6 +157,9 @@ Oscar's language → tradeable symbols used in extraction prompt:
 | `db/migrations/0010_conditional_probability_engine.sql` | Original 12 patterns |
 | `db/migrations/0012_expanded_signals.sql` | 24 new patterns (calendar, intermarket, technical) |
 | `db/migrations/0013_omni_oscar_patterns.sql` | 16 OMNI/OSCAR patterns |
+| `db/migrations/0014_omni_lows_patterns.sql` | 19 EMA-of-lows variant patterns |
+| `db/migrations/0015_omni_82_patterns.sql` | 12 OMNI-82 confirmed patterns |
+| `config/settings.py` | OMNI_FEATURES in ALL_FEATURES (model training) |
 | `config/universe.csv` | 193 securities including sector ETFs |
 | `scripts/ingest_transcripts.py` | Transcript ingestion with sector mapping in SYSTEM_PROMPT |
 
@@ -160,3 +172,5 @@ Oscar's language → tradeable symbols used in extraction prompt:
 | (session) | 4 SPY-specific | 16 |
 | 0012 | 24 | 40 |
 | 0013 | 16 | 56 |
+| 0014 | 19 | 75 |
+| 0015 | 12 | 87 |

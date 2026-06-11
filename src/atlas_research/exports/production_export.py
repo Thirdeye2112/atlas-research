@@ -33,6 +33,7 @@ that Atlas Alpha will read instead of computing its own scores.
 from __future__ import annotations
 
 import json
+import math
 from datetime import date
 from typing import Any
 
@@ -172,6 +173,7 @@ def _round(v: float | None, decimals: int = 6) -> float | None:
     if v is None:
         return None
     try:
-        return round(float(v), decimals)
+        f = round(float(v), decimals)
+        return None if math.isnan(f) or math.isinf(f) else f
     except (TypeError, ValueError):
         return None

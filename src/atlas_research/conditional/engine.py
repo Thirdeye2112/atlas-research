@@ -365,6 +365,20 @@ def _eval_oscar_above_50(bars: list[Bar], params: dict) -> list[int]:
     return omni_proxy.oscar_above_50_indices(high, low, close, period)
 
 
+def _eval_ema_lows_above_nd(bars: list[Bar], params: dict) -> list[int]:
+    period = int(params.get("period", 82))
+    n_days = int(params.get("n_days", 3))
+    close, _, low = _bars_to_arrays(bars)
+    return omni_proxy.ema_lows_above_nd_indices(low, close, period, n_days)
+
+
+def _eval_ema_lows_green_slope(bars: list[Bar], params: dict) -> list[int]:
+    period = int(params.get("period", 82))
+    slope_bars = int(params.get("slope_bars", 5))
+    close, _, low = _bars_to_arrays(bars)
+    return omni_proxy.ema_lows_green_slope_indices(low, close, period, slope_bars)
+
+
 _EVALUATORS = {
     "consecutive_down":  _eval_consecutive_down,
     "consecutive_up":    _eval_consecutive_up,
@@ -395,6 +409,8 @@ _EVALUATORS = {
     "ema_lows_cross_up":    _eval_ema_lows_cross_up,
     "ema_lows_cross_down":  _eval_ema_lows_cross_down,
     "ema_lows_support":     _eval_ema_lows_support,
+    "ema_lows_above_nd":    _eval_ema_lows_above_nd,
+    "ema_lows_green_slope": _eval_ema_lows_green_slope,
     "hma_cross_up":         _eval_hma_cross_up,
     "hma_cross_down":       _eval_hma_cross_down,
 }

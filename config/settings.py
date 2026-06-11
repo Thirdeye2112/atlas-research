@@ -95,9 +95,18 @@ REGIME_FEATURES: list[str] = [
     "market_trend",
 ]
 
+# OMNI-82 features (Oscar Carboni's OMNI confirmed as EMA(Low, 82))
+OMNI_FEATURES: list[str] = [
+    "omni_82_value",
+    "omni_82_above",
+    "omni_82_distance",
+    "omni_82_slope",
+    "omni_82_bounce",
+]
+
 # All features written to feature_snapshots in Phase 1.5
-# = PHASE1_FEATURES + REGIME_FEATURES
-ALL_FEATURES: list[str] = PHASE1_FEATURES + REGIME_FEATURES
+# = PHASE1_FEATURES + REGIME_FEATURES + OMNI_FEATURES
+ALL_FEATURES: list[str] = PHASE1_FEATURES + REGIME_FEATURES + OMNI_FEATURES
 
 # ---------------------------------------------------------------------------
 # Feature metadata — canonical registry entries for Phase-1 features.

@@ -70,15 +70,28 @@ def load_date_range(
         fpath = parquet_dir / f"feature_matrix_{current.isoformat()}.parquet"
         if fpath.exists():
             files_found += 1
+            needed = {"ticker", "date"} | set(feature_cols) | {target_col}
+            df: pd.DataFrame | None = None
             try:
                 # Columnar read — only load what we need
-                needed = {"ticker", "date"} | set(feature_cols) | {target_col}
                 df = pd.read_parquet(fpath, engine="pyarrow",
                                      columns=list(needed))
+            except Exception:
+                # Schema evolution: older file missing new columns — load all,
+                # select available; to_arrays() fills the rest with NaN.
+                try:
+                    full_df = pd.read_parquet(fpath, engine="pyarrow")
+                    available = [c for c in needed if c in full_df.columns]
+                    df = full_df[available]
+                    missing_cols = sorted(needed - set(available))
+                    if missing_cols:
+                        log.info("dataset.schema_fallback",
+                                 path=str(fpath), missing=missing_cols)
+                except Exception as exc2:
+                    log.warning("dataset.parquet_load_error",
+                                path=str(fpath), error=str(exc2))
+            if df is not None:
                 frames.append(df)
-            except Exception as exc:
-                log.warning("dataset.parquet_load_error",
-                            path=str(fpath), error=str(exc))
         current += timedelta(days=1)
 
     if not frames:
