@@ -283,7 +283,7 @@ class ConditionalEngine:
                      avg_return, median_return, std_return, sharpe, p_value, evaluated_at)
                 VALUES
                     (:pid, :ticker, :horizon, :n, :hr, :avg, :med, :std, :sh, :pv, now())
-                ON CONFLICT (pattern_id, ticker, horizon_days)
+                ON CONFLICT (pattern_id, COALESCE(ticker,''), horizon_days)
                 DO UPDATE SET
                     sample_size   = EXCLUDED.sample_size,
                     hit_rate      = EXCLUDED.hit_rate,
