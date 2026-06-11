@@ -12,9 +12,9 @@ def main():
     parser.add_argument("--results", action="store_true")
     args = parser.parse_args()
     from atlas_research.conditional.engine import ConditionalEngine
-    from atlas_research.db.connection import get_connection
+    from atlas_research.db.connection import get_raw_engine
     from sqlalchemy import text
-    db = get_connection()
+    db = get_raw_engine()
     if args.list:
         with db.connect() as c:
             rows = c.execute(text("SELECT name, condition_type, universe FROM conditional_patterns ORDER BY id")).fetchall()
@@ -25,9 +25,9 @@ def main():
         with db.connect() as c:
             rows = c.execute(text("""
                 SELECT cp.name, r.horizon_days, r.sample_size,
-                       ROUND(r.hit_rate*100,1) AS hit_pct,
-                       ROUND(r.avg_return*100,3) AS avg_pct,
-                       ROUND(r.median_return*100,3) AS med_pct
+                       ROUND((r.hit_rate*100)::numeric,1) AS hit_pct,
+                       ROUND((r.avg_return*100)::numeric,3) AS avg_pct,
+                       ROUND((r.median_return*100)::numeric,3) AS med_pct
                 FROM conditional_pattern_results r
                 JOIN conditional_patterns cp ON cp.id=r.pattern_id
                 WHERE r.ticker IS NULL ORDER BY cp.name, r.horizon_days LIMIT 100

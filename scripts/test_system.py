@@ -122,7 +122,7 @@ def test_labels():
     e = create_engine(DATABASE_URL)
     with e.connect() as c:
         row = c.execute(text(
-            "SELECT COUNT(*), SUM(CASE WHEN label_return_5d IS NOT NULL THEN 1 ELSE 0 END)::float / COUNT(*) FROM labels"
+            "SELECT COUNT(*), SUM(CASE WHEN return_5d IS NOT NULL THEN 1 ELSE 0 END)::float / COUNT(*) FROM labels"
         )).fetchone()
     total, coverage = row
     if total < 1000:
