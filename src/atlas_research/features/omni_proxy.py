@@ -319,24 +319,44 @@ def compute(
     if n >= P82 + 6:
         e82 = ema_lows(low, P82)
         cur82 = float(e82[-1])
-        prev82 = float(e82[-6])
+        prev82_5 = float(e82[-6])
         result["omni_82_value"]    = cur82
         result["omni_82_above"]    = 1.0 if close[-1] > cur82 else 0.0
         result["omni_82_distance"] = (close[-1] - cur82) / cur82 if cur82 != 0 else None
         # slope: fractional change over 5 bars (scale-invariant)
-        result["omni_82_slope"]    = (cur82 - prev82) / abs(prev82) if prev82 != 0 and not np.isnan(prev82) else None
+        result["omni_82_slope"]    = (cur82 - prev82_5) / abs(prev82_5) if prev82_5 != 0 and not np.isnan(prev82_5) else None
         # bounce: low within 0.5% of OMNI and today closed bullish
         if open_ is not None:
             dist = abs(low[-1] - cur82) / cur82 if cur82 > 0 else float("inf")
             result["omni_82_bounce"] = 1.0 if dist <= 0.005 and close[-1] > open_[-1] else 0.0
         else:
             result["omni_82_bounce"] = None
+
+        # distance_5d_change: how much the price-vs-OMNI spread changed over 5 bars
+        cur_dist = result["omni_82_distance"]
+        if cur_dist is not None and prev82_5 != 0 and not np.isnan(prev82_5):
+            prev5_dist = (close[-6] - prev82_5) / prev82_5
+            result["omni_82_distance_5d_change"] = cur_dist - prev5_dist
+        else:
+            result["omni_82_distance_5d_change"] = None
+
+        # slope_10d: longer-horizon OMNI slope (vs 5-bar slope above)
+        if n >= P82 + 11:
+            prev82_10 = float(e82[-11])
+            result["omni_82_slope_10d"] = (
+                (cur82 - prev82_10) / abs(prev82_10)
+                if prev82_10 != 0 and not np.isnan(prev82_10) else None
+            )
+        else:
+            result["omni_82_slope_10d"] = None
     else:
         result["omni_82_value"]    = None
         result["omni_82_above"]    = None
         result["omni_82_distance"] = None
         result["omni_82_slope"]    = None
         result["omni_82_bounce"]   = None
+        result["omni_82_distance_5d_change"] = None
+        result["omni_82_slope_10d"]          = None
 
     # ── EMA of lows, period 87 (secondary) ──────────────────────────────────
     P87 = 87
@@ -384,6 +404,7 @@ def compute(
 def _empty() -> dict[str, None]:
     return {k: None for k in [
         "omni_82_value", "omni_82_above", "omni_82_distance", "omni_82_slope", "omni_82_bounce",
+        "omni_82_distance_5d_change", "omni_82_slope_10d",
         "omni_87_distance", "omni_87_slope", "omni_87_above", "omni_87_value",
         "hma_87_distance", "hma_87_above",
         "oscar_87_value", "oscar_87_above_50",

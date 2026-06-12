@@ -57,6 +57,19 @@ def compute(close: np.ndarray) -> dict[str, float | None]:
             result[dist_key]  = None
             result[above_key] = None
 
+    # distance_sma20_momentum: change in SMA20 distance over 5 bars
+    # Captures whether price is extending or contracting vs its 20d mean
+    if n >= 25:
+        sma20_now = float(close[-20:].mean())
+        sma20_5d_ago = float(close[-25:-5].mean())
+        dist_now = (current - sma20_now) / sma20_now if sma20_now != 0 else None
+        dist_5d  = (float(close[-6]) - sma20_5d_ago) / sma20_5d_ago if sma20_5d_ago != 0 else None
+        result["distance_sma20_momentum"] = (
+            dist_now - dist_5d if dist_now is not None and dist_5d is not None else None
+        )
+    else:
+        result["distance_sma20_momentum"] = None
+
     return result
 
 
@@ -64,4 +77,5 @@ def _empty() -> dict[str, None]:
     return {k: None for k in [
         "distance_sma20", "distance_sma50", "distance_sma200",
         "above_sma20", "above_sma50", "above_sma200",
+        "distance_sma20_momentum",
     ]}

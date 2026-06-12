@@ -99,7 +99,8 @@ def build_features(
         )
         features.update(regime.compute(spy_close))
     else:
-        features.update({"rs_spy_20": None, "rs_spy_60": None, "rs_spy_120": None})
+        features.update({"rs_spy_20": None, "rs_spy_60": None, "rs_spy_120": None,
+                          "rs_spy_20_momentum": None})
         features.update({
             "spy_above_sma50":  None,
             "spy_above_sma200": None,
@@ -146,7 +147,8 @@ def build_features_from_arrays(
         features.update(relative_strength.compute(close[-min_len:], spy_close[-min_len:]))
         features.update(regime.compute(spy_close))
     else:
-        features.update({"rs_spy_20": None, "rs_spy_60": None, "rs_spy_120": None})
+        features.update({"rs_spy_20": None, "rs_spy_60": None, "rs_spy_120": None,
+                          "rs_spy_20_momentum": None})
         features.update({
             "spy_above_sma50": None, "spy_above_sma200": None,
             "spy_return_20d": None, "market_trend": None,

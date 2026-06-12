@@ -104,9 +104,21 @@ OMNI_FEATURES: list[str] = [
     "omni_82_bounce",
 ]
 
+# Momentum v2 — rate-of-change features for rank discrimination
+# These continuous delta features give the model 50+ distinct rank buckets
+# vs the 8-bucket collapse caused by over-reliance on binary above/below flags.
+MOMENTUM_V2_FEATURES: list[str] = [
+    "omni_82_distance_5d_change",  # how fast price is moving vs OMNI support
+    "omni_82_slope_10d",           # longer-horizon OMNI slope vs 5-bar slope
+    "rsi_momentum_5d",             # RSI velocity (today minus 5d ago)
+    "distance_sma20_momentum",     # SMA20 distance velocity
+    "volume_trend_5d",             # recent 5-bar avg vol / prior 5-bar avg vol
+    "rs_spy_20_momentum",          # change in 20d RS vs SPY over 5 bars
+]
+
 # All features written to feature_snapshots in Phase 1.5
-# = PHASE1_FEATURES + REGIME_FEATURES + OMNI_FEATURES
-ALL_FEATURES: list[str] = PHASE1_FEATURES + REGIME_FEATURES + OMNI_FEATURES
+# = PHASE1_FEATURES + REGIME_FEATURES + OMNI_FEATURES + MOMENTUM_V2_FEATURES
+ALL_FEATURES: list[str] = PHASE1_FEATURES + REGIME_FEATURES + OMNI_FEATURES + MOMENTUM_V2_FEATURES
 
 # ---------------------------------------------------------------------------
 # Feature metadata — canonical registry entries for Phase-1 features.

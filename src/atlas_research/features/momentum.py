@@ -50,6 +50,17 @@ def compute(close: np.ndarray) -> dict[str, float | None]:
     result["macd_histogram"] = _macd_histogram(close, fast=12, slow=26, signal=9)
     result["roc_20"]         = _roc(close, period=20)
 
+    # rsi_momentum_5d: RSI today minus RSI as of 5 bars ago
+    if len(close) >= 20:
+        rsi_5d_ago = _rsi(close[:-5], period=14)
+        rsi_now = result["rsi_14"]
+        result["rsi_momentum_5d"] = (
+            rsi_now - rsi_5d_ago
+            if rsi_now is not None and rsi_5d_ago is not None else None
+        )
+    else:
+        result["rsi_momentum_5d"] = None
+
     return result
 
 

@@ -34,6 +34,7 @@ def compute(
     result: dict[str, float | None] = {
         "volume_ratio_20":  None,
         "dollar_volume_20": None,
+        "volume_trend_5d":  None,
     }
 
     n = len(close)
@@ -50,5 +51,13 @@ def compute(
     dv = close[-20:] * volume[-20:]
     dv_mean = float(dv.mean())
     result["dollar_volume_20"] = dv_mean if not np.isnan(dv_mean) else None
+
+    # volume_trend_5d: recent 5-bar avg vol vs prior 5-bar avg vol
+    # Values > 1 mean increasing volume (participation accelerating)
+    if len(volume) >= 10:
+        vol_recent = float(volume[-5:].mean())
+        vol_prior  = float(volume[-10:-5].mean())
+        if vol_prior > 0:
+            result["volume_trend_5d"] = vol_recent / vol_prior
 
     return result

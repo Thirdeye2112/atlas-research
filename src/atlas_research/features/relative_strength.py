@@ -35,9 +35,10 @@ def compute(
         Dict of feature_name → float | None.
     """
     result: dict[str, float | None] = {
-        "rs_spy_20":  None,
-        "rs_spy_60":  None,
-        "rs_spy_120": None,
+        "rs_spy_20":          None,
+        "rs_spy_60":          None,
+        "rs_spy_120":         None,
+        "rs_spy_20_momentum": None,
     }
 
     min_len = min(len(close), len(spy_close))
@@ -55,6 +56,16 @@ def compute(
             if tk_ret is not None and sp_ret is not None:
                 result[key] = tk_ret - sp_ret
 
+    # rs_spy_20_momentum: change in 20d RS over the past 5 bars
+    # Positive = stock is accelerating vs SPY; negative = decelerating
+    if min_len >= 27:
+        tk_ret_5d = _log_ret_offset(tk, 20, 5)
+        sp_ret_5d = _log_ret_offset(sp, 20, 5)
+        rs_today = result["rs_spy_20"]
+        if rs_today is not None and tk_ret_5d is not None and sp_ret_5d is not None:
+            rs_5d_ago = tk_ret_5d - sp_ret_5d
+            result["rs_spy_20_momentum"] = rs_today - rs_5d_ago
+
     return result
 
 
@@ -64,6 +75,19 @@ def _log_ret(arr: np.ndarray, days: int) -> float | None:
         return None
     prev = float(arr[-(days + 1)])
     curr = float(arr[-1])
+    if prev <= 0:
+        return None
+    return float(np.log(curr / prev))
+
+
+def _log_ret_offset(arr: np.ndarray, days: int, back: int) -> float | None:
+    """Log return of 'days' trading days, measured 'back' bars into the past.
+    E.g., back=5, days=20 gives the 20d return as of 5 bars ago."""
+    n = len(arr)
+    if n < days + back + 1:
+        return None
+    curr = float(arr[-(1 + back)])
+    prev = float(arr[-(1 + back + days)])
     if prev <= 0:
         return None
     return float(np.log(curr / prev))
