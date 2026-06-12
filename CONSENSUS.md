@@ -1,6 +1,6 @@
 # CONSENSUS — Key Research Findings
 
-## OMNI Indicator (Oscar Carboni)
+## Jarvis Indicator (UI name for OMNI — Oscar Carboni's proprietary)
 
 **Confirmed formula:** EMA(Low, 82)  
 **Backtested on:** SPY daily bars, 2011-2026 (n=3,750 bars)
@@ -110,9 +110,9 @@ Using `sector_relative_strength` table (38,638 rows, 11 SPDR ETFs, 2011-2026).
 
 ## ML Model Quality (v1.5 — retrained 2026-06-11)
 
-**Walk-forward results after OMNI backfill (192/192 tickers):**
+**Walk-forward results after Jarvis (OMNI) backfill (192/192 tickers):**
 
-| Metric | v1.4 (pre-OMNI) | v1.5 (post-OMNI) | Change |
+| Metric | v1.4 (pre-Jarvis) | v1.5 (post-Jarvis) | Change |
 |--------|----------------|-----------------|--------|
 | WF Mean IC | 0.0269 | **0.0546** | +103% (doubled) |
 | WF Folds | 5 | **12** | +7 folds |
