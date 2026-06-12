@@ -35,6 +35,14 @@ data/
 *.parquet
 *.csv.gz
 
+# Model artifacts (binary, re-trainable)
+models/
+
+# Node (stray installs)
+node_modules/
+package.json
+pnpm-lock.yaml
+
 # Logs
 logs/
 *.log

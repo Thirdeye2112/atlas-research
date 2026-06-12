@@ -26,9 +26,9 @@ sys.path.insert(0, str(ROOT))
 from dotenv import load_dotenv
 load_dotenv(ROOT / ".env")
 
-PASS = "✓"
-FAIL = "✗"
-WARN = "⚠"
+PASS = "[OK]"
+FAIL = "[FAIL]"
+WARN = "[WARN]"
 
 results: list[tuple[str, bool, str]] = []
 
@@ -243,10 +243,10 @@ def main():
     parser.add_argument("--skip-api", action="store_true", help="Skip API tests (server not running)")
     args = parser.parse_args()
 
-    print(f"\n{'═'*70}")
+    print(f"\n{'='*70}")
     print(f"  Atlas Research Engine — System Health Check")
     print(f"  {date.today()}  |  API: {args.api_url}")
-    print(f"{'═'*70}\n")
+    print(f"{'='*70}\n")
 
     print("  Layer 1 — Database")
     check("DB connectivity",           test_db)
@@ -279,7 +279,7 @@ def main():
     failed  = sum(1 for _, ok, _ in results if not ok)
     total   = len(results)
 
-    print(f"\n{'═'*70}")
+    print(f"\n{'='*70}")
     print(f"  Results: {passed}/{total} passed", end="")
     if failed:
         print(f"  |  {failed} FAILED", end="")
@@ -289,10 +289,10 @@ def main():
         for name, ok, msg in results:
             if not ok:
                 print(f"    {FAIL} {name}")
-                print(f"      → {msg}")
+                print(f"      > {msg}")
     else:
-        print(f"  — All checks passed ✓")
-    print(f"{'═'*70}\n")
+        print(f"  -- All checks passed [OK]")
+    print(f"{'='*70}\n")
 
     return 0 if failed == 0 else 1
 

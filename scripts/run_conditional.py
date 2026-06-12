@@ -18,7 +18,7 @@ def main():
     if args.list:
         with db.connect() as c:
             rows = c.execute(text("SELECT name, condition_type, universe FROM conditional_patterns ORDER BY id")).fetchall()
-        print(f"\n{'Name':<30} {'Type':<22} Universe"); print("─"*60)
+        print(f"\n{'Name':<30} {'Type':<22} Universe"); print("-"*60)
         for r in rows: print(f"  {r.name:<28} {r.condition_type:<22} {r.universe}")
         print(f"\n{len(rows)} patterns\n"); return 0
     if args.results:
@@ -34,7 +34,7 @@ def main():
             """)).fetchall()
         if not rows: print("\nNo results yet.\n"); return 0
         print(f"\n{'Pattern':<28} {'Days':>5} {'n':>6} {'Hit%':>6} {'Avg%':>8} {'Med%':>8}")
-        print("─"*65)
+        print("-"*65)
         for r in rows: print(f"  {r.name:<26} {r.horizon_days:>5}d {r.sample_size:>6} {r.hit_pct:>6.1f} {r.avg_pct:>8.3f} {r.med_pct:>8.3f}")
         print(); return 0
     ce = ConditionalEngine()

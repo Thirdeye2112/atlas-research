@@ -133,7 +133,7 @@ def main() -> None:
         )
         ok  = [r for r in results if not r.error]
         err = [r for r in results if r.error]
-        print(f"\n✓ Walk-forward complete: {len(ok)} folds OK, {len(err)} errors.")
+        print(f"\n[OK] Walk-forward complete: {len(ok)} folds OK, {len(err)} errors.")
         for r in ok[-3:]:   # show last 3 folds
             print(f"  Fold {r.fold.number} ({r.fold.val_start}→{r.fold.val_end}):")
             _print_metrics(r.val_metrics, indent="    ")
@@ -161,7 +161,7 @@ def _run_predict_only(parquet_dir, model_dir, feature_cols, version, write_db):
         model_version       = version,
         min_quality_score   = settings.TRAIN_MIN_QUALITY_SCORE,
     )
-    print(f"\n✓ Predictions written: {n} rows.")
+    print(f"\n[OK] Predictions written: {n} rows.")
 
 
 def _print_metrics(metrics: dict, indent: str = "  ") -> None:
