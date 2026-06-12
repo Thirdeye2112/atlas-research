@@ -108,6 +108,33 @@ Using `sector_relative_strength` table (38,638 rows, 11 SPDR ETFs, 2011-2026).
 
 ---
 
+## ML Model Quality (v1.5 — retrained 2026-06-11)
+
+**Walk-forward results after OMNI backfill (192/192 tickers):**
+
+| Metric | v1.4 (pre-OMNI) | v1.5 (post-OMNI) | Change |
+|--------|----------------|-----------------|--------|
+| WF Mean IC | 0.0269 | **0.0546** | +103% (doubled) |
+| WF Folds | 5 | **12** | +7 folds |
+| Mean AUC | ~0.51 | **0.5239** | +0.014 |
+| Features | 27 | **33** | +6 OMNI features |
+
+**Top features by regressor gain (model `2025-07-01`):**
+
+| Rank | Feature | Gain | Note |
+|------|---------|------|------|
+| 1 | above_sma20 | 119 | |
+| **2** | **omni_82_above** | **96** | OMNI confirmed top-2 |
+| **3** | **omni_82_bounce** | **58** | Support bounce signal |
+| 4 | above_sma200 | 54 | |
+| 5 | spy_above_sma50 | 52 | |
+
+**Classifier top-5:** above_sma20 (56,722) → above_sma200 (54,166) → omni_82_above (50,666) → spy_above_sma50 (48,476) → omni_82_bounce (40,164)
+
+**Edge tier:** IC 0.0546 = "Moderate edge" (threshold: <0.02 Early stage, <0.04 Developing, <0.06 Moderate edge, ≥0.06 Strong edge)
+
+---
+
 ## Current System State (as of 2026-06-11)
 
 ### Infrastructure
@@ -115,10 +142,10 @@ Using `sector_relative_strength` table (38,638 rows, 11 SPDR ETFs, 2011-2026).
 - **Tables:** raw_bars, feature_snapshots, model_registry, conditional_patterns, conditional_pattern_results, sector_relative_strength, market_calendar, transcript_sessions, transcript_chunks
 
 ### ML Pipeline
-- **Features:** 32 (PHASE1 + REGIME + OMNI_82)
-- **OMNI backfill:** in progress (~10% complete as of 23:00 UTC)
-- **Last retrain:** v1.4 (27 features, pre-OMNI)
-- **Next retrain:** after backfill completes — omni_82_distance expected to rank top-5
+- **Features:** 33 (PHASE1 + REGIME + OMNI_82 x5)
+- **OMNI backfill:** complete — 192/192 tickers have `omni_82_above`
+- **Current model:** v1.5 (33 features, post-OMNI), trained through 2025-07-01, WF IC=0.0546
+- **Model artifact:** `models/return_regressor_v1_2025-07-01/model.joblib`
 
 ### Conditional Probability Engine
 - **Patterns:** 95+ (migrations 0010-0019)
