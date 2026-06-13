@@ -144,3 +144,90 @@ def check_robustness(events: list[dict], horizon: int = 5) -> RobustnessReport:
         reasons_failed=reasons,
         score=score,
     )
+
+
+# ── Yearly breakdown ──────────────────────────────────────────────────────────
+
+def compute_yearly_breakdown(events: list[dict], horizon: int = 5) -> dict[str, dict]:
+    """
+    Compute per-year stats from a list of event outcome dicts.
+
+    Returns {year_str: {"n": int, "avg_return": float|None, "hit_rate": float|None}}
+    sorted by year ascending.
+    """
+    ret_key = f"ret_{horizon}d"
+    by_year: dict[str, list[float]] = {}
+
+    for e in events:
+        sd  = e.get("signal_date")
+        ret = e.get(ret_key)
+        if sd is None:
+            continue
+        yr = str(sd)[:4]
+        if yr not in by_year:
+            by_year[yr] = []
+        if ret is not None:
+            by_year[yr].append(float(ret))
+
+    result: dict[str, dict] = {}
+    for yr in sorted(by_year.keys()):
+        rets = by_year[yr]
+        arr  = np.array(rets, dtype=float) if rets else np.array([], dtype=float)
+        result[yr] = {
+            "n":          len(rets),
+            "avg_return": round(float(np.mean(arr)), 2) if len(arr) else None,
+            "hit_rate":   round(float(np.mean(arr > 0)) * 100, 1) if len(arr) else None,
+        }
+
+    return result
+
+
+def load_yearly_breakdown_from_db(spec_id: int, horizon: int = 5) -> dict[str, dict]:
+    """
+    Load per-year stats from backtest_events for the most recent run of a spec.
+    Queries DB instead of requiring in-memory events.
+    """
+    from atlas_research.db.connection import get_connection
+    from sqlalchemy import text
+
+    ret_col = f"ret_{horizon}d"
+    with get_connection() as conn:
+        rows = conn.execute(text(f"""
+            SELECT EXTRACT(YEAR FROM be.signal_date)::int AS yr,
+                   COUNT(*)                               AS n,
+                   AVG({ret_col})                         AS avg_ret,
+                   AVG(CASE WHEN {ret_col} > 0 THEN 1.0 ELSE 0.0 END) AS hit_rate
+            FROM backtest_events be
+            JOIN (
+                SELECT id FROM backtest_runs
+                WHERE spec_id = :sid
+                ORDER BY run_date DESC, id DESC
+                LIMIT 1
+            ) latest ON be.run_id = latest.id
+            WHERE be.{ret_col} IS NOT NULL
+            GROUP BY yr
+            ORDER BY yr
+        """), {"sid": spec_id}).fetchall()
+
+    return {
+        str(int(row[0])): {
+            "n":          int(row[1]),
+            "avg_return": round(float(row[2]), 2) if row[2] is not None else None,
+            "hit_rate":   round(float(row[3]) * 100, 1) if row[3] is not None else None,
+        }
+        for row in rows
+    }
+
+
+def print_yearly_breakdown(breakdown: dict[str, dict]) -> None:
+    """Print a compact per-year table."""
+    if not breakdown:
+        print("    (no yearly data)")
+        return
+
+    print(f"    {'Year':<6}  {'Events':>6}  {'Hit5d':>6}  {'Avg5d':>7}")
+    print("    " + "-" * 32)
+    for yr, d in sorted(breakdown.items()):
+        hr  = f"{d['hit_rate']:.0f}%" if d["hit_rate"] is not None else "  N/A"
+        avg = f"{d['avg_return']:+.2f}%" if d["avg_return"] is not None else "   N/A"
+        print(f"    {yr:<6}  {d['n']:>6}  {hr:>6}  {avg:>7}")

@@ -119,17 +119,42 @@ def promote_spec(
     score: float,
     reasons: list[str],
     recent_signal_date: Optional[str] = None,
+    exploratory: bool = False,
 ) -> bool:
     """
     Mark a spec as promoted in backtest_runs and optionally add to
-    promoted_signals if a recent signal date is supplied.
+    promoted_signals.
 
-    Returns True if a new promoted_signals row was inserted.
+    Guard: refuses to write promoted_signals with n < 30 unless
+    exploratory=True. Non-exploratory promotions with small samples raise
+    ValueError so the caller can catch and re-classify the signal.
+
+    Parameters
+    ----------
+    exploratory : if True, save with signal_status='exploratory' even if n<30
     """
     notes = "; ".join(reasons) if reasons else "passed all criteria"
 
     with get_connection() as conn:
-        # Mark the most recent run for this spec as promoted
+        # ── n < 30 guard ──────────────────────────────────────────────────────
+        run_row = conn.execute(text("""
+            SELECT n_events FROM backtest_runs
+            WHERE spec_id = :sid
+            ORDER BY run_date DESC, id DESC
+            LIMIT 1
+        """), {"sid": spec_id}).fetchone()
+
+        n_events = int(run_row[0]) if run_row else 0
+
+        if n_events < 30 and not exploratory:
+            raise ValueError(
+                f"promote_spec: spec_id={spec_id} has n={n_events} < 30. "
+                f"Call with exploratory=True to save as an exploratory signal."
+            )
+
+        status = "exploratory" if (exploratory or n_events < 30) else "promoted"
+
+        # ── Mark the most recent run as promoted ──────────────────────────────
         conn.execute(text("""
             UPDATE backtest_runs
             SET promoted = TRUE, promoted_at = now(),
@@ -146,13 +171,17 @@ def promote_spec(
         if recent_signal_date is None:
             return False
 
+        # ── Insert / update promoted_signals ──────────────────────────────────
         row = conn.execute(text("""
             INSERT INTO promoted_signals
-                (spec_id, ticker, signal_date, promotion_score, robustness_notes)
-            VALUES (:sid, :ticker, :date, :score, :notes)
+                (spec_id, ticker, signal_date, promotion_score,
+                 robustness_notes, exploratory, signal_status)
+            VALUES (:sid, :ticker, :date, :score, :notes, :expl, :status)
             ON CONFLICT (spec_id, ticker, signal_date) DO UPDATE SET
                 promotion_score  = EXCLUDED.promotion_score,
                 robustness_notes = EXCLUDED.robustness_notes,
+                exploratory      = EXCLUDED.exploratory,
+                signal_status    = EXCLUDED.signal_status,
                 promoted_at      = now()
             RETURNING id
         """), {
@@ -161,6 +190,8 @@ def promote_spec(
             "date":   recent_signal_date,
             "score":  score,
             "notes":  notes,
+            "expl":   exploratory or n_events < 30,
+            "status": status,
         }).fetchone()
 
     return row is not None

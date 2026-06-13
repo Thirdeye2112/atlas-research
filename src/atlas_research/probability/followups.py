@@ -136,11 +136,20 @@ def generate_followup_results(
         stats        = stats_by_horizon(events)
         robustness   = check_robustness(events, horizon=5) if len(events) >= 5 else None
 
+        n = len(events)
+        if n < 5:
+            status = "insufficient"
+        elif n < 30:
+            status = "candidate"      # small sample — never promoted directly
+        else:
+            status = "sufficient"     # large enough; caller may promote
+
         results.append({
             "modifier":    mod_key,
             "label":       f"{ticker} {base_label} + {MODIFIER_LABELS[mod_key]}",
             "base_n":      int(base_mask.sum()),
-            "compound_n":  len(events),
+            "compound_n":  n,
+            "status":      status,
             "stats":       stats,
             "robustness":  robustness,
         })
@@ -169,25 +178,28 @@ def print_followup_results(base_label: str, results: list[dict]) -> None:
         return
 
     print(f"  Follow-ups for: {base_label}")
-    print(f"  {'Variant':<38}  {'N':>4}  {'Hit5d':>6}  {'Avg5d':>6}  {'Hit20d':>6}  {'Avg20d':>7}")
-    print("  " + "-" * 74)
+    print(f"  {'Variant':<38}  {'N':>4}  {'Hit5d':>6}  {'Avg5d':>6}  {'Hit20d':>6}  {'Avg20d':>7}  {'Status'}")
+    print("  " + "-" * 86)
 
     for r in results:
-        s5  = r["stats"].get(5,  {})
-        s20 = r["stats"].get(20, {})
-        n   = r["compound_n"]
-        label = r["label"]
+        s5     = r["stats"].get(5,  {})
+        s20    = r["stats"].get(20, {})
+        n      = r["compound_n"]
+        label  = r["label"]
+        status = r.get("status", "?")
 
-        # Suppress if too few events
-        if n < 5:
-            print(f"  {label:<38}  {n:>4}  (insufficient data)")
+        if status == "insufficient":
+            print(f"  {label:<38}  {n:>4}  (insufficient data, n<5)")
             continue
+
+        status_tag = "candidate / small sample" if status == "candidate" else ""
 
         print(
             f"  {label:<38}  {n:>4}  "
             f"{_hr(s5.get('hit_rate')):>6}  "
             f"{_pct(s5.get('avg_return')):>6}  "
             f"{_hr(s20.get('hit_rate')):>6}  "
-            f"{_pct(s20.get('avg_return')):>7}"
+            f"{_pct(s20.get('avg_return')):>7}  "
+            f"{status_tag}"
         )
     print()

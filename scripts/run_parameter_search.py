@@ -67,6 +67,8 @@ from atlas_research.probability.followups import (
     print_followup_results,
 )
 from atlas_research.probability.engine import load_bars, detect_condition
+from atlas_research.probability.sanity import run_shuffle_test, print_sanity_result
+from atlas_research.probability.reports import print_signal_report
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -209,6 +211,57 @@ def cmd_review(ticker: str) -> None:
         )
 
 
+def cmd_report(ticker: str) -> None:
+    """Print full promoted/candidate/rejected report from DB."""
+    t = ticker.upper() if ticker and ticker.upper() != "ALL" else None
+    print_signal_report(ticker=t)
+
+
+def cmd_sanity(
+    ticker: str,
+    condition_type: str,
+    params: dict,
+    n_shuffles: int = 200,
+) -> None:
+    """Run shuffle/permutation test for one spec."""
+    result = run_shuffle_test(ticker, condition_type, params, n_shuffles=n_shuffles)
+    print_sanity_result(result)
+
+
+def cmd_sanity_suite(ticker: str, n_shuffles: int = 200) -> None:
+    """
+    Run sanity check on all promoted specs for a ticker.
+    Shows whether each promoted edge survives permutation testing.
+    """
+    from sqlalchemy import text
+    from atlas_research.db.connection import get_connection
+
+    with get_connection() as conn:
+        rows = conn.execute(text("""
+            SELECT ts.id, ts.condition_type, ts.params
+            FROM test_specifications ts
+            JOIN LATERAL (
+                SELECT promoted FROM backtest_runs
+                WHERE spec_id = ts.id
+                ORDER BY run_date DESC, id DESC LIMIT 1
+            ) br ON TRUE
+            WHERE ts.ticker = :t AND br.promoted = TRUE
+            ORDER BY ts.condition_type, ts.params
+        """), {"t": ticker.upper()}).fetchall()
+
+    if not rows:
+        print(f"  No promoted specs found for {ticker}.")
+        return
+
+    print(f"\n  Running sanity checks on {len(rows)} promoted spec(s) for {ticker}...\n")
+    for row in rows:
+        import json as _json
+        ctype  = row[1]
+        params = _json.loads(row[2])
+        result = run_shuffle_test(ticker, ctype, params, n_shuffles=n_shuffles)
+        print_sanity_result(result)
+
+
 def cmd_ingest(text: str, save: bool) -> None:
     """Parse text for research hypotheses and optionally save to DB."""
     from atlas_research.transcripts.hypothesis_pipeline import ingest_text, print_extracted
@@ -244,6 +297,18 @@ def main() -> int:
         help="Print promotion verdicts for existing DB runs without re-running",
     )
     parser.add_argument(
+        "--report", action="store_true",
+        help="Print three-section report: promoted / candidate / rejected (reads DB)",
+    )
+    parser.add_argument(
+        "--sanity-check", action="store_true",
+        help="Run permutation/shuffle test for promoted specs (or a single spec)",
+    )
+    parser.add_argument(
+        "--shuffles", type=int, default=200,
+        help="Number of permutations for --sanity-check (default 200)",
+    )
+    parser.add_argument(
         "--ingest-text", metavar="TEXT",
         help="Extract research hypotheses from a text string",
     )
@@ -257,6 +322,21 @@ def main() -> int:
 
     if args.ingest_text:
         cmd_ingest(args.ingest_text, save=save)
+        return 0
+
+    if args.report:
+        cmd_report(args.ticker)
+        return 0
+
+    if args.sanity_check:
+        if args.condition and (args.n is not None or args.threshold is not None):
+            if args.n is not None:
+                params = {"n": args.n}
+            else:
+                params = {"threshold_pct": args.threshold}
+            cmd_sanity(args.ticker, args.condition, params, n_shuffles=args.shuffles)
+        else:
+            cmd_sanity_suite(args.ticker, n_shuffles=args.shuffles)
         return 0
 
     if args.review_only:
