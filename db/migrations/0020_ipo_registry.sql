@@ -31,5 +31,3 @@ CREATE TABLE IF NOT EXISTS ipo_backtest_results (
 CREATE INDEX IF NOT EXISTS idx_ipo_backtest_ticker ON ipo_backtest_results(ticker);
 CREATE INDEX IF NOT EXISTS idx_ipo_backtest_horizon ON ipo_backtest_results(horizon_days);
 
-INSERT INTO schema_migrations(migration_name, applied_at) VALUES ('0020_ipo_registry.sql', NOW())
-ON CONFLICT (migration_name) DO NOTHING;

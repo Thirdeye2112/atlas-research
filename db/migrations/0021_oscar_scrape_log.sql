@@ -17,5 +17,3 @@ CREATE TABLE IF NOT EXISTS oscar_scrape_log (
 CREATE INDEX IF NOT EXISTS idx_oscar_scrape_status ON oscar_scrape_log(status);
 CREATE INDEX IF NOT EXISTS idx_oscar_scrape_published ON oscar_scrape_log(published_at DESC);
 
-INSERT INTO schema_migrations(migration_name, applied_at) VALUES ('0021_oscar_scrape_log.sql', NOW())
-ON CONFLICT (migration_name) DO NOTHING;

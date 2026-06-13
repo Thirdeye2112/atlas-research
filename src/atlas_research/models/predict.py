@@ -194,6 +194,19 @@ def run_prediction_pipeline(
         log.error("predict.bad_artifact", type=type(bundle).__name__)
         return 0
 
+    # Use the feature set the model was actually trained on (stored in the artifact),
+    # not the current settings list — they diverge when new features are added
+    # between training runs.
+    if hasattr(bundle, "feature_names") and bundle.feature_names:
+        if set(bundle.feature_names) != set(feature_cols):
+            log.info(
+                "predict.feature_align",
+                artifact_features=len(bundle.feature_names),
+                settings_features=len(feature_cols),
+                dropped=[f for f in feature_cols if f not in bundle.feature_names],
+            )
+        feature_cols = bundle.feature_names
+
     preds = score_universe(
         pred_date, parquet_dir, bundle, feature_cols, min_quality_score
     )
