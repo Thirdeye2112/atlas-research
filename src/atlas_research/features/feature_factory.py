@@ -85,6 +85,35 @@ def build_features(
     features.update(volume.compute(close, vol))
     features.update(omni_proxy.compute(close, high, low, open_))
 
+    # ── Quality tier + quality-adjusted Jarvis ───────────────
+    # Tier 1: price>$50 & dvol>$25M  (large cap, signal is bullish)
+    # Tier 2: price $20-50 & dvol>$5M (mid cap, signal is bullish)
+    # Tier 3: price $5-20 & dvol>$1M  (small cap, signal is neutral)
+    # Tier 4: everything else          (micro/junk, signal reverses to bearish)
+    lookback = min(252, len(close))
+    med_price = float(np.median(close[-lookback:]))
+    avg_dvol  = float(np.mean(close[-lookback:] * vol[-lookback:]))
+    if med_price > 50 and avg_dvol > 25_000_000:
+        tier = 1
+    elif 20 <= med_price <= 50 and avg_dvol > 5_000_000:
+        tier = 2
+    elif 5 <= med_price <= 20 and avg_dvol > 1_000_000:
+        tier = 3
+    else:
+        tier = 4
+    features["quality_tier"] = float(tier)
+
+    omni_above = features.get("omni_82_above")
+    if omni_above is not None:
+        if tier <= 2:
+            features["jarvis_quality_adjusted"] = omni_above * 2.0 - 1.0   # 1.0 if green, -1.0 if not
+        elif tier == 3:
+            features["jarvis_quality_adjusted"] = 0.0
+        else:
+            features["jarvis_quality_adjusted"] = -(omni_above * 2.0 - 1.0)  # inverted for junk
+    else:
+        features["jarvis_quality_adjusted"] = None
+
     # ── Relative strength + regime (require SPY) ─────────────
     if spy_bars is not None and len(spy_bars) >= MIN_BARS:
         spy_close = spy_bars["adjusted_close"].to_numpy(dtype=np.float64)
