@@ -44,6 +44,8 @@ def main() -> None:
                         help="Quick baseline mode (single model, no walk-forward)")
     parser.add_argument("--predict-only", action="store_true",
                         help="Skip training; only score today's universe")
+    parser.add_argument("--artifact",      default=None,
+                        help="Path to model.joblib to use for --predict-only (default: newest by mtime)")
     parser.add_argument("--no-db",        action="store_true",
                         help="Dry run — do not write to database")
     parser.add_argument("--version",      default=settings.MODEL_VERSION,
@@ -72,7 +74,8 @@ def main() -> None:
 
     # ── Predict-only mode ─────────────────────────────────────
     if args.predict_only:
-        _run_predict_only(parquet_dir, model_dir, feature_cols, args.version, write_db)
+        _run_predict_only(parquet_dir, model_dir, feature_cols, args.version, write_db,
+                          artifact_override=args.artifact)
         return
 
     # ── Determine date range ──────────────────────────────────
@@ -139,17 +142,25 @@ def main() -> None:
             _print_metrics(r.val_metrics, indent="    ")
 
 
-def _run_predict_only(parquet_dir, model_dir, feature_cols, version, write_db):
-    """Find the most recently saved artifact and score today."""
+def _run_predict_only(parquet_dir, model_dir, feature_cols, version, write_db,
+                      artifact_override: str | None = None):
+    """Find the most recently saved artifact (by mtime) and score today."""
     from atlas_research.models.predict import run_prediction_pipeline
 
-    # Find newest artifact
-    artifacts = sorted(model_dir.rglob("model.joblib"))
-    if not artifacts:
-        log.error("predict_only.no_artifacts", model_dir=str(model_dir))
-        sys.exit(1)
+    if artifact_override:
+        newest = Path(artifact_override)
+        if not newest.exists():
+            log.error("predict_only.artifact_not_found", path=str(newest))
+            sys.exit(1)
+    else:
+        # Sort by modification time (newest last) rather than alphabetically,
+        # so a 2026-01-23 artifact doesn't shadow a freshly trained 2025-07-01 fold.
+        artifacts = sorted(model_dir.rglob("model.joblib"), key=lambda p: p.stat().st_mtime)
+        if not artifacts:
+            log.error("predict_only.no_artifacts", model_dir=str(model_dir))
+            sys.exit(1)
+        newest = artifacts[-1]
 
-    newest = artifacts[-1]
     log.info("predict_only.using_artifact", path=str(newest))
 
     n = run_prediction_pipeline(
