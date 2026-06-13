@@ -125,13 +125,14 @@ def classify_day1(pop_pct):
 
 def main():
     conn = psycopg2.connect(DB_URL)
+    conn.autocommit = True   # each row committed independently; one failure doesn't abort all
     cur  = conn.cursor()
 
     cur.execute("""
         SELECT ticker, MIN(date) AS first_date
         FROM raw_bars
         GROUP BY ticker
-        HAVING MIN(date) >= '2015-01-01' AND MIN(date) < '2026-01-01'
+        HAVING MIN(date) >= '2015-01-01' AND MIN(date) <= CURRENT_DATE
         ORDER BY MIN(date)
     """)
     candidates = [{"ticker": r[0], "first_date": r[1]} for r in cur.fetchall()]
@@ -193,6 +194,10 @@ def main():
         else:
             pop_pct = None
 
+        # Clamp extreme pop values (penny stocks, bad data) to NUMERIC(8,4) range
+        if pop_pct is not None and abs(pop_pct) > 9999:
+            pop_pct = None
+
         day1_cat = classify_day1(pop_pct)
 
         pop_str = ("+%.1f%%" % pop_pct) if pop_pct is not None else "N/A"
@@ -200,44 +205,46 @@ def main():
               "  price=%.2f  close=%.2f  pop=%s  [%s]  %s" % (
               ipo_price or 0, d1_close or 0, pop_str, day1_cat, company_name))
 
-        cur.execute("""
-            INSERT INTO ipo_registry
-              (ticker, ipo_date, ipo_price, company_name, sector, industry,
-               exchange, underwriter, shares_offered,
-               day1_open, day1_high, day1_low, day1_close, day1_volume,
-               day1_pop_pct, day1_category, source)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'build_ipo_registry')
-            ON CONFLICT (ticker) DO UPDATE SET
-              ipo_date       = EXCLUDED.ipo_date,
-              ipo_price      = EXCLUDED.ipo_price,
-              company_name   = COALESCE(NULLIF(EXCLUDED.company_name,''), ipo_registry.company_name),
-              sector         = COALESCE(NULLIF(EXCLUDED.sector,''), ipo_registry.sector),
-              industry       = COALESCE(NULLIF(EXCLUDED.industry,''), ipo_registry.industry),
-              exchange       = COALESCE(NULLIF(EXCLUDED.exchange,''), ipo_registry.exchange),
-              underwriter    = COALESCE(EXCLUDED.underwriter, ipo_registry.underwriter),
-              shares_offered = COALESCE(EXCLUDED.shares_offered, ipo_registry.shares_offered),
-              day1_open      = EXCLUDED.day1_open,
-              day1_high      = EXCLUDED.day1_high,
-              day1_low       = EXCLUDED.day1_low,
-              day1_close     = EXCLUDED.day1_close,
-              day1_volume    = EXCLUDED.day1_volume,
-              day1_pop_pct   = EXCLUDED.day1_pop_pct,
-              day1_category  = EXCLUDED.day1_category,
-              source         = EXCLUDED.source
-        """, (
-            ticker, first_date, ipo_price, company_name, sector, industry,
-            exchange_v, underwriter, shares_off,
-            d1_open, d1_high, d1_low, d1_close, d1_vol,
-            round(pop_pct, 4) if pop_pct is not None else None,
-            day1_cat,
-        ))
-        upserted += 1
+        try:
+            cur.execute("""
+                INSERT INTO ipo_registry
+                  (ticker, ipo_date, ipo_price, company_name, sector, industry,
+                   exchange, underwriter, shares_offered,
+                   day1_open, day1_high, day1_low, day1_close, day1_volume,
+                   day1_pop_pct, day1_category, source)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'build_ipo_registry')
+                ON CONFLICT (ticker) DO UPDATE SET
+                  ipo_date       = EXCLUDED.ipo_date,
+                  ipo_price      = EXCLUDED.ipo_price,
+                  company_name   = COALESCE(NULLIF(EXCLUDED.company_name,''), ipo_registry.company_name),
+                  sector         = COALESCE(NULLIF(EXCLUDED.sector,''), ipo_registry.sector),
+                  industry       = COALESCE(NULLIF(EXCLUDED.industry,''), ipo_registry.industry),
+                  exchange       = COALESCE(NULLIF(EXCLUDED.exchange,''), ipo_registry.exchange),
+                  underwriter    = COALESCE(EXCLUDED.underwriter, ipo_registry.underwriter),
+                  shares_offered = COALESCE(EXCLUDED.shares_offered, ipo_registry.shares_offered),
+                  day1_open      = EXCLUDED.day1_open,
+                  day1_high      = EXCLUDED.day1_high,
+                  day1_low       = EXCLUDED.day1_low,
+                  day1_close     = EXCLUDED.day1_close,
+                  day1_volume    = EXCLUDED.day1_volume,
+                  day1_pop_pct   = EXCLUDED.day1_pop_pct,
+                  day1_category  = EXCLUDED.day1_category,
+                  source         = EXCLUDED.source
+            """, (
+                ticker, first_date, ipo_price, company_name, sector, industry,
+                exchange_v, underwriter, shares_off,
+                d1_open, d1_high, d1_low, d1_close, d1_vol,
+                round(pop_pct, 4) if pop_pct is not None else None,
+                day1_cat,
+            ))
+            upserted += 1
+        except Exception as e:
+            print("  SKIP %s: %s" % (ticker, e))
 
     stale = list(EXCLUDE_TICKERS) + ["BRK-B","GLD","LQD","DIA","TLT","UUP","HYG"]
     cur.execute("DELETE FROM ipo_registry WHERE ticker = ANY(%s)", (stale,))
     deleted = cur.rowcount
 
-    conn.commit()
     cur.close()
     conn.close()
 
