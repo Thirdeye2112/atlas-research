@@ -135,16 +135,62 @@ Using `sector_relative_strength` table (38,638 rows, 11 SPDR ETFs, 2011-2026).
 
 ---
 
-## Current System State (as of 2026-06-11)
+## Feature Set Experiment (2026-06-14)
+
+### Feature Health Classification (28 features, model v1, target label_return_5d)
+
+| Category | Count | Key Features |
+|---|---|---|
+| STRONG | 0 | — |
+| USEFUL | 4 | omni_82_distance (IC=+0.0242), omni_82_above (IC=+0.0149), realized_vol_20, volume_ratio_20 |
+| WEAK | 12 | atr_14 (sign_stab=0.00), dollar_volume_20, omni_82_bounce, omni_82_slope, realized_vol_60, distance_sma200, rs_spy_120, above_sma200, above_sma50, return_60d, rs_spy_60, distance_sma50 |
+| DEGRADING | 12 | return_1d/3d/5d/10d/20d, rsi_14, macd_histogram, above_sma20, distance_sma20, rs_spy_20, roc_20, omni_82_value |
+
+### Pruning Experiment (parquet 2011-2026, 80/20 time split)
+
+| Feature Set | n_feat | IC | Verdict |
+|---|---|---|---|
+| features_current (V1 baseline) | 39 | +0.0172 | — |
+| **features_remove_degrading (V2)** | **27** | **+0.0397** | **+131%** |
+| features_mean_reversion_plus_omni | 14 | +0.0155 | — |
+
+### Holdout Validation (trained 2011-2025, evaluated 2025-07-01 to 2026-03-17)
+
+| Metric | V1 (39 feat) | V2 (27 feat) | Winner |
+|---|---|---|---|
+| Mean Rank IC | +0.0196 | +0.0152 | **V1** |
+| IC Std (lower) | +0.1065 | +0.1030 | V2 |
+| Decile Spread | +0.0020 | +0.0014 | **V1** |
+| AUC | +0.5000 | +0.4943 | **V1** |
+| Brier (lower) | +0.3333 | +0.3362 | **V1** |
+| Top Decile Return | +0.0040 | +0.0045 | V2 |
+| Bot Decile Return | +0.0020 | +0.0031 | V2 |
+
+**Verdict: KEEP V1.** V1 wins 4/7 metrics on the untouched holdout (2025-07-01 to 2026-03-17).
+The pruning experiment's V2 advantage (historical 80/20 split) does not replicate in the live holdout
+period. The 2025-2026 bull market may favour the trend/momentum features that V2 removes.
+
+**V2 is ready as a rollback option.** `MODEL_FEATURE_SET_VERSION=v2` in `.env` activates V2 training.
+Reassess after 6 months of new parquet data or a change in market regime.
+
+**Prediction overlap:** 39.5% Jaccard on top-decile tickers per day — V2 is selecting materially
+different stocks from V1, confirming they are not equivalent models.
+
+---
+
+## Current System State (as of 2026-06-14)
 
 ### Infrastructure
-- **Migrations applied:** 0001 through 0019
-- **Tables:** raw_bars, feature_snapshots, model_registry, conditional_patterns, conditional_pattern_results, sector_relative_strength, market_calendar, transcript_sessions, transcript_chunks
+- **Migrations applied:** 0001 through 0028
+- **Tables:** raw_bars, feature_snapshots, feature_snapshots_wide, model_registry, feature_review_flags, experimental_score_snapshots, score_backtest_results, feature_pruning_results, conditional_patterns, conditional_pattern_results, sector_relative_strength, market_calendar, transcript_sessions, transcript_chunks
 
 ### ML Pipeline
-- **Features:** 33 (PHASE1 + REGIME + OMNI_82 x5)
+- **Features:** 39 (PHASE1 + REGIME + OMNI_82 + MOMENTUM_V2 + data_quality_score) — active set V1
+- **Defined feature sets:** `TRAIN_FEATURES_V1` (39), `TRAIN_FEATURES_V2` (27, removes degrading)
+- **Active set:** V1 (default). Override: `MODEL_FEATURE_SET_VERSION=v2` in `.env`
 - **OMNI backfill:** complete — 192/192 tickers have `omni_82_above`
-- **Current model:** v1.5 (33 features, post-OMNI), trained through 2025-07-01, WF IC=0.0546
+- **Current model:** v1.5 (33 features, pre-MOMENTUM_V2), trained through 2025-07-01, WF IC=0.0546
+- **Next retrain should use:** TRAIN_FEATURES_V1 (39 features, includes MOMENTUM_V2 features)
 - **Model artifact:** `models/return_regressor_v1_2025-07-01/model.joblib`
 
 ### Conditional Probability Engine

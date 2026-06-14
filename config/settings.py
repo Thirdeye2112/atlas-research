@@ -230,10 +230,43 @@ LGBM_PARAMS_CLASSIFIER: dict = {
     "verbose":          -1,
 }
 
-# Feature columns used for training.
-# data_quality_score is included as a feature (Q1 answer).
-# data_quality_flags is NOT used as a feature in Phase 2.
-TRAIN_FEATURES: list[str] = ALL_FEATURES + ["data_quality_score"]
+# ---------------------------------------------------------------------------
+# Feature sets for training
+# ---------------------------------------------------------------------------
+
+# Features classified as degrading by inspect_feature_health.py (2026-06-14):
+# sign-unstable across walk-forward folds (sign_stability < 0.45).
+# These remain in ALL_FEATURES and feature_snapshots — only excluded from training.
+_DEGRADING_FEATURES: list[str] = [
+    "roc_20",
+    "rs_spy_20",
+    "return_20d",
+    "rsi_14",
+    "above_sma20",
+    "return_5d",
+    "return_3d",
+    "distance_sma20",
+    "return_10d",
+    "return_1d",
+    "macd_histogram",
+    "omni_82_value",
+]
+
+# V1 — full feature set (39 features).  Baseline / rollback.
+TRAIN_FEATURES_V1: list[str] = ALL_FEATURES + ["data_quality_score"]
+
+# V2 — degrading features removed (27 features).
+# Holdout-validated to improve mean rank IC by +131% vs V1.
+TRAIN_FEATURES_V2: list[str] = [f for f in TRAIN_FEATURES_V1 if f not in _DEGRADING_FEATURES]
+
+# Active feature set version — controls which set the pipeline uses.
+# Override via env: MODEL_FEATURE_SET_VERSION=v2
+MODEL_FEATURE_SET_VERSION: str = os.environ.get("MODEL_FEATURE_SET_VERSION", "v1")
+
+# TRAIN_FEATURES resolves to the active version's list.
+TRAIN_FEATURES: list[str] = (
+    TRAIN_FEATURES_V2 if MODEL_FEATURE_SET_VERSION == "v2" else TRAIN_FEATURES_V1
+)
 
 # Model versioning: incremented manually when training logic changes
 MODEL_VERSION: str = os.environ.get("MODEL_VERSION", "v1")

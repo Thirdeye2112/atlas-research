@@ -93,20 +93,47 @@ is being changed.
 
 ---
 
+## Holdout Validation (2026-06-14)
+
+Final validation on untouched period: trained 2011-07-01 to 2025-06-30, evaluated
+2025-07-01 to 2026-03-17 (179 dates, 32,757 rows). Both V1 and V2 trained on identical
+pre-holdout data with same LightGBM hyperparameters.
+
+| Metric | V1 (39 feat) | V2 (27 feat) | Winner |
+|---|---|---|---|
+| Mean Rank IC | +0.0196 | +0.0152 | **V1** |
+| IC Std (lower=better) | +0.1065 | +0.1030 | V2 |
+| Decile Spread | +0.0020 | +0.0014 | **V1** |
+| AUC | +0.5000 | +0.4943 | **V1** |
+| Brier (lower=better) | +0.3333 | +0.3362 | **V1** |
+| Top Decile Return | +0.0040 | +0.0045 | V2 |
+| Bot Decile Return | +0.0020 | +0.0031 | V2 |
+
+**Score: V1 wins 4/7. Promotion threshold not met (required >= 4 of 7).**
+
+Prediction overlap (Jaccard, top decile per day): **39.5%** — the two models select
+materially different stocks. V2 is not a drop-in substitute.
+
+---
+
 ## Conclusion
 
-**Verdict: REPLACE**
+**Verdict: KEEP V1 — holdout does not confirm replacement.**
 
-Move the production model to `features_remove_degrading` (27 features). Removing the 12
-sign-unstable degrading features increases mean rank IC by +131% (+0.0172 to +0.0397)
-with no increase in training time. The improvement is structurally sound: it eliminates
-label-adjacent features (return_Nd targets predicting return_5d) and noisy sign-flipping
-signals.
+The historical pruning experiment showed V2 improving IC by +131% on a 2011-2026 dataset.
+However, the untouched holdout (July 2025 to March 2026) shows V1 winning on 4/7 metrics.
+The 2025-2026 bull market appears to favour trend/momentum features (above_sma20, rs_spy_20,
+rsi_14, macd_histogram) that V2 excludes. These features were classified as "degrading"
+across historical folds but may be temporarily mean-reverting back to significance in the
+current regime.
 
-**Recommended next steps:**
-1. Retrain production model on `features_remove_degrading` feature set
-2. Monitor IC in live nightly pipeline for 20 trading days before full commit
-3. Track `feature_review_flags` weekly via `inspect_feature_health.py`
-4. Re-evaluate MR+OMNI set for a signal-overlay layer on top of the primary model
+**V2 is preserved and ready as an alternative.** It is the default when
+`MODEL_FEATURE_SET_VERSION=v2` is set in `.env`. Reassess after:
+- 6+ months of additional live data (next review ~2027-01-01), or
+- A market regime change (bear market, high volatility) where trend signals degrade
 
-**Do not delete** the dropped features from `feature_snapshots` — preserve EAV history.
+**Do not delete** any features from `feature_snapshots`, `ALL_FEATURES`, or `PHASE1_FEATURES`.
+The degrading classification is regime-sensitive, not permanent.
+
+**Next retrain should use TRAIN_FEATURES_V1 (39 features)**, which includes the 6
+MOMENTUM_V2 features not yet in the current 33-feature production model.
