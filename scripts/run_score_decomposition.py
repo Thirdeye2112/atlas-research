@@ -148,6 +148,41 @@ def _macd_sign(h: float | None) -> str | None:
         return None
     return "positive" if h > 0 else "negative"
 
+def _vol_tier(atr_pct: float | None) -> str | None:
+    if atr_pct is None:
+        return None
+    # atr_pct stored as percentage (e.g. 3.5 = 3.5% ATR)
+    # p25=2.51%, median=3.55%, p75=5.54% across the scanner universe
+    if atr_pct < 2.0:  return "low<2%"
+    if atr_pct < 4.0:  return "mid 2-4%"
+    if atr_pct < 7.0:  return "high 4-7%"
+    return "extreme>7%"
+
+def _parse_patterns(raw) -> list[str]:
+    if isinstance(raw, list):
+        return [str(p) for p in raw]
+    if isinstance(raw, str):
+        try:
+            import json as _json
+            return _json.loads(raw)
+        except Exception:
+            return []
+    return []
+
+# Patterns that indicate price breakout/momentum (historically bearish at 5d — overextended)
+BREAKOUT_PATTERNS = {
+    "BB Breakout", "Golden Cross", "Death Cross",
+    "High Relative Volume", "Ascending Triangle", "Cup and Handle",
+    "Flat Base Breakout", "52-Week High", "New 52W High",
+}
+
+# Patterns that indicate compression/mean-reversion setup (historically bullish at 5d)
+COMPRESSION_PATTERNS = {
+    "NR7 Compression", "Inside Day", "Volatility Squeeze",
+    "Rectangle Base", "Bear Flag", "Bull Flag",
+    "Descending Channel", "Falling Wedge",
+}
+
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
@@ -164,7 +199,8 @@ def run(research_url: str, min_n: int = MIN_N_DEFAULT, write_db: bool = True) ->
                 rsi, adx, alignment_score,
                 macd_histogram, rsi_divergence,
                 golden_cross, death_cross, vol_squeeze,
-                pullback_class,
+                pullback_class, atr_pct,
+                patterns,
                 bull_flags, bear_flags,
                 return_1d, return_3d, return_5d, return_10d, return_20d
             FROM alpha_signal_snapshots
@@ -264,6 +300,32 @@ def run(research_url: str, min_n: int = MIN_N_DEFAULT, write_db: bool = True) ->
         if pc:
             groups[("pullback_class", str(pc))].append(rec)
 
+        # ── New composite components ─────────────────────────────────────
+        pats = _parse_patterns(r.get("patterns"))
+
+        # Pattern score: raw count bucketed
+        n_pats = len(pats)
+        if n_pats == 0:    pat_bucket = "0"
+        elif n_pats <= 2:  pat_bucket = "1-2"
+        elif n_pats <= 4:  pat_bucket = "3-4"
+        else:              pat_bucket = "5+"
+        groups[("pattern_score", pat_bucket)].append(rec)
+
+        # Breakout score: presence of breakout vs compression vs neither
+        has_breakout    = any(p in BREAKOUT_PATTERNS    for p in pats)
+        has_compression = any(p in COMPRESSION_PATTERNS for p in pats)
+        if has_breakout:
+            groups[("breakout_score", "has_breakout")].append(rec)
+        if has_compression:
+            groups[("breakout_score", "has_compression")].append(rec)
+        if not has_breakout and not has_compression:
+            groups[("breakout_score", "no_signal")].append(rec)
+
+        # Volatility score: ATR% bucketed
+        vt = _vol_tier(float(r["atr_pct"]) if r.get("atr_pct") is not None else None)
+        if vt:
+            groups[("volatility_score", vt)].append(rec)
+
     # ── Compute stats per group ───────────────────────────────────────────────
     def _arr(items: list[dict], key: str) -> np.ndarray | None:
         vals = [x[key] for x in items if x[key] is not None]
@@ -353,6 +415,7 @@ def print_decomposition(results: list[DecompRow], baseline: float) -> None:
         "trend_score", "momentum_score", "volume_score",
         "rs_score", "regime_score", "exhaustion_score",
         "rsi_raw", "adx_raw", "alignment_score",
+        "pattern_score", "breakout_score", "volatility_score",
         "macd_histogram", "rsi_divergence",
         "golden_cross", "death_cross", "vol_squeeze",
         "pullback_class",
