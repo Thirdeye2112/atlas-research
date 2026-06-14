@@ -182,7 +182,54 @@ def run_nightly(
         log.debug(traceback.format_exc())
         errors.append(str(exc))
 
-    # ── Step 10: mark complete ────────────────────────────────
+    # ── Step 10: wide table refresh (non-fatal) ──────────────
+    # Pivots EAV feature_snapshots → feature_snapshots_wide for today.
+    # Failure must not stop ingestion.
+    try:
+        import os as _os2
+        _research_url_wide = _os2.environ.get("DATABASE_URL", "")
+        if _research_url_wide:
+            from atlas_research.exports.wide_export import refresh_wide
+            _n_wide = refresh_wide(run_date, _research_url_wide,
+                                   feature_version=settings.FEATURE_VERSION)
+            step_results["wide_refresh"] = {"rows": _n_wide}
+            log.info("pipeline.wide_refresh_done", rows=_n_wide)
+        else:
+            step_results["wide_refresh"] = {"rows": 0, "reason": "no DATABASE_URL"}
+    except Exception as exc:
+        log.error("pipeline.wide_refresh_failed", error=str(exc))
+        step_results["wide_refresh"] = {"status": "failed", "error": str(exc)}
+        # Intentionally not appended to errors — wide refresh failure is non-fatal
+
+    # ── Step 11: calibration (non-fatal) ─────────────────────
+    # Syncs alpha signal snapshots then runs score component decomposition.
+    # Requires DATABASE_URL_ALPHA env var for the sync phase.
+    # Failure here must never stop ingestion — all errors are logged only.
+    try:
+        import os as _os
+        alpha_url = _os.environ.get("DATABASE_URL_ALPHA")
+        research_url = _os.environ.get("DATABASE_URL", "")
+
+        if alpha_url and research_url:
+            from atlas_research.calibration.engine import sync_snapshots
+            n_synced = sync_snapshots(alpha_url, research_url)
+            log.info("pipeline.calibration_sync_done", n_synced=n_synced)
+        else:
+            n_synced = 0
+            log.info("pipeline.calibration_sync_skipped",
+                     reason="DATABASE_URL_ALPHA not configured")
+
+        from atlas_research.calibration.score_decomp import run_nightly_calibration
+        cal = run_nightly_calibration(run_date=run_date, research_url=research_url)
+        step_results["calibration"] = {**cal, "n_synced": n_synced}
+        log.info("pipeline.calibration_done", **cal)
+
+    except Exception as exc:
+        log.error("pipeline.calibration_failed", error=str(exc))
+        step_results["calibration"] = {"status": "failed", "error": str(exc)}
+        # Intentionally not appended to errors — calibration failure is non-fatal
+
+    # ── Step 12: mark complete ────────────────────────────────
     error_str = "; ".join(errors) if errors else None
     repository.complete_research_run(run_id, error=error_str, **counters)
 
@@ -255,6 +302,9 @@ def _run_features(
             fv = build_features(ticker, bars, spy_tail)
             if fv is None:
                 continue
+
+            # Inject data_quality_score into EAV so it lands in feature_snapshots_wide.
+            fv["data_quality_score"] = float(vr.data_quality_score)
 
             rows = repository.upsert_features(
                 ticker, run_date, fv,
