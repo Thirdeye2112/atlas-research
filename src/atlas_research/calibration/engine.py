@@ -124,7 +124,17 @@ def sync_snapshots(alpha_url: str, research_url: str) -> int:
                 parabolic_rise,
                 patterns,
                 smart_gate_enter,
-                pullback_class
+                pullback_class,
+                -- decomposition columns (NULL for rows saved before migration)
+                options_score,
+                adx,
+                adx_trending,
+                alignment_score,
+                macd_histogram,
+                rsi_divergence,
+                golden_cross,
+                death_cross,
+                vol_squeeze
             FROM signal_snapshots
             WHERE snapshot_date <= CURRENT_DATE - INTERVAL '7 days'
         """)
@@ -199,6 +209,15 @@ def sync_snapshots(alpha_url: str, research_url: str) -> int:
             "patterns":         r["patterns"],
             "smart_gate_enter": r["smart_gate_enter"],
             "pullback_class":   r["pullback_class"],
+            "options_score":    r.get("options_score"),
+            "adx":              r.get("adx"),
+            "adx_trending":     r.get("adx_trending"),
+            "alignment_score":  r.get("alignment_score"),
+            "macd_histogram":   r.get("macd_histogram"),
+            "rsi_divergence":   r.get("rsi_divergence"),
+            "golden_cross":     r.get("golden_cross"),
+            "death_cross":      r.get("death_cross"),
+            "vol_squeeze":      r.get("vol_squeeze"),
             "return_1d":        pct_ret(1),
             "return_3d":        pct_ret(3),
             "return_5d":        pct_ret(5),
@@ -226,6 +245,8 @@ def sync_snapshots(alpha_url: str, research_url: str) -> int:
                         rsi, rsi_zone, rvol, atr_pct,
                         exhaustion_signal, distribution_top, parabolic_rise,
                         patterns, smart_gate_enter, pullback_class,
+                        options_score, adx, adx_trending, alignment_score,
+                        macd_histogram, rsi_divergence, golden_cross, death_cross, vol_squeeze,
                         return_1d, return_3d, return_5d, return_10d, return_20d
                     ) VALUES (
                         %(ticker)s, %(snapshot_date)s, %(atlas_score)s, %(direction)s, %(bull_probability)s,
@@ -233,6 +254,8 @@ def sync_snapshots(alpha_url: str, research_url: str) -> int:
                         %(rsi)s, %(rsi_zone)s, %(rvol)s, %(atr_pct)s,
                         %(exhaustion_signal)s, %(distribution_top)s, %(parabolic_rise)s,
                         %(patterns)s, %(smart_gate_enter)s, %(pullback_class)s,
+                        %(options_score)s, %(adx)s, %(adx_trending)s, %(alignment_score)s,
+                        %(macd_histogram)s, %(rsi_divergence)s, %(golden_cross)s, %(death_cross)s, %(vol_squeeze)s,
                         %(return_1d)s, %(return_3d)s, %(return_5d)s, %(return_10d)s, %(return_20d)s
                     )
                     ON CONFLICT (ticker, snapshot_date) DO UPDATE SET
@@ -246,6 +269,16 @@ def sync_snapshots(alpha_url: str, research_url: str) -> int:
                         bull_probability = EXCLUDED.bull_probability,
                         patterns         = EXCLUDED.patterns,
                         smart_gate_enter = EXCLUDED.smart_gate_enter,
+                        -- update decomposition fields when re-syncing (non-NULL overwrites NULL)
+                        options_score    = COALESCE(EXCLUDED.options_score,   alpha_signal_snapshots.options_score),
+                        adx              = COALESCE(EXCLUDED.adx,             alpha_signal_snapshots.adx),
+                        adx_trending     = COALESCE(EXCLUDED.adx_trending,    alpha_signal_snapshots.adx_trending),
+                        alignment_score  = COALESCE(EXCLUDED.alignment_score, alpha_signal_snapshots.alignment_score),
+                        macd_histogram   = COALESCE(EXCLUDED.macd_histogram,  alpha_signal_snapshots.macd_histogram),
+                        rsi_divergence   = COALESCE(EXCLUDED.rsi_divergence,  alpha_signal_snapshots.rsi_divergence),
+                        golden_cross     = COALESCE(EXCLUDED.golden_cross,    alpha_signal_snapshots.golden_cross),
+                        death_cross      = COALESCE(EXCLUDED.death_cross,     alpha_signal_snapshots.death_cross),
+                        vol_squeeze      = COALESCE(EXCLUDED.vol_squeeze,     alpha_signal_snapshots.vol_squeeze),
                         synced_at        = NOW()
                 """, {
                     **row,
