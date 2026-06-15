@@ -178,19 +178,52 @@ different stocks from V1, confirming they are not equivalent models.
 
 ---
 
-## Current System State (as of 2026-06-14)
+## Regime Sensitivity Study (2026-06-15)
+
+Full study results in `reports/REGIME_SENSITIVITY_REPORT.md` and `feature_regime_performance` table.
+
+### Classification (39 features, 6 regimes, 3,697 dates)
+
+| Class | Count | Features |
+|---|---|---|
+| Always Useful | 0 | — (no feature passes all 6 regimes at IC>0.01 + sign_stab>0.55) |
+| Regime Sensitive | 20 | omni_82_distance/above/slope, realized_vol_20/60, rs_spy_120, return_10/20/60d, distance_sma20/50/200, above_sma20/50/200, rsi_14, roc_20, rs_spy_20/60, volume_ratio_20, omni_82_slope |
+| Mostly Noise | 12 | regime-defining cols (constant within subset) + Momentum V2 features (insufficient history) |
+| Potentially Harmful | 7 | return_1d/3d/5d, macd_histogram, atr_14, dollar_volume_20, omni_82_value |
+
+### Key Findings
+
+1. **OMNI is bull/low-vol/above-200DMA specific:** `omni_82_distance` IC = +0.026 (bull), +0.038 (low_vol), +0.031 (above_200dma) vs. -0.011 (bear), -0.020 (below_200dma). Signal reverses in downtrends.
+2. **Realized vol is a bear-market / crisis signal:** `realized_vol_20` IC = +0.053 in bear, +0.046 below_200dma. Best bear-regime features in the set.
+3. **Momentum features are mean-reverting:** return_1d/3d/5d have negative IC in ALL regimes. Not "harmful" in LightGBM (model uses them with implicit negative weights) but classified as harmful by raw IC sign.
+4. **No feature is universally useful** — every feature's contribution changes by market regime. This motivates V3 regime-aware design.
+
+### V3 Feature Set Direction
+
+V3 = TRAIN_FEATURES_V1 base + regime interaction features. Do NOT prune further.
+
+Recommended interaction features to add:
+- `omni_82_distance * spy_above_sma200` — OMNI signal only when above 200DMA
+- `realized_vol_20 * (1 - spy_above_sma200)` — vol signal only when below 200DMA
+- `omni_82_slope * market_trend` — OMNI slope aligned with market direction
+
+Exclusion candidates (no regime where IC > 0): `atr_14`, `dollar_volume_20`.
+
+---
+
+## Current System State (as of 2026-06-15)
 
 ### Infrastructure
-- **Migrations applied:** 0001 through 0028
-- **Tables:** raw_bars, feature_snapshots, feature_snapshots_wide, model_registry, feature_review_flags, experimental_score_snapshots, score_backtest_results, feature_pruning_results, conditional_patterns, conditional_pattern_results, sector_relative_strength, market_calendar, transcript_sessions, transcript_chunks
+- **Migrations applied:** 0001 through 0029
+- **Tables:** raw_bars, feature_snapshots, feature_snapshots_wide, model_registry, feature_regime_performance, feature_review_flags, experimental_score_snapshots, score_backtest_results, feature_pruning_results, conditional_patterns, conditional_pattern_results, sector_relative_strength, market_calendar, transcript_sessions, transcript_chunks
 
 ### ML Pipeline
 - **Features:** 39 (PHASE1 + REGIME + OMNI_82 + MOMENTUM_V2 + data_quality_score) — active set V1
 - **Defined feature sets:** `TRAIN_FEATURES_V1` (39), `TRAIN_FEATURES_V2` (27, removes degrading)
 - **Active set:** V1 (default). Override: `MODEL_FEATURE_SET_VERSION=v2` in `.env`
-- **OMNI backfill:** complete — 192/192 tickers have `omni_82_above`
-- **Current model:** v1.5 (33 features, pre-MOMENTUM_V2), trained through 2025-07-01, WF IC=0.0546
-- **Next retrain should use:** TRAIN_FEATURES_V1 (39 features, includes MOMENTUM_V2 features)
+- **Current model:** `return_regressor_v1_2025-07-01` (39 features, V1), walk-forward 12 folds, **mean rank IC = 0.0599**
+- **Training complete:** 2026-06-15. All 12 folds written with `feature_set_version='v1'` in model_registry.
+- **Predictions written:** 6,079 tickers scored for 2026-06-14 (mean prob=0.5248, mean rank IC=0.592)
 - **Model artifact:** `models/return_regressor_v1_2025-07-01/model.joblib`
 
 ### Conditional Probability Engine

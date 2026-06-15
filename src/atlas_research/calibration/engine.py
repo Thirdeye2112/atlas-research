@@ -718,18 +718,18 @@ def print_report(rows: list[CalibrationRow]) -> None:
             print(f"    [{r.signal_type}] {r.signal_key:<28}  "
                   f"n={r.n_resolved}  hit5d={r.hit_rate_5d:.1%}  "
                   f"avg5d={r.avg_return_5d*100:+.2f}%  p={r.permutation_p_value:.3f}")
-            print(f"      → {r.notes}")
+            print(f"      -> {r.notes}")
 
     if rejected:
         false_edge = [r for r in rejected
                       if r.n_resolved and r.n_resolved >= CAND_N
                       and r.hit_rate_5d is not None and r.hit_rate_5d < 0.48]
         if false_edge:
-            print("\n  ✗ FALSE-EDGE SIGNALS (rejected, bearish bias):")
+            print("\n  [x] FALSE-EDGE SIGNALS (rejected, bearish bias):")
             for r in sorted(false_edge, key=lambda x: (x.hit_rate_5d or 1.0)):
                 print(f"    [{r.signal_type}] {r.signal_key:<28}  "
                       f"n={r.n_resolved}  hit5d={r.hit_rate_5d:.1%}  "
                       f"avg5d={r.avg_return_5d*100:+.2f}%")
-                print(f"      → {r.notes}")
+                print(f"      -> {r.notes}")
 
     print("=" * 80 + "\n")

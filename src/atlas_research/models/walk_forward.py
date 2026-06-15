@@ -165,6 +165,7 @@ def run_fold(
     min_quality_score: float,
     normalize_cross_sectional: bool = True,
     write_db: bool = True,
+    feature_set_version: str = "v1",
 ) -> FoldResult:
     """
     Train both models on one fold and evaluate on the validation set.
@@ -322,15 +323,16 @@ def run_fold(
             from atlas_research.db import repository
 
             reg_record = {
-                "model_name":      "return_regressor",
-                "model_version":   model_version,
-                "target":          reg_target,
-                "horizon":         5,
-                "training_start":  fold.train_start,
-                "training_end":    fold.train_end,
-                "feature_version": "v1",
-                "feature_names":   feature_cols,
-                "feature_count":   len(feature_cols),
+                "model_name":          "return_regressor",
+                "model_version":       model_version,
+                "target":              reg_target,
+                "horizon":             5,
+                "training_start":      fold.train_start,
+                "training_end":        fold.train_end,
+                "feature_version":     "v1",
+                "feature_set_version": feature_set_version,
+                "feature_names":       feature_cols,
+                "feature_count":       len(feature_cols),
                 "train_rows":      result.n_train,
                 "val_rows":        result.n_val,
                 "ic":              result.val_metrics.get("mean_ic"),
@@ -400,6 +402,7 @@ def run_walk_forward(
     purge_days: int,
     min_quality_score: float,
     write_db: bool = True,
+    feature_set_version: str = "v1",
 ) -> list[FoldResult]:
     """
     Run full expanding-window walk-forward validation.
@@ -422,8 +425,8 @@ def run_walk_forward(
         log.info(
             "wf.running_fold",
             fold=fold.number,
-            train=f"{fold.train_start}→{fold.train_end}",
-            val=f"{fold.val_start}→{fold.val_end}",
+            train=f"{fold.train_start}->{fold.train_end}",
+            val=f"{fold.val_start}->{fold.val_end}",
         )
         result = run_fold(
             fold=fold,
@@ -436,6 +439,7 @@ def run_walk_forward(
             purge_days=purge_days,
             min_quality_score=min_quality_score,
             write_db=write_db,
+            feature_set_version=feature_set_version,
         )
         results.append(result)
 

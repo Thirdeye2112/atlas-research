@@ -559,7 +559,7 @@ def upsert_model_registry(record: dict) -> int:
             auc, brier, ic, rank_ic, sharpe,
             artifact_path, artifact_hash,
             hyperparams, fold_metrics,
-            promoted, notes
+            promoted, notes, feature_set_version
         ) VALUES (
             :model_name, :model_version, :target, :horizon,
             :training_start, :training_end, :feature_version,
@@ -567,9 +567,10 @@ def upsert_model_registry(record: dict) -> int:
             :auc, :brier, :ic, :rank_ic, :sharpe,
             :artifact_path, :artifact_hash,
             CAST(:hyperparams AS jsonb), CAST(:fold_metrics AS jsonb),
-            :promoted, :notes
+            :promoted, :notes, :feature_set_version
         )
         ON CONFLICT (model_name, model_version, target, training_end) DO UPDATE SET
+            feature_set_version = EXCLUDED.feature_set_version,
             updated_at = now()
         RETURNING id
     """)
@@ -596,8 +597,9 @@ def upsert_model_registry(record: dict) -> int:
             "artifact_hash":   record.get("artifact_hash"),
             "hyperparams":     _json.dumps(_sanitise_for_json(hyperparams)) if hyperparams else None,
             "fold_metrics":    _json.dumps(_sanitise_for_json(fold_metrics)) if fold_metrics else None,
-            "promoted":        record.get("promoted", False),
-            "notes":           record.get("notes"),
+            "promoted":            record.get("promoted", False),
+            "notes":               record.get("notes"),
+            "feature_set_version": record.get("feature_set_version", "v1"),
         }).fetchone()
     return row[0] if row else -1
 

@@ -16,7 +16,6 @@ Or import directly:
 
 from __future__ import annotations
 
-import math
 from datetime import date, timedelta
 from typing import Optional
 
@@ -290,10 +289,13 @@ def _pattern_type(name: str) -> str:
 
 
 def _compute_forward_returns(ticker: str, signal_date: date, engine) -> Optional[dict]:
-    """Compute log forward returns at 1/3/5/10/20 days from signal_date."""
+    """Compute forward returns at 1/3/5/10/20 days from signal_date."""
+    import pandas as pd
+    from atlas_research.backtest.adapters import compute_forward_returns_for_scanner
+
     with engine.connect() as conn:
         rows = conn.execute(text("""
-            SELECT date, close
+            SELECT date, open, high, low, close, volume
             FROM raw_bars
             WHERE ticker = :ticker
               AND date >= :start
@@ -304,19 +306,8 @@ def _compute_forward_returns(ticker: str, signal_date: date, engine) -> Optional
     if not rows or len(rows) < 2:
         return None
 
-    dates = [r[0] for r in rows]
-    closes = [float(r[1]) for r in rows]
-    base = closes[0]
+    df = pd.DataFrame(rows, columns=["date", "open", "high", "low", "close", "volume"])
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.set_index("date").astype(float)
 
-    def _ret(n: int) -> Optional[float]:
-        if len(closes) > n:
-            return round(math.log(closes[n] / base), 6)
-        return None
-
-    return {
-        "r1":  _ret(1),
-        "r3":  _ret(3),
-        "r5":  _ret(5),
-        "r10": _ret(10),
-        "r20": _ret(20),
-    }
+    return compute_forward_returns_for_scanner(df, signal_date)

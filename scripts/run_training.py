@@ -122,23 +122,24 @@ def main() -> None:
 
     else:
         results = run_walk_forward(
-            data_start        = start_date,
-            data_end          = end_date,
-            parquet_dir       = parquet_dir,
-            model_dir         = model_dir,
-            feature_cols      = feature_cols,
-            model_version     = args.version,
-            min_train_years   = settings.WF_MIN_TRAIN_YEARS,
-            val_months        = settings.WF_VAL_MONTHS,
-            purge_days        = settings.WF_PURGE_DAYS,
-            min_quality_score = settings.TRAIN_MIN_QUALITY_SCORE,
-            write_db          = write_db,
+            data_start           = start_date,
+            data_end             = end_date,
+            parquet_dir          = parquet_dir,
+            model_dir            = model_dir,
+            feature_cols         = feature_cols,
+            model_version        = args.version,
+            min_train_years      = settings.WF_MIN_TRAIN_YEARS,
+            val_months           = settings.WF_VAL_MONTHS,
+            purge_days           = settings.WF_PURGE_DAYS,
+            min_quality_score    = settings.TRAIN_MIN_QUALITY_SCORE,
+            write_db             = write_db,
+            feature_set_version  = settings.MODEL_FEATURE_SET_VERSION,
         )
         ok  = [r for r in results if not r.error]
         err = [r for r in results if r.error]
         print(f"\n[OK] Walk-forward complete: {len(ok)} folds OK, {len(err)} errors.")
         for r in ok[-3:]:   # show last 3 folds
-            print(f"  Fold {r.fold.number} ({r.fold.val_start}→{r.fold.val_end}):")
+            print(f"  Fold {r.fold.number} ({r.fold.val_start}->{r.fold.val_end}):")
             _print_metrics(r.val_metrics, indent="    ")
 
 
