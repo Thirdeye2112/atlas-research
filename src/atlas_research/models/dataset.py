@@ -31,6 +31,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from atlas_research.features.regime_interactions import (
+    INTERACTION_NAMES, BASE_COLS_NEEDED, add_interactions,
+)
 from atlas_research.utils.logging import get_logger
 
 log = get_logger(__name__)
@@ -66,24 +69,33 @@ def load_date_range(
     current = start_date
     files_found = 0
 
+    # Interaction feature names are computed on-the-fly and are never in parquet.
+    # Remove them from the columnar-read set and add their required base columns.
+    base_feature_cols = [f for f in feature_cols if f not in INTERACTION_NAMES]
+    needed_base = (
+        {"ticker", "date"}
+        | set(base_feature_cols)
+        | {target_col}
+        | BASE_COLS_NEEDED
+    )
+
     while current <= end_date:
         fpath = parquet_dir / f"feature_matrix_{current.isoformat()}.parquet"
         if fpath.exists():
             files_found += 1
-            needed = {"ticker", "date"} | set(feature_cols) | {target_col}
             df: pd.DataFrame | None = None
             try:
                 # Columnar read — only load what we need
                 df = pd.read_parquet(fpath, engine="pyarrow",
-                                     columns=list(needed))
+                                     columns=list(needed_base))
             except Exception:
                 # Schema evolution: older file missing new columns — load all,
                 # select available; to_arrays() fills the rest with NaN.
                 try:
                     full_df = pd.read_parquet(fpath, engine="pyarrow")
-                    available = [c for c in needed if c in full_df.columns]
+                    available = [c for c in needed_base if c in full_df.columns]
                     df = full_df[available]
-                    missing_cols = sorted(needed - set(available))
+                    missing_cols = sorted(needed_base - set(available))
                     if missing_cols:
                         log.info("dataset.schema_fallback",
                                  path=str(fpath), missing=missing_cols)
@@ -102,6 +114,9 @@ def load_date_range(
 
     full = pd.concat(frames, ignore_index=True)
     n_raw = len(full)
+
+    # Add V3 regime-interaction features (idempotent, cheap, always available)
+    add_interactions(full)
 
     # ── Quality filter ────────────────────────────────────────
     if "data_quality_score" in full.columns:

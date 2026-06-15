@@ -256,16 +256,36 @@ _DEGRADING_FEATURES: list[str] = [
 TRAIN_FEATURES_V1: list[str] = ALL_FEATURES + ["data_quality_score"]
 
 # V2 — degrading features removed (27 features).
-# Holdout-validated to improve mean rank IC by +131% vs V1.
+# Holdout-validated: V2 did NOT beat V1 on holdout (V1 wins 4/7 metrics).
 TRAIN_FEATURES_V2: list[str] = [f for f in TRAIN_FEATURES_V1 if f not in _DEGRADING_FEATURES]
 
+# V3 — V1 base (39) + regime-interaction features (10). Experimental.
+# Each interaction = base_feature * binary_regime_mask.
+# Rationale: regime sensitivity study showed OMNI useful only above 200DMA,
+# realized_vol useful only below 200DMA, RS features useful only in bull markets.
+REGIME_INTERACTION_FEATURES: list[str] = [
+    "omni_82_distance_x_above_200dma",   # OMNI support distance when above 200DMA
+    "omni_82_above_x_above_200dma",      # OMNI flag when above 200DMA
+    "omni_82_slope_x_above_200dma",      # OMNI slope when above 200DMA
+    "realized_vol_20_x_below_200dma",    # vol signal when below 200DMA
+    "realized_vol_60_x_below_200dma",    # vol signal (60d) when below 200DMA
+    "return_1d_x_below_200dma",          # 1d return mean-reversion in downtrend
+    "return_3d_x_below_200dma",          # 3d return mean-reversion in downtrend
+    "return_5d_x_below_200dma",          # 5d return mean-reversion in downtrend
+    "rs_spy_20_x_bull",                  # RS vs SPY in bull market only
+    "rs_spy_60_x_bull",                  # RS vs SPY (60d) in bull market only
+]
+TRAIN_FEATURES_V3: list[str] = TRAIN_FEATURES_V1 + REGIME_INTERACTION_FEATURES
+
 # Active feature set version — controls which set the pipeline uses.
-# Override via env: MODEL_FEATURE_SET_VERSION=v2
+# Override via env: MODEL_FEATURE_SET_VERSION=v2 or MODEL_FEATURE_SET_VERSION=v3
 MODEL_FEATURE_SET_VERSION: str = os.environ.get("MODEL_FEATURE_SET_VERSION", "v1")
 
 # TRAIN_FEATURES resolves to the active version's list.
 TRAIN_FEATURES: list[str] = (
-    TRAIN_FEATURES_V2 if MODEL_FEATURE_SET_VERSION == "v2" else TRAIN_FEATURES_V1
+    TRAIN_FEATURES_V2 if MODEL_FEATURE_SET_VERSION == "v2"
+    else TRAIN_FEATURES_V3 if MODEL_FEATURE_SET_VERSION == "v3"
+    else TRAIN_FEATURES_V1
 )
 
 # Model versioning: incremented manually when training logic changes

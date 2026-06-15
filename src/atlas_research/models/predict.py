@@ -29,6 +29,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from atlas_research.features.regime_interactions import (
+    INTERACTION_NAMES, BASE_COLS_NEEDED, add_interactions,
+)
 from atlas_research.models.dataset import (
     cross_sectional_normalize, load_date_range, to_arrays
 )
@@ -65,13 +68,22 @@ def score_universe(
         log.warning("predict.no_parquet", date=str(pred_date), path=str(fpath))
         return pd.DataFrame()
 
-    needed = {"ticker", "date"} | set(feature_cols)
+    # Interaction features are computed on-the-fly; exclude from columnar read,
+    # include their required base columns instead.
+    base_feature_cols = [f for f in feature_cols if f not in INTERACTION_NAMES]
+    needed = {"ticker", "date"} | set(base_feature_cols) | BASE_COLS_NEEDED
     try:
         df = pd.read_parquet(fpath, engine="pyarrow",
                              columns=list(needed))
-    except Exception as exc:
-        log.error("predict.parquet_load_error", error=str(exc))
-        return pd.DataFrame()
+    except Exception:
+        try:
+            df = pd.read_parquet(fpath, engine="pyarrow")
+        except Exception as exc:
+            log.error("predict.parquet_load_error", error=str(exc))
+            return pd.DataFrame()
+
+    # Add V3 interaction features
+    add_interactions(df)
 
     if df.empty:
         return pd.DataFrame()

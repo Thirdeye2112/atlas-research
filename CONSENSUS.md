@@ -211,6 +211,45 @@ Exclusion candidates (no regime where IC > 0): `atr_14`, `dollar_volume_20`.
 
 ---
 
+## Feature Set V3 Experiment (2026-06-15)
+
+Full results in `reports/FEATURE_SET_V3_REPORT.md`.
+
+**V3 = V1 (39 features) + 10 regime-interaction features (49 total)**
+
+Interaction features computed on-the-fly from existing parquet columns; no backfill needed.
+Injected at load time in `dataset.py` and `predict.py` via `regime_interactions.add_interactions()`.
+
+### Holdout Comparison (2025-07-01 to 2026-03-17, 32,757 rows, 179 dates)
+
+| Metric | V1 | V3 | Winner |
+|---|---|---|---|
+| Mean Rank IC | +0.0196 | +0.0154 | **V1** |
+| IC Std | +0.1065 | +0.1096 | **V1** |
+| Sharpe | +2.93 | +2.23 | **V1** |
+| Decile Spread | +0.0020 | +0.0014 | **V1** |
+| AUC | +0.5000 | +0.5014 | V3 |
+| Brier | +0.3333 | +0.3326 | V3 |
+| Top Decile Return | +0.0040 | +0.0044 | V3 |
+| Bot Decile Return | +0.0020 | +0.0031 | V3 |
+
+**Result: TIE (4/8 each). V3 does NOT meet the >= 5 of 8 promotion threshold.**
+
+### Walk-Forward Comparison (12 folds)
+
+| | V1 (clean 2026-06-15 run) | V3 (this run) |
+|---|---|---|
+| Mean Rank IC | **+0.0599** | +0.0467 |
+| Prediction overlap | — | 48.4% Jaccard (top-decile) |
+
+**Verdict: KEEP V1.** V3 loses on both holdout and walk-forward rank IC.
+Root cause: 2025-2026 holdout is a bull market; OMNI features already work well above 200DMA
+without needing the interaction. V3 may show advantage in a bear/high-vol regime.
+
+V3 is preserved as `MODEL_FEATURE_SET_VERSION=v3`. Reassess after first bear regime.
+
+---
+
 ## Current System State (as of 2026-06-15)
 
 ### Infrastructure
@@ -219,12 +258,16 @@ Exclusion candidates (no regime where IC > 0): `atr_14`, `dollar_volume_20`.
 
 ### ML Pipeline
 - **Features:** 39 (PHASE1 + REGIME + OMNI_82 + MOMENTUM_V2 + data_quality_score) — active set V1
-- **Defined feature sets:** `TRAIN_FEATURES_V1` (39), `TRAIN_FEATURES_V2` (27, removes degrading)
-- **Active set:** V1 (default). Override: `MODEL_FEATURE_SET_VERSION=v2` in `.env`
-- **Current model:** `return_regressor_v1_2025-07-01` (39 features, V1), walk-forward 12 folds, **mean rank IC = 0.0599**
+- **Defined feature sets:**
+  - `TRAIN_FEATURES_V1` (39) — **PRODUCTION**
+  - `TRAIN_FEATURES_V2` (27) — static pruning, failed holdout, rollback only
+  - `TRAIN_FEATURES_V3` (49) — V1 + 10 regime interactions, experimental, failed holdout vs V1
+- **Active set:** V1 (default). Override via `MODEL_FEATURE_SET_VERSION` in `.env`
+- **Current model:** `return_regressor_v1_2025-07-01`, walk-forward 12 folds, **mean rank IC = 0.0599**
 - **Training complete:** 2026-06-15. All 12 folds written with `feature_set_version='v1'` in model_registry.
 - **Predictions written:** 6,079 tickers scored for 2026-06-14 (mean prob=0.5248, mean rank IC=0.592)
 - **Model artifact:** `models/return_regressor_v1_2025-07-01/model.joblib`
+- **V3 model artifact:** `models/return_regressor_v3_2025-07-01/model.joblib` (experimental, not in production)
 
 ### Conditional Probability Engine
 - **Patterns:** 95+ (migrations 0010-0019)
