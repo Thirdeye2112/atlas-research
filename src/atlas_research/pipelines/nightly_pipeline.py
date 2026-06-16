@@ -23,6 +23,7 @@ Steps (in order):
     17. Mark run complete
     18. [INTRADAY] Ingest 5-min bars, detect setups, compute outcomes (if enabled)
     18.5 [INTRADAY] Update intraday candidate watchlist
+    19. [INTRADAY WEEKLY] Run adaptive rule refinement (Mondays or when forced)
 
 Each step is isolated — failure in one step marks run as partial, not fatal.
 Validation failures are warnings, not errors (partial data is normal).
@@ -62,6 +63,7 @@ def run_nightly(
     skip_meta_scoring: bool = False,
     skip_intraday: bool = False,
     intraday_only: bool = False,
+    run_weekly_refinement: bool = False,
     auto_retrain: bool = False,
     triggered_by: str = "scheduler",
     snapshot_version: str | None = None,
@@ -73,8 +75,9 @@ def run_nightly(
         run_date:          Date to process. Defaults to today.
         force_full_ingest: Re-download full BACKFILL_YEARS of history.
         skip_*:            Skip individual steps for re-runs / debugging.
-        skip_intraday:     Skip Steps 18/18.5 (5-min intraday collection).
-        intraday_only:     Run only Steps 18/18.5; skip all daily steps.
+        skip_intraday:         Skip Steps 18/18.5 (5-min intraday collection).
+        intraday_only:         Run only Steps 18/18.5; skip all daily steps.
+        run_weekly_refinement: Force Step 19 (adaptive rule refinement). Auto-runs on Mondays.
         triggered_by:      'scheduler' | 'cli' | 'test'
         snapshot_version:  Tag written to every feature_snapshots row this run.
                            Defaults to 'run_YYYY-MM-DD'.
@@ -546,6 +549,54 @@ def run_nightly(
             step_results["intraday_candidates"] = {"status": "failed", "error": str(exc)}
     else:
         log.info("pipeline.intraday_skipped")
+
+    # ── Step 19: Weekly adaptive rule refinement (non-fatal) ─────────────
+    # Runs on Mondays (weekday 0) or when run_weekly_refinement=True.
+    # Full refinement is expensive; daily ingestion is sufficient nightly.
+    import datetime as _dt
+    _is_monday = run_date.weekday() == 0
+    if not skip_intraday and (run_weekly_refinement or _is_monday):
+        try:
+            import importlib.util as _ilu_rr
+            import sys as _sys_rr
+            import os as _os_rr
+            from sqlalchemy import create_engine as _ce_rr
+            _script_rr = settings.ROOT_DIR / "scripts" / "run_intraday_rule_refinement.py"
+            if _script_rr.exists():
+                _spec_rr = _ilu_rr.spec_from_file_location("run_intraday_rule_refinement", _script_rr)
+                _mod_rr  = _ilu_rr.module_from_spec(_spec_rr)
+                _sys_rr.modules["run_intraday_rule_refinement"] = _mod_rr
+                _spec_rr.loader.exec_module(_mod_rr)
+                _engine_rr = _ce_rr(_os_rr.environ["DATABASE_URL"])
+                _rr_df     = _mod_rr.load_full_df(_engine_rr, _mod_rr.ANALYSIS_HORIZON)
+                if not _rr_df.empty:
+                    _rr_attr = _mod_rr.compute_attribution(_rr_df, run_date)
+                    _mod_rr.upsert_attribution(_rr_attr, _engine_rr)
+                    _rr_rules: list = []
+                    for (_st, _dir), _grp in _rr_df.groupby(["setup_type", "direction"]):
+                        _grp = _grp.sort_values("ts").reset_index(drop=True)
+                        _sa  = _rr_attr[(_rr_attr["setup_type"] == _st) & (_rr_attr["direction"] == _dir)]
+                        _rr_rules.extend(_mod_rr.generate_refinements(_st, _dir, _grp, _sa, run_date))
+                    _mod_rr.upsert_refined_rules(_rr_rules, _engine_rr)
+                    n_promo = sum(1 for r in _rr_rules if r.get("status") == "promoted")
+                    n_cand  = sum(1 for r in _rr_rules if r.get("status") == "candidate")
+                    step_results["weekly_refinement"] = {
+                        "rules_generated": len(_rr_rules),
+                        "promoted": n_promo,
+                        "candidates": n_cand,
+                    }
+                    log.info("pipeline.weekly_refinement_done",
+                             rules=len(_rr_rules), promoted=n_promo, candidates=n_cand)
+                else:
+                    step_results["weekly_refinement"] = {"status": "skipped", "reason": "no_data"}
+            else:
+                step_results["weekly_refinement"] = {"status": "skipped", "reason": "script_not_found"}
+        except Exception as exc:
+            log.warning("pipeline.weekly_refinement_failed", error=str(exc))
+            step_results["weekly_refinement"] = {"status": "failed", "error": str(exc)}
+    else:
+        log.info("pipeline.weekly_refinement_skipped",
+                 reason="not Monday" if not run_weekly_refinement else "intraday disabled")
 
     status = "complete" if not errors else "partial"
     log.info("pipeline.finished", run_id=run_id, status=status, **counters)
