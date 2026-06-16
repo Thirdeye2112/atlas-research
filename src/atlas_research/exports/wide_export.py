@@ -24,10 +24,13 @@ log = get_logger(__name__)
 
 # All features that appear as rows in feature_snapshots (EAV).
 # Imported from settings to stay in sync with the pipeline.
-from config.settings import ALL_FEATURES
+from config.settings import ALL_FEATURES, INFERENCE_EXTRA_COLS
 
 # Extra quality columns written to EAV by feature_factory and validate step.
-_QUALITY_COLS = ["quality_tier", "jarvis_quality_adjusted", "data_quality_score"]
+# INFERENCE_EXTRA_COLS covers jarvis_quality_adjusted, quality_tier, oscar_87_above_50, hma_87_above.
+# data_quality_score is handled separately (not in INFERENCE_EXTRA_COLS — it is validation metadata).
+_QUALITY_COLS = ["data_quality_score"] + [c for c in INFERENCE_EXTRA_COLS
+                                           if c not in ALL_FEATURES]
 
 # Complete set of feature columns in feature_snapshots_wide.
 WIDE_FEATURES: list[str] = ALL_FEATURES + _QUALITY_COLS

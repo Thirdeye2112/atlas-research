@@ -89,8 +89,11 @@ def build_feature_matrix(
         from config.settings import ALL_FEATURES
         feature_names = ALL_FEATURES
 
+    from config.settings import INFERENCE_EXTRA_COLS
+    all_export_cols = feature_names + [c for c in INFERENCE_EXTRA_COLS if c not in feature_names]
+
     # ── Pivot EAV → wide ─────────────────────────────────────
-    filtered = features_long[features_long["feature_name"].isin(feature_names)].copy()
+    filtered = features_long[features_long["feature_name"].isin(all_export_cols)].copy()
     if filtered.empty:
         log.warning("parquet.no_matching_features", date=str(snap_date))
         return pd.DataFrame()
@@ -101,7 +104,9 @@ def build_feature_matrix(
         values="feature_value",
     )
     wide.columns.name = None
-    wide = wide.reindex(columns=feature_names)   # enforce order; missing → NaN
+    # Enforce column order: ML features first, inference extras appended at end
+    ordered = feature_names + [c for c in INFERENCE_EXTRA_COLS if c not in feature_names]
+    wide = wide.reindex(columns=ordered)         # missing columns → NaN
     wide = wide.reset_index()
     wide.insert(1, "date", snap_date)
 

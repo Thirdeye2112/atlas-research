@@ -229,7 +229,30 @@ def run_nightly(
         step_results["calibration"] = {"status": "failed", "error": str(exc)}
         # Intentionally not appended to errors — calibration failure is non-fatal
 
-    # ── Step 12: mark complete ────────────────────────────────
+    # ── Step 12: attribution pipeline (non-fatal) ────────────
+    # Runs after labels are computed so matured outcomes are available.
+    try:
+        from atlas_research.attribution.outcomes import compute_matured_outcomes
+        from atlas_research.attribution.classifier import attribute_errors
+        from atlas_research.attribution.reliability import compute_signal_reliability
+        from atlas_research.attribution.recommendations import generate_recommendations
+
+        attr_outcomes = compute_matured_outcomes(as_of=run_date)
+        n_attributed  = attribute_errors()
+        compute_signal_reliability(as_of=run_date)
+        n_recs = generate_recommendations(as_of=run_date)
+        step_results["attribution"] = {
+            "outcomes":        attr_outcomes,
+            "attributed":      n_attributed,
+            "recommendations": n_recs,
+        }
+        log.info("pipeline.attribution_done",
+                 outcomes=attr_outcomes, attributed=n_attributed, recs=n_recs)
+    except Exception as exc:
+        log.error("pipeline.attribution_failed", error=str(exc))
+        step_results["attribution"] = {"status": "failed", "error": str(exc)}
+
+    # ── Step 13: mark complete ────────────────────────────────
     error_str = "; ".join(errors) if errors else None
     repository.complete_research_run(run_id, error=error_str, **counters)
 

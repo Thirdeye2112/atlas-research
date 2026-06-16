@@ -214,6 +214,27 @@ def _trigger_vec(condition_type: str, params: dict, df: pd.DataFrame) -> pd.Seri
         if condition_type == "high_volume":
             mult = float(params.get("multiplier", 2.0))
             return df.get("rvol_20", false_s).fillna(0) >= mult
+        # ── OMNI-based patterns (proxy: current-bar state ≈ recent cross-up) ────
+        if condition_type in ("oscar_cross_up", "oscar_above_50"):
+            return df.get("oscar_87_above_50", false_s).fillna(0) > 0.5
+        if condition_type in ("ema_lows_cross_up", "omni_cross_up", "ema_lows_above"):
+            return df.get("omni_82_above", false_s).fillna(0) > 0.5
+        if condition_type in ("hma_cross_up", "hma_above"):
+            return df.get("hma_87_above", false_s).fillna(0) > 0.5
+        if condition_type in ("ema_lows_support", "omni_bounce"):
+            return df.get("omni_82_bounce", false_s).fillna(0) > 0.5
+        if condition_type == "ema_lows_green_slope":
+            above = df.get("omni_82_above", false_s).fillna(0) > 0.5
+            slope = df.get("omni_82_slope",  pd.Series(0.0, index=df.index)).fillna(0) > 0
+            return above & slope
+        if condition_type == "end_of_month":
+            dates = pd.to_datetime(df["date"]) if "date" in df.columns else None
+            if dates is not None:
+                return pd.Series((dates.dt.day >= 28).values, index=df.index)
+        if condition_type == "volume_climax_down":
+            vol_spike = df.get("volume_ratio_20", false_s).fillna(0) >= float(params.get("vol_mult", 2.5))
+            neg_day   = df.get("return_1d", false_s).fillna(0) < -float(params.get("down_pct", 2.0)) / 100.0
+            return vol_spike & neg_day
     except Exception:
         pass
     return false_s
@@ -287,17 +308,38 @@ def score_batch(
     )
     pat_avail = (active_pat > 0)
 
-    # ── Probability (direction type only — no promoted signals currently) ───────
+    # ── Probability ─────────────────────────────────────────────────────────────
+    # Handles ml_rank_bucket signals from the backtest-history calibration.
+    # These signals are based on cross-sectional rank percentile tiers, which
+    # provides partial independence from the ML component (the ML component uses
+    # absolute probability; rank-based signals can fire for mid-probability stocks
+    # that are relatively strong vs. peers on a given date).
     bull_pw = np.zeros(n); bear_pw = np.zeros(n); total_pw = np.zeros(n)
     for cs in calib_stats:
-        if cs["signal_type"] != "direction":
+        st   = cs["signal_type"]
+        sk   = cs["signal_key"]
+        hr   = float(cs["hit_rate_5d"])
+        ar   = float(cs["avg_return_5d"])
+        nres = float(cs["n_resolved"])
+        w    = abs(hr - 0.5) * min(1.0, nres / 200.0)
+
+        if st == "ml_rank_bucket":
+            try:
+                lo_s, hi_s = sk.split("-")
+                lo_f, hi_f = float(lo_s) / 100.0, float(hi_s) / 100.0
+                if hi_f >= 1.0:
+                    trig = (rank_pct >= lo_f).astype(float)
+                else:
+                    trig = ((rank_pct >= lo_f) & (rank_pct < hi_f)).astype(float)
+            except (ValueError, AttributeError):
+                continue
+        else:
             continue
-        hr = float(cs["hit_rate_5d"]); ar = float(cs["avg_return_5d"]); nres = float(cs["n_resolved"])
-        w  = abs(hr - 0.5) * min(1.0, nres / 200.0)
-        trig = (mkt_regime == cs["signal_key"]).astype(float)
+
         total_pw += trig * abs(w)
         if ar > 0: bull_pw += trig * abs(w)
         else:      bear_pw += trig * abs(w)
+
     safe_pw  = np.where(total_pw > 0, total_pw, np.nan)
     bull_pfr = np.where(total_pw > 0, bull_pw / safe_pw, 0.5)
     bear_pfr = np.where(total_pw > 0, bear_pw / safe_pw, 0.5)
@@ -645,6 +687,7 @@ def component_comparison(df: pd.DataFrame) -> pd.DataFrame:
         ("ML only (top quintile)",        "ml_rank",         0.80,  False),
         ("ML only (all, IC)",             "ml_prob",         None,  False),
         ("Pattern bullish",               "pattern_dir",     None,  True),
+        ("Probability bullish",           "prob_dir",        None,  True),
         ("Feature IC bullish",            "feat_ic_dir",     None,  True),
         ("Confluence 60-80",              "confluence_score", 60,   False),
         ("Confluence 80-100",             "confluence_score", 80,   False),
@@ -723,19 +766,30 @@ def permutation_study(df: pd.DataFrame, n_perms: int = N_PERMS) -> dict:
     """
     Shuffle aligned_count and confluence_score independently.
     Test: does the observed top-group metric exceed permuted distribution?
+    Adapts thresholds based on whether the 80-100 bucket is populated (v2+).
     """
     rng = np.random.default_rng(42)
     results: dict = {}
 
-    for metric_col, split_col, top_label, observed_fn in [
-        ("fwd_5d", "aligned_count",    "4+ aligned",
-         lambda d: d[d["aligned_count"] >= 4]["fwd_5d"].dropna().mean()),
-        ("fwd_5d", "confluence_score", "60-80",
-         lambda d: d[d["confluence_score"] >= 60]["fwd_5d"].dropna().mean()),
+    # Detect whether 80-100 bucket is populated (probability component active)
+    max_align = int(df["aligned_count"].max()) if "aligned_count" in df.columns else 4
+    has_80plus = bool((df["confluence_score"] >= 80).sum() >= MIN_SAMPLE)
+
+    align_thresh = max_align if max_align >= 5 else 4
+    score_thresh = 80 if has_80plus else 60
+
+    for metric_col, split_col, observed_fn, thresh in [
+        ("fwd_5d", "aligned_count",
+         lambda d: d[d["aligned_count"] >= align_thresh]["fwd_5d"].dropna().mean(),
+         align_thresh),
+        ("fwd_5d", "confluence_score",
+         lambda d: d[d["confluence_score"] >= score_thresh]["fwd_5d"].dropna().mean(),
+         score_thresh),
     ]:
         observed = observed_fn(df)
         if np.isnan(observed):
-            results[split_col] = {"observed": np.nan, "p_value": np.nan, "n_perms": 0}
+            results[split_col] = {"observed": np.nan, "p_value": np.nan, "n_perms": 0,
+                                  "threshold": thresh}
             continue
 
         fwd   = df[metric_col].to_numpy(dtype=float)
@@ -744,7 +798,7 @@ def permutation_study(df: pd.DataFrame, n_perms: int = N_PERMS) -> dict:
 
         for _ in range(n_perms):
             shuffled = rng.permutation(col_v)
-            mask = shuffled >= (4 if split_col == "aligned_count" else 60)
+            mask = shuffled >= thresh
             if mask.sum() >= MIN_SAMPLE:
                 perm_stats.append(np.nanmean(fwd[mask]))
 
@@ -762,6 +816,7 @@ def permutation_study(df: pd.DataFrame, n_perms: int = N_PERMS) -> dict:
             "p_value":     round(p_value, 4),
             "n_perms":     len(arr),
             "significant": p_value < 0.05,
+            "threshold":   thresh,
         }
     return results
 
@@ -817,22 +872,35 @@ def write_report(
     perm: dict,
     regime_df: pd.DataFrame,
     year_df: pd.DataFrame,
+    engine_version: str = "v1",
+    n_prob_signals: int = 0,
 ) -> str:
     hr_cols  = [f"hr_{h}d"  for h in HORIZONS]
     avg_cols = [f"avg_{h}d" for h in HORIZONS]
     h_hdrs   = [f"HR {h}d"   for h in HORIZONS]
     a_hdrs   = [f"Avg {h}d"  for h in HORIZONS]
 
+    max_align = int(align_df["aligned_grp"].astype(str).str.strip("+").replace("", "0").max()) if not align_df.empty else 4
+    if n_prob_signals > 0:
+        prob_note = (f"> Probability component ACTIVE — {n_prob_signals} promoted ML-tier signals "
+                     f"(ml_rank_bucket, ml_direction, ml_conviction).\n"
+                     f"> ML-tier signals use walk-forward ML predictions (same look-ahead caveat as ML component).\n"
+                     f"> Maximum alignment count = 5 (ML + Pattern + Probability + Feature IC + Regime).")
+    else:
+        prob_note = ("> Probability component unavailable — no promoted signals in alpha_signal_calibrations.\n"
+                     "> Maximum alignment count = 4 (ML + Pattern + Feature IC + Regime).")
+
+    report_title = f"# Confluence Engine {engine_version} Backtest Report"
+
     lines = [
-        "# Confluence Engine Backtest Report",
+        report_title,
         f"**Date generated:** {date.today()}",
         f"**Backtest period:** {start_date} to {end_date}",
         f"**Total observations:** {total_obs:,}",
         "",
         "> **Methodology note:** Walk-forward V1 model artifacts used for ML scoring (out-of-sample).",
         "> Pattern stats and regime IC stats are calibrated on full history (mild look-ahead in those components).",
-        "> Probability component unavailable — no promoted signals in alpha_signal_calibrations.",
-        "> Maximum alignment count = 4 (ML + Pattern + Feature IC + Regime).",
+        prob_note,
         "",
         "---",
         "",
@@ -878,13 +946,18 @@ def write_report(
         lines += ["> Insufficient overlap data. Run after more alpha_signal_snapshots are available.", ""]
 
     lines += ["---", "", "## 5. Permutation Tests", ""]
-    for col_key, label in [("aligned_count", "4+ aligned"), ("confluence_score", "60-80 score bucket")]:
-        r = perm.get(col_key, {})
-        obs = r.get("observed", np.nan)
-        pv  = r.get("p_value",  np.nan)
-        pm  = r.get("perm_mean", np.nan)
-        p95 = r.get("perm_95pct", np.nan)
-        sig = r.get("significant", False)
+    for col_key in ["aligned_count", "confluence_score"]:
+        r    = perm.get(col_key, {})
+        obs  = r.get("observed", np.nan)
+        pv   = r.get("p_value",  np.nan)
+        pm   = r.get("perm_mean", np.nan)
+        p95  = r.get("perm_95pct", np.nan)
+        sig  = r.get("significant", False)
+        thr  = r.get("threshold", 4 if col_key == "aligned_count" else 60)
+        if col_key == "aligned_count":
+            label = f"{thr}+ aligned"
+        else:
+            label = f"{thr}+ score bucket"
         verdict = "**SIGNIFICANT (p < 0.05)**" if sig else "NOT significant"
         lines += [
             f"### {label}",
@@ -917,9 +990,10 @@ def write_report(
         for lo, hi in zip(active_buckets[:-1], active_buckets[1:])
     ) if len(active_buckets) >= 2 else False
 
-    # Top available bucket vs baselines
-    top_conf_hr = bucket_hr5.get("60-80", bucket_hr5.get("80-100", np.nan))
-    top_bucket_label = "60-80" if "60-80" in bucket_hr5 and not np.isnan(bucket_hr5.get("60-80", np.nan)) else "80-100"
+    # Top available bucket vs baselines — prefer 80-100 if populated (v2)
+    has_80_100 = not np.isnan(bucket_hr5.get("80-100", np.nan))
+    top_bucket_label = "80-100" if has_80_100 else "60-80"
+    top_conf_hr = bucket_hr5.get(top_bucket_label, np.nan)
     ml_hr_vals = comp_df[comp_df["signal"] == "ML only (top quintile)"]["hr_5d"]
     ml_hr = float(ml_hr_vals.iloc[0]) if len(ml_hr_vals) > 0 else np.nan
 
@@ -973,17 +1047,25 @@ def write_report(
 
     lines += [rec, "", path, ""]
 
+    prob_caveat = (
+        f"1. **Probability component — ML-tier signals**: {n_prob_signals} signals promoted from "
+        f"backtest-history calibration (ml_rank_bucket, ml_direction, ml_conviction). "
+        "These are derived from the same ML model — they validate tier-specific effects "
+        "but share information with the ML component. Look-ahead present (calibrated on full history)."
+        if n_prob_signals > 0 else
+        "1. **Probability component inactive**: No promoted signals. Max alignment = 4."
+    )
+
     lines += [
         "---",
         "",
         "## Appendix: Key Caveats",
         "",
-        "1. **Probability component inactive**: `alpha_signal_calibrations` has 0 promoted signals.",
-        "   Max alignment = 4 (not 5). Promote signals first for full engine evaluation.",
+        prob_caveat,
         "2. **Pattern stats look-ahead**: conditional_pattern_results uses full-history aggregate stats.",
         "   In a strict out-of-sample study, these would be calibrated walk-forward.",
         "3. **Feature IC look-ahead**: feature_regime_performance uses full-history IC computation.",
-        "4. **Atlas Score comparison limited**: Only 3 days of alpha_signal_snapshots overlap available.",
+        "4. **Atlas Score comparison limited**: Only a few days of alpha_signal_snapshots overlap available.",
         "5. **ML is out-of-sample**: Walk-forward model artifacts ensure no ML look-ahead bias.",
         "6. **Max drawdown uses intraday low**: Slightly more pessimistic than close-to-close.",
     ]
@@ -1054,10 +1136,13 @@ def main() -> int:
     for k, v in perm.items():
         print(f"  {k}: observed={v.get('observed','n/a'):.4f}, p={v.get('p_value','n/a')}")
 
+    engine_version = "v2" if len(calib_stats) > 0 else "v1"
     report = write_report(
         start_date, end_date, len(df),
         align_df, bucket_df, comp_df, atlas_df,
         perm, regime_df, year_df,
+        engine_version=engine_version,
+        n_prob_signals=len(calib_stats),
     )
 
     out_path = _ROOT / args.out

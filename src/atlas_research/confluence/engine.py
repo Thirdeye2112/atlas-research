@@ -15,7 +15,16 @@ from atlas_research.confluence import repository
 from atlas_research.confluence.alignment import compute_alignment
 from atlas_research.confluence.components import ml, pattern, probability, feature_ic, regime, risk
 from atlas_research.confluence.score import compute_score
+from atlas_research.conviction.engine import compute_conviction
 from atlas_research.utils.logging import get_logger
+
+# Attribution tracker — imported lazily to avoid hard dependency at module load
+def _record_prediction(result: dict, snap_date, snapshot_id: int) -> None:
+    try:
+        from atlas_research.attribution.tracker import record_prediction
+        record_prediction(result, snap_date, snapshot_id=snapshot_id)
+    except Exception as exc:
+        log.debug("confluence.attribution_skip", error=str(exc))
 
 log = get_logger(__name__)
 
@@ -76,6 +85,7 @@ def score_ticker(
 
     alignment    = compute_alignment(components)
     final_score  = compute_score(components, alignment)
+    conviction   = compute_conviction(components, alignment, ticker=ticker)
 
     # Pull ML fields for snapshot summary
     ml_prob    = ml_result.details.get("probability_positive") if ml_result.available else None
@@ -102,23 +112,18 @@ def score_ticker(
     )
     repository.upsert_components(snapshot_id, ticker, snap_date, components)
 
-    log.info(
-        "confluence.scored",
-        ticker=ticker,
-        date=str(snap_date),
-        score=round(final_score, 1),
-        direction=alignment.dominant_signal,
-        aligned=alignment.aligned_count,
-        conflicting=alignment.conflicting_count,
-    )
-
-    return {
+    result = {
         "ticker":               ticker,
         "snapshot_date":        str(snap_date),
         "confluence_score":     round(final_score, 2),
         "confluence_direction": alignment.dominant_signal,
         "aligned_signals":      alignment.aligned_count,
         "conflicting_signals":  alignment.conflicting_count,
+        "conviction_score":     conviction.conviction_score,
+        "conviction_level":     conviction.conviction_level,
+        "supporting_signals":   conviction.supporting_signals,
+        "conflicting_signal_details": conviction.conflicting_signals,
+        "neutral_signals":      conviction.neutral_signals,
         "components": {
             c.name: {
                 "signal": c.signal,
@@ -129,6 +134,21 @@ def score_ticker(
             for c in components
         },
     }
+
+    # Record prediction for attribution tracking (non-blocking)
+    _record_prediction(result, snap_date, snapshot_id)
+
+    log.info(
+        "confluence.scored",
+        ticker=ticker,
+        date=str(snap_date),
+        score=round(final_score, 1),
+        direction=alignment.dominant_signal,
+        aligned=alignment.aligned_count,
+        conflicting=alignment.conflicting_count,
+    )
+
+    return result
 
 
 def run_confluence(

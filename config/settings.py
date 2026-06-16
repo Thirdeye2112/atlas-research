@@ -120,6 +120,17 @@ MOMENTUM_V2_FEATURES: list[str] = [
 # = PHASE1_FEATURES + REGIME_FEATURES + OMNI_FEATURES + MOMENTUM_V2_FEATURES
 ALL_FEATURES: list[str] = PHASE1_FEATURES + REGIME_FEATURES + OMNI_FEATURES + MOMENTUM_V2_FEATURES
 
+# Inference-only columns: computed in feature_factory / omni_proxy, written to EAV,
+# but intentionally excluded from ALL_FEATURES to avoid changing ML training shape.
+# These columns are exported alongside ALL_FEATURES in parquet and wide exports
+# for use in confluence scoring, edge hierarchy, and Jarvis gating.
+INFERENCE_EXTRA_COLS: list[str] = [
+    "jarvis_quality_adjusted",  # Tier-adjusted OMNI signal (Jarvis logic)
+    "quality_tier",             # Stock quality tier: 1=large/mid cap, 4=micro/junk
+    "oscar_87_above_50",        # OSCAR(87) oscillator above 50 threshold flag
+    "hma_87_above",             # HMA(87) above/below close flag
+]
+
 # ---------------------------------------------------------------------------
 # Feature metadata — canonical registry entries for Phase-1 features.
 # Seeded into feature_metadata table by init_db.py.
