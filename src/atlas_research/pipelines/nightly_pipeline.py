@@ -24,6 +24,7 @@ Steps (in order):
     18. [INTRADAY] Ingest 5-min bars, detect setups, compute outcomes (if enabled)
     18.5 [INTRADAY] Update intraday candidate watchlist
     19. [INTRADAY WEEKLY] Run adaptive rule refinement (Mondays or when forced)
+    20. [INTRADAY] Incremental candle memory build + similarity_latest refresh
 
 Each step is isolated — failure in one step marks run as partial, not fatal.
 Validation failures are warnings, not errors (partial data is normal).
@@ -597,6 +598,31 @@ def run_nightly(
     else:
         log.info("pipeline.weekly_refinement_skipped",
                  reason="not Monday" if not run_weekly_refinement else "intraday disabled")
+
+    # ── Step 20: Incremental candle memory + similarity latest update ─────────
+    # Runs nightly after collection; adds only new bars to intraday_candle_memory
+    # and refreshes intraday_similarity_latest for the API.
+    if not skip_intraday:
+        try:
+            import importlib.util as _ilu_cm
+            import sys as _sys_cm
+            import os as _os_cm
+            from sqlalchemy import create_engine as _ce_cm
+            _script_cm = settings.ROOT_DIR / "scripts" / "build_intraday_candle_memory.py"
+            if _script_cm.exists():
+                _spec_cm = _ilu_cm.spec_from_file_location("build_intraday_candle_memory", _script_cm)
+                _mod_cm  = _ilu_cm.module_from_spec(_spec_cm)
+                _sys_cm.modules["build_intraday_candle_memory"] = _mod_cm
+                _spec_cm.loader.exec_module(_mod_cm)
+                _engine_cm = _ce_cm(_os_cm.environ["DATABASE_URL"])
+                _cm_result = _mod_cm.run_incremental(_engine_cm)
+                step_results["candle_memory"] = _cm_result
+                log.info("pipeline.candle_memory_done", **_cm_result)
+            else:
+                step_results["candle_memory"] = {"status": "skipped", "reason": "script_not_found"}
+        except Exception as exc:
+            log.warning("pipeline.candle_memory_failed", error=str(exc))
+            step_results["candle_memory"] = {"status": "failed", "error": str(exc)}
 
     status = "complete" if not errors else "partial"
     log.info("pipeline.finished", run_id=run_id, status=status, **counters)

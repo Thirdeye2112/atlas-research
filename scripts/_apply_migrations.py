@@ -11,6 +11,7 @@ migrations = [
     'db/migrations/0037_intraday_tables.sql',
     'db/migrations/0038_intraday_candidate_setups.sql',
     'db/migrations/0039_intraday_learning_tables.sql',
+    'db/migrations/0040_intraday_candle_memory.sql',
 ]
 root = os.path.join(os.path.dirname(__file__), '..')
 for f in migrations:
