@@ -77,13 +77,27 @@ def download_ticker(
 # Private helpers
 # ---------------------------------------------------------------------------
 
+def _to_yahoo_symbol(ticker: str) -> str:
+    """Map a canonical ticker to its Yahoo Finance symbol.
+
+    Yahoo encodes share-class / preferred dots as dashes (BRK.B -> BRK-B,
+    BF.B -> BF-B). We download under the Yahoo symbol but store rows under the
+    canonical ticker so the rest of the pipeline is unaffected.
+    """
+    return ticker.replace(".", "-")
+
+
 def _process_batch(
     tickers: list[str],
     start_date: date,
     yf_end_date: date,
 ) -> tuple[int, list[tuple[str, str]]]:
+    # Map canonical -> yahoo symbol; download under yahoo, store under canonical.
+    yahoo_to_canonical = {_to_yahoo_symbol(t): t for t in tickers}
+    yahoo_tickers = list(yahoo_to_canonical.keys())
+
     try:
-        raw_df = _download_batch(tickers, start_date, yf_end_date)
+        raw_df = _download_batch(yahoo_tickers, start_date, yf_end_date)
     except Exception as exc:
         log.warning("ingest.download_failed", error=str(exc))
         return 0, [(t, str(exc)) for t in tickers]
@@ -106,7 +120,8 @@ def _process_batch(
     failed = []
     for ticker in tickers:
         try:
-            rows = _extract_ticker_rows(ticker, raw_df)
+            rows = _extract_ticker_rows(_to_yahoo_symbol(ticker), raw_df,
+                                        store_as=ticker)
             if rows:
                 n = repository.upsert_bars(rows)
                 total += len(rows)
@@ -150,8 +165,13 @@ def _download_batch(tickers: list[str], start: date, end: date) -> pd.DataFrame:
     )
 
 
-def _extract_ticker_rows(ticker: str, raw_df: pd.DataFrame) -> list[dict]:
+def _extract_ticker_rows(ticker: str, raw_df: pd.DataFrame,
+                         store_as: str | None = None) -> list[dict]:
     """Pull one ticker's bars out of the batch download DataFrame.
+
+    `ticker` is the symbol to look up inside the downloaded frame (the Yahoo
+    symbol); `store_as` is the canonical ticker written to raw_bars (defaults
+    to `ticker` when not remapped).
 
     MultiIndex flattening — exact steps in order:
       1. If ticker in level 0 values → xs(ticker, level=0, axis=1)
@@ -199,11 +219,12 @@ def _extract_ticker_rows(ticker: str, raw_df: pd.DataFrame) -> list[dict]:
     if df.empty:
         return []
 
+    canonical = store_as if store_as is not None else ticker
     rows = []
     for idx, row in df.iterrows():
         bar_date = idx.date() if hasattr(idx, "date") else idx
         rows.append({
-            "ticker":         ticker,
+            "ticker":         canonical,
             "date":           bar_date,
             "open":           _f(row.get("open")),
             "high":           _f(row.get("high")),

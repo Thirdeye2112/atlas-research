@@ -389,9 +389,17 @@ def create_research_run(run_type: str) -> int:
 
 def complete_research_run(run_id: int, *, tickers_processed: int = 0,
                            bars_inserted: int = 0, features_generated: int = 0,
-                           labels_generated: int = 0, error: str | None = None) -> None:
-    """Mark a research_run as complete (or failed)."""
-    status = "failed" if error else "complete"
+                           labels_generated: int = 0, error: str | None = None,
+                           status: str | None = None) -> None:
+    """Mark a research_run as complete/partial/failed.
+
+    `status` lets the caller decide the terminal state explicitly so that
+    non-fatal warnings (e.g. a handful of delisted tickers failing to ingest)
+    can still be recorded in `error_message` without flipping the run to
+    'failed'. When omitted, status is derived from whether `error` is set.
+    """
+    if status is None:
+        status = "failed" if error else "complete"
     sql = text("""
         UPDATE research_runs SET
             finished_at        = now(),

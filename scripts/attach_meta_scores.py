@@ -138,15 +138,26 @@ def attach_meta_scores(pred_date: date, engine, dry_run: bool = False) -> int:
             except (TypeError, ValueError):
                 return None
 
+        def _ss(v):  # NaN/empty-safe string (a float NaN is truthy, so `or None` fails)
+            if v is None:
+                return None
+            if isinstance(v, float):
+                import math
+                if math.isnan(v):
+                    return None
+            s = str(v).strip()
+            return s if s and s.lower() != "nan" else None
+
+        _css = _sf(row.get("combo_sample_size"))  # _sf maps NaN/None -> None
         rows.append({
             "ticker":               row["ticker"],
             "date":                 row["date"],
-            "combo_key":            row.get("combo_key") or None,
+            "combo_key":            _ss(row.get("combo_key")),
             "meta_score":           _sf(row.get("meta_score")),
-            "combo_status":         row.get("combo_status") or None,
+            "combo_status":         _ss(row.get("combo_status")),
             "combo_pf_60d":         _sf(row.get("combo_pf_60d")),
             "combo_expectancy_60d": _sf(row.get("combo_expectancy_60d")),
-            "combo_sample_size":    int(row["combo_sample_size"]) if row.get("combo_sample_size") is not None else None,
+            "combo_sample_size":    int(_css) if _css is not None else None,
         })
 
     BATCH = 500

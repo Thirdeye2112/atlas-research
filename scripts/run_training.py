@@ -46,6 +46,8 @@ def main() -> None:
                         help="Skip training; only score today's universe")
     parser.add_argument("--artifact",      default=None,
                         help="Path to model.joblib to use for --predict-only (default: newest by mtime)")
+    parser.add_argument("--date",          default=None,
+                        help="Prediction date YYYY-MM-DD for --predict-only (default: today)")
     parser.add_argument("--no-db",        action="store_true",
                         help="Dry run — do not write to database")
     parser.add_argument("--version",      default=settings.MODEL_VERSION,
@@ -74,8 +76,9 @@ def main() -> None:
 
     # ── Predict-only mode ─────────────────────────────────────
     if args.predict_only:
+        pred_date = datetime.strptime(args.date, "%Y-%m-%d").date() if args.date else date.today()
         _run_predict_only(parquet_dir, model_dir, feature_cols, args.version, write_db,
-                          artifact_override=args.artifact)
+                          artifact_override=args.artifact, pred_date=pred_date)
         return
 
     # ── Determine date range ──────────────────────────────────
@@ -144,9 +147,12 @@ def main() -> None:
 
 
 def _run_predict_only(parquet_dir, model_dir, feature_cols, version, write_db,
-                      artifact_override: str | None = None):
-    """Find the most recently saved artifact (by mtime) and score today."""
+                      artifact_override: str | None = None,
+                      pred_date: date | None = None):
+    """Find the most recently saved artifact (by mtime) and score `pred_date`."""
     from atlas_research.models.predict import run_prediction_pipeline
+    if pred_date is None:
+        pred_date = date.today()
 
     if artifact_override:
         newest = Path(artifact_override)
@@ -165,7 +171,7 @@ def _run_predict_only(parquet_dir, model_dir, feature_cols, version, write_db,
     log.info("predict_only.using_artifact", path=str(newest))
 
     n = run_prediction_pipeline(
-        pred_date           = date.today(),
+        pred_date           = pred_date,
         model_artifact_path = newest,
         parquet_dir         = parquet_dir,
         feature_cols        = feature_cols,

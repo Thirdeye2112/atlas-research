@@ -102,7 +102,8 @@ def run_nightly(
         "features_generated": 0,
         "labels_generated":   0,
     }
-    errors: list[str] = []
+    errors: list[str] = []      # fatal — flip the run to 'failed'
+    warnings: list[str] = []    # non-fatal — recorded but run stays complete/partial
     step_results: dict = {}
     _quality_scores: dict[str, float] = {}
     _quality_flags:  dict[str, str]   = {}
@@ -135,9 +136,16 @@ def run_nightly(
             )
             counters["bars_inserted"]    = bars_ok
             counters["tickers_processed"] = len(tickers) - len(failed)
-            step_results["ingest"] = {"bars": bars_ok, "failed": len(failed)}
+            step_results["ingest"] = {
+                "bars": bars_ok,
+                "failed": len(failed),
+                "failed_tickers": [t for t, _ in failed[:20]],
+            }
+            # A handful of tickers failing to ingest (delisted symbols, brief
+            # Yahoo gaps) is normal and must not fail the whole run. Record as a
+            # non-fatal warning so it stays visible in the health report.
             if failed:
-                errors.append(f"ingest_failures: {[t for t, _ in failed[:5]]}")
+                warnings.append(f"ingest_failures({len(failed)}): {[t for t, _ in failed[:5]]}")
             log.info("pipeline.ingest_done", bars=bars_ok, failed=len(failed))
         else:
             counters["tickers_processed"] = len(tickers)
@@ -481,8 +489,13 @@ def run_nightly(
     # end if _run_daily
 
     # ── Step 17: mark complete ────────────────────────────────
-    error_str = "; ".join(errors) if errors else None
-    repository.complete_research_run(run_id, error=error_str, **counters)
+    # Fatal errors flip the run to 'failed'; non-fatal warnings (e.g. ingest
+    # failures for delisted tickers) keep it 'complete' but remain visible in
+    # error_message for the health report.
+    all_msgs = errors + warnings
+    error_str = "; ".join(all_msgs) if all_msgs else None
+    run_status = "failed" if errors else "complete"
+    repository.complete_research_run(run_id, error=error_str, status=run_status, **counters)
 
     # ── Step 18: Intraday 5-min collection (non-fatal) ───────
     # Fetches today's 5-min bars, detects setups, computes outcomes,

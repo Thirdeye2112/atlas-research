@@ -121,10 +121,37 @@ def score_universe(
     exp_return = model_bundle.predict_return(X)
     prob_pos   = model_bundle.predict_prob(X)
 
+    # ── Platt-degeneracy guard ────────────────────────────────────────────
+    # When the classifier has little cross-sectional signal the fitted Platt
+    # scaler can collapse to a near-zero slope, mapping every ticker to ~0.525.
+    # That destroys probability_positive (and the rank/confidence derived from
+    # it). If the calibrated output is effectively constant but the raw
+    # classifier output is not, fall back to the raw classifier probabilities.
+    # This changes no model weights — it only selects the more informative of
+    # two outputs the same trained classifier already produces.
+    platt_std = float(np.nanstd(prob_pos))
+    if platt_std < 0.01:
+        try:
+            raw_prob = model_bundle.classifier.predict(X).astype(np.float64)
+            raw_std = float(np.nanstd(raw_prob))
+            if raw_std > platt_std:
+                log.warning("predict.platt_degenerate",
+                            platt_std=round(platt_std, 6),
+                            raw_std=round(raw_std, 6))
+                prob_pos = raw_prob
+        except Exception as exc:
+            log.warning("predict.platt_fallback_failed", error=str(exc))
+
     # Derived columns
     exp_drawdown = np.where(exp_return < 0, exp_return, 0.0)
     confidence   = np.abs(prob_pos - 0.5) * 2.0
-    rank_pct     = pd.Series(prob_pos).rank(pct=True).to_numpy()
+    # Cross-sectional percentile of probability_positive. The classifier emits a
+    # finite set of leaf-sum values, so ranking probability alone leaves plateaus;
+    # we break ties with expected_return (a deterministic ordering, not a new
+    # score) so rank_percentile is smoothly distributed across the universe.
+    _ret_rank = pd.Series(exp_return).rank(pct=True, method="average").to_numpy()
+    _composite = prob_pos + 1e-6 * _ret_rank
+    rank_pct = pd.Series(_composite).rank(pct=True, method="average").to_numpy()
 
     result = pd.DataFrame({
         "ticker":               df["ticker"].to_numpy(),
@@ -134,6 +161,10 @@ def score_universe(
         "expected_drawdown":    exp_drawdown,
         "confidence":           confidence,
         "rank_percentile":      rank_pct,
+        # Always-populated confidence columns; overwritten by the calibrator
+        # below when prediction_outcomes history is available.
+        "raw_confidence":        confidence,
+        "calibrated_confidence": confidence,
     })
 
     # Apply adaptive confidence calibration using parquet context columns
