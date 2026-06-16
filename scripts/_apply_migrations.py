@@ -13,6 +13,7 @@ migrations = [
     'db/migrations/0039_intraday_learning_tables.sql',
     'db/migrations/0040_intraday_candle_memory.sql',
     'db/migrations/0041_behavior_analysis.sql',
+    'db/migrations/0042_behavior_aware_similarity.sql',
 ]
 root = os.path.join(os.path.dirname(__file__), '..')
 for f in migrations:
