@@ -622,18 +622,29 @@ def upsert_predictions(rows: list[dict]) -> int:
         INSERT INTO predictions (
             ticker, date, model_name, model_version,
             expected_return, probability_positive,
-            expected_drawdown, confidence, rank_percentile
+            expected_drawdown, confidence, rank_percentile,
+            raw_confidence, calibrated_confidence,
+            confidence_context, confidence_sample_size,
+            confidence_adjustment_reason
         ) VALUES (
             :ticker, :date, :model_name, :model_version,
             :expected_return, :probability_positive,
-            :expected_drawdown, :confidence, :rank_percentile
+            :expected_drawdown, :confidence, :rank_percentile,
+            :raw_confidence, :calibrated_confidence,
+            :confidence_context, :confidence_sample_size,
+            :confidence_adjustment_reason
         )
         ON CONFLICT (ticker, date, model_name, model_version) DO UPDATE SET
-            expected_return      = EXCLUDED.expected_return,
-            probability_positive = EXCLUDED.probability_positive,
-            expected_drawdown    = EXCLUDED.expected_drawdown,
-            confidence           = EXCLUDED.confidence,
-            rank_percentile      = EXCLUDED.rank_percentile
+            expected_return               = EXCLUDED.expected_return,
+            probability_positive          = EXCLUDED.probability_positive,
+            expected_drawdown             = EXCLUDED.expected_drawdown,
+            confidence                    = EXCLUDED.confidence,
+            rank_percentile               = EXCLUDED.rank_percentile,
+            raw_confidence                = EXCLUDED.raw_confidence,
+            calibrated_confidence         = EXCLUDED.calibrated_confidence,
+            confidence_context            = EXCLUDED.confidence_context,
+            confidence_sample_size        = EXCLUDED.confidence_sample_size,
+            confidence_adjustment_reason  = EXCLUDED.confidence_adjustment_reason
     """)
     with get_connection() as conn:
         conn.execute(sql, rows)

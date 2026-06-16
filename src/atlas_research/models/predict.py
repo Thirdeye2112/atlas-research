@@ -32,6 +32,7 @@ import pandas as pd
 from atlas_research.features.regime_interactions import (
     INTERACTION_NAMES, BASE_COLS_NEEDED, add_interactions,
 )
+from atlas_research.models.confidence_calibrator import ConfidenceCalibrator
 from atlas_research.models.dataset import (
     cross_sectional_normalize, load_date_range, to_arrays
 )
@@ -48,6 +49,7 @@ def score_universe(
     feature_cols: list[str],
     min_quality_score: float = 0.70,
     normalize_cross_sectional: bool = True,
+    calibrator: ConfidenceCalibrator | None = None,
 ) -> pd.DataFrame:
     """
     Score all tickers in today's feature matrix using the trained model bundle.
@@ -68,10 +70,15 @@ def score_universe(
         log.warning("predict.no_parquet", date=str(pred_date), path=str(fpath))
         return pd.DataFrame()
 
+    # Columns needed for calibration context (from INFERENCE_EXTRA_COLS + parquet).
+    # These are read but NOT passed to the model — they are only used post-scoring.
+    _CALIB_CTX_COLS = {"quality_tier", "jarvis_quality_adjusted",
+                       "realized_vol_20", "market_trend", "above_sma200"}
+
     # Interaction features are computed on-the-fly; exclude from columnar read,
     # include their required base columns instead.
     base_feature_cols = [f for f in feature_cols if f not in INTERACTION_NAMES]
-    needed = {"ticker", "date"} | set(base_feature_cols) | BASE_COLS_NEEDED
+    needed = {"ticker", "date"} | set(base_feature_cols) | BASE_COLS_NEEDED | _CALIB_CTX_COLS
     try:
         df = pd.read_parquet(fpath, engine="pyarrow",
                              columns=list(needed))
@@ -129,6 +136,15 @@ def score_universe(
         "rank_percentile":      rank_pct,
     })
 
+    # Apply adaptive confidence calibration using parquet context columns
+    if calibrator is not None:
+        try:
+            result = calibrator.apply(result, df)
+            log.info("predict.calibration_applied",
+                     date=str(pred_date), **calibrator.summary())
+        except Exception as exc:
+            log.warning("predict.calibration_failed", error=str(exc))
+
     log.info(
         "predict.scored",
         date=str(pred_date),
@@ -174,6 +190,12 @@ def write_predictions(
             "expected_drawdown":    _safe_float(row["expected_drawdown"]),
             "confidence":           _safe_float(row["confidence"]),
             "rank_percentile":      _safe_float(row["rank_percentile"]),
+            # Adaptive confidence calibration columns (may be absent if calibrator not run)
+            "raw_confidence":       _safe_float(row.get("raw_confidence")),
+            "calibrated_confidence":_safe_float(row.get("calibrated_confidence")),
+            "confidence_context":   row.get("confidence_context") or None,
+            "confidence_sample_size": int(row["confidence_sample_size"]) if row.get("confidence_sample_size") is not None else None,
+            "confidence_adjustment_reason": row.get("confidence_adjustment_reason") or None,
         })
 
     n = repository.upsert_predictions(rows)
@@ -189,12 +211,14 @@ def run_prediction_pipeline(
     model_name: str,
     model_version: str,
     min_quality_score: float = 0.70,
+    use_calibrator: bool = True,
 ) -> int:
     """
     Full prediction pipeline:
         1. Load model bundle from disk
-        2. Score today's feature matrix
-        3. Write to predictions table
+        2. (Optional) Build adaptive confidence calibrator from prediction_outcomes
+        3. Score today's feature matrix
+        4. Write to predictions table
 
     Returns number of prediction rows written.
     """
@@ -219,8 +243,21 @@ def run_prediction_pipeline(
             )
         feature_cols = bundle.feature_names
 
+    # Build calibrator from prediction_outcomes history
+    calibrator: ConfidenceCalibrator | None = None
+    if use_calibrator:
+        try:
+            import os
+            from sqlalchemy import create_engine as _create_engine
+            _engine = _create_engine(os.environ["DATABASE_URL"])
+            calibrator = ConfidenceCalibrator.from_db(_engine)
+            log.info("predict.calibrator_ready", **calibrator.summary())
+        except Exception as exc:
+            log.warning("predict.calibrator_build_failed", error=str(exc))
+
     preds = score_universe(
-        pred_date, parquet_dir, bundle, feature_cols, min_quality_score
+        pred_date, parquet_dir, bundle, feature_cols, min_quality_score,
+        calibrator=calibrator,
     )
     if preds.empty:
         return 0

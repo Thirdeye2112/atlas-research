@@ -11,9 +11,16 @@ Steps (in order):
     7.  Generate labels where future data exists
     8.  Export wide feature matrix → parquet file
     9.  Export JSON feature snapshot → production_exports table
-    10. Mark run complete
+    10. [NEW] Predict-only: score today's parquet with latest model
+    11. [NEW] Compute prediction outcomes (retroactive, all mature parquets)
+    12. [NEW] Compute feature reliability (rolling IC, 30d/90d/180d windows)
+    13. [NEW] Check retrain needed (7 triggers, recommendation only unless --auto-retrain)
+    14. Calibration sync + score decomp
+    15. Attribution pipeline
+    16. Wide table refresh
+    17. Mark run complete
 
-Each step is isolated — failure in one step does not abort later steps.
+Each step is isolated — failure in one step marks run as partial, not fatal.
 Validation failures are warnings, not errors (partial data is normal).
 """
 
@@ -44,6 +51,11 @@ def run_nightly(
     skip_labels: bool = False,
     skip_parquet: bool = False,
     skip_json_export: bool = False,
+    skip_predict: bool = False,
+    skip_outcomes: bool = False,
+    skip_reliability: bool = False,
+    skip_retrain_check: bool = False,
+    auto_retrain: bool = False,
     triggered_by: str = "scheduler",
     snapshot_version: str | None = None,
 ) -> dict:
@@ -182,7 +194,151 @@ def run_nightly(
         log.debug(traceback.format_exc())
         errors.append(str(exc))
 
-    # ── Step 10: wide table refresh (non-fatal) ──────────────
+    # ── Step 10: Predict-only (non-fatal) ─────────────────
+    # Score today's parquet with the latest trained model + adaptive calibrator.
+    if not skip_predict:
+        try:
+            import glob as _glob
+            model_dir = settings.MODEL_DIR
+            artifacts = sorted(model_dir.glob("**/model.joblib"), key=lambda p: str(p))
+            if artifacts:
+                latest_artifact = artifacts[-1]
+                from atlas_research.models.predict import run_prediction_pipeline
+                n_preds = run_prediction_pipeline(
+                    pred_date=run_date,
+                    model_artifact_path=latest_artifact,
+                    parquet_dir=settings.PARQUET_OUTPUT_DIR,
+                    feature_cols=settings.TRAIN_FEATURES,
+                    model_name="return_regressor",
+                    model_version=settings.MODEL_VERSION,
+                    use_calibrator=True,
+                )
+                step_results["predict"] = {"predictions": n_preds, "artifact": str(latest_artifact)}
+                log.info("pipeline.predict_done", predictions=n_preds)
+            else:
+                step_results["predict"] = {"predictions": 0, "reason": "no_model_artifact"}
+                log.info("pipeline.predict_skipped", reason="no_model_artifact")
+        except Exception as exc:
+            log.error("pipeline.predict_failed", error=str(exc))
+            step_results["predict"] = {"status": "failed", "error": str(exc)}
+    else:
+        log.info("pipeline.predict_skipped")
+
+    # ── Step 11: Prediction outcomes (non-fatal) ──────────
+    # Retroactively scores mature predictions and upserts to prediction_outcomes.
+    if not skip_outcomes:
+        try:
+            import sys as _sys
+            import importlib.util as _ilu
+            _script = settings.ROOT_DIR / "scripts" / "compute_prediction_outcomes.py"
+            if _script.exists():
+                _spec = _ilu.spec_from_file_location("compute_prediction_outcomes", _script)
+                _mod  = _ilu.module_from_spec(_spec)
+                _sys.modules["compute_prediction_outcomes"] = _mod
+                _spec.loader.exec_module(_mod)
+                # Call the core functions directly (avoid re-parsing args)
+                from compute_prediction_outcomes import (
+                    build_outcomes, upsert_outcomes,
+                )
+                from run_confluence_backtest import (
+                    load_static_stats, build_model_map, compute_forward_returns,
+                )
+                from run_conviction_backtest import add_conviction
+                from run_edge_hierarchy import load_and_score_extended
+                import os as _os2
+                from sqlalchemy import create_engine as _ce2
+                _engine2 = _ce2(_os2.environ["DATABASE_URL"])
+                _pstats, _cstats, _rstats = load_static_stats()
+                _mmap = build_model_map(settings.MODEL_DIR)
+                _scored = load_and_score_extended(
+                    run_date - timedelta(days=30), run_date,
+                    settings.PARQUET_OUTPUT_DIR, _mmap,
+                    _pstats, _cstats, _rstats,
+                )
+                if not _scored.empty:
+                    _scored = compute_forward_returns(_scored)
+                    _scored = add_conviction(_scored)
+                    _outcomes = build_outcomes(_scored)
+                    _n = upsert_outcomes(_outcomes, _engine2) if not _outcomes.empty else 0
+                    step_results["prediction_outcomes"] = {"upserted": _n}
+                    log.info("pipeline.outcomes_done", rows=_n)
+                else:
+                    step_results["prediction_outcomes"] = {"upserted": 0}
+        except Exception as exc:
+            log.error("pipeline.outcomes_failed", error=str(exc))
+            step_results["prediction_outcomes"] = {"status": "failed", "error": str(exc)}
+    else:
+        log.info("pipeline.outcomes_skipped")
+
+    # ── Step 12: Feature reliability (non-fatal) ──────────
+    if not skip_reliability:
+        try:
+            _script_r = settings.ROOT_DIR / "scripts" / "compute_feature_reliability.py"
+            if _script_r.exists():
+                import importlib.util as _ilu2
+                _spec2 = _ilu2.spec_from_file_location("compute_feature_reliability", _script_r)
+                _mod2  = _ilu2.module_from_spec(_spec2)
+                _spec2.loader.exec_module(_mod2)
+                import os as _os3
+                from sqlalchemy import create_engine as _ce3
+                _engine3 = _ce3(_os3.environ["DATABASE_URL"])
+                _rel_df = _mod2.compute_reliability(
+                    run_date, settings.PARQUET_OUTPUT_DIR, settings.ALL_FEATURES,
+                )
+                _n_rel = _mod2.upsert_reliability(_rel_df, _engine3) if not _rel_df.empty else 0
+                step_results["feature_reliability"] = {"features": _n_rel}
+                log.info("pipeline.reliability_done", features=_n_rel)
+        except Exception as exc:
+            log.error("pipeline.reliability_failed", error=str(exc))
+            step_results["feature_reliability"] = {"status": "failed", "error": str(exc)}
+    else:
+        log.info("pipeline.reliability_skipped")
+
+    # ── Step 13: Retrain check (non-fatal) ────────────────
+    if not skip_retrain_check:
+        try:
+            _script_rt = settings.ROOT_DIR / "scripts" / "check_retrain_needed.py"
+            if _script_rt.exists():
+                import importlib.util as _ilu3
+                import os as _os4
+                from sqlalchemy import create_engine as _ce4
+                _spec3 = _ilu3.spec_from_file_location("check_retrain_needed", _script_rt)
+                _mod3  = _ilu3.module_from_spec(_spec3)
+                _spec3.loader.exec_module(_mod3)
+                _engine4 = _ce4(_os4.environ["DATABASE_URL"])
+                triggered_results = []
+                for _name, _fn, _desc in _mod3.TRIGGERS:
+                    try:
+                        _fired, _reason = _fn(_engine4)
+                    except Exception:
+                        _fired, _reason = False, "check_failed"
+                    triggered_results.append((_name, _fired, _reason))
+                n_fired = sum(1 for _, f, _ in triggered_results if f)
+                recommend = n_fired >= _mod3.RETRAIN_SCORE_NEEDED
+                step_results["retrain_check"] = {
+                    "triggered": n_fired,
+                    "recommend_retrain": recommend,
+                    "triggers": {n: {"fired": f, "reason": r} for n, f, r in triggered_results},
+                }
+                log.info("pipeline.retrain_check_done",
+                         triggered=n_fired, recommend=recommend)
+
+                if auto_retrain and recommend:
+                    log.info("pipeline.auto_retrain_starting")
+                    import subprocess as _sp
+                    ret = _sp.call(
+                        [sys.executable, str(settings.ROOT_DIR / "scripts" / "run_training.py")],
+                        cwd=str(settings.ROOT_DIR),
+                    )
+                    step_results["auto_retrain"] = {"exit_code": ret}
+                    log.info("pipeline.auto_retrain_done", exit_code=ret)
+        except Exception as exc:
+            log.error("pipeline.retrain_check_failed", error=str(exc))
+            step_results["retrain_check"] = {"status": "failed", "error": str(exc)}
+    else:
+        log.info("pipeline.retrain_check_skipped")
+
+    # ── Step 14: wide table refresh (non-fatal) ──────────────
     # Pivots EAV feature_snapshots → feature_snapshots_wide for today.
     # Failure must not stop ingestion.
     try:
@@ -201,7 +357,7 @@ def run_nightly(
         step_results["wide_refresh"] = {"status": "failed", "error": str(exc)}
         # Intentionally not appended to errors — wide refresh failure is non-fatal
 
-    # ── Step 11: calibration (non-fatal) ─────────────────────
+    # ── Step 15: calibration (non-fatal) ─────────────────────
     # Syncs alpha signal snapshots then runs score component decomposition.
     # Requires DATABASE_URL_ALPHA env var for the sync phase.
     # Failure here must never stop ingestion — all errors are logged only.
@@ -229,7 +385,7 @@ def run_nightly(
         step_results["calibration"] = {"status": "failed", "error": str(exc)}
         # Intentionally not appended to errors — calibration failure is non-fatal
 
-    # ── Step 12: attribution pipeline (non-fatal) ────────────
+    # ── Step 16: attribution pipeline (non-fatal) ────────────
     # Runs after labels are computed so matured outcomes are available.
     try:
         from atlas_research.attribution.outcomes import compute_matured_outcomes
@@ -252,7 +408,7 @@ def run_nightly(
         log.error("pipeline.attribution_failed", error=str(exc))
         step_results["attribution"] = {"status": "failed", "error": str(exc)}
 
-    # ── Step 13: mark complete ────────────────────────────────
+    # ── Step 17: mark complete ────────────────────────────────
     error_str = "; ".join(errors) if errors else None
     repository.complete_research_run(run_id, error=error_str, **counters)
 

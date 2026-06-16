@@ -33,12 +33,17 @@ log = get_logger("run_nightly_cli")
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Atlas Research -- nightly pipeline")
-    parser.add_argument("--date",          default=None,  help="Run date YYYY-MM-DD (default: today)")
-    parser.add_argument("--skip-ingest",   action="store_true")
-    parser.add_argument("--skip-features", action="store_true")
-    parser.add_argument("--skip-labels",   action="store_true")
-    parser.add_argument("--skip-parquet",  action="store_true")
-    parser.add_argument("--force-ingest",  action="store_true")
+    parser.add_argument("--date",              default=None,  help="Run date YYYY-MM-DD (default: today)")
+    parser.add_argument("--skip-ingest",       action="store_true")
+    parser.add_argument("--skip-features",     action="store_true")
+    parser.add_argument("--skip-labels",       action="store_true")
+    parser.add_argument("--skip-parquet",      action="store_true")
+    parser.add_argument("--force-ingest",      action="store_true")
+    parser.add_argument("--skip-predict",      action="store_true", help="Skip predict-only step")
+    parser.add_argument("--skip-outcomes",     action="store_true", help="Skip prediction outcomes computation")
+    parser.add_argument("--skip-reliability",  action="store_true", help="Skip feature reliability computation")
+    parser.add_argument("--skip-retrain-check",action="store_true", help="Skip retrain trigger check")
+    parser.add_argument("--auto-retrain",      action="store_true", help="Auto-launch training if retrain triggers fire")
     args = parser.parse_args()
 
     run_date = (
@@ -57,6 +62,11 @@ def main() -> None:
         skip_features=args.skip_features,
         skip_labels=args.skip_labels,
         skip_parquet=args.skip_parquet,
+        skip_predict=args.skip_predict,
+        skip_outcomes=args.skip_outcomes,
+        skip_reliability=args.skip_reliability,
+        skip_retrain_check=args.skip_retrain_check,
+        auto_retrain=args.auto_retrain,
         triggered_by="cli",
     )
 
