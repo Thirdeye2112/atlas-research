@@ -12,12 +12,14 @@ Steps (in order):
     8.  Export wide feature matrix → parquet file
     9.  Export JSON feature snapshot → production_exports table
     10. [NEW] Predict-only: score today's parquet with latest model
+    10.5 [META] Attach meta-signal scores to today's predictions (uses prior night combo scores)
     11. [NEW] Compute prediction outcomes (retroactive, all mature parquets)
     12. [NEW] Compute feature reliability (rolling IC, 30d/90d/180d windows)
     13. [NEW] Check retrain needed (7 triggers, recommendation only unless --auto-retrain)
     14. Calibration sync + score decomp
     15. Attribution pipeline
     16. Wide table refresh
+    16.5 [META] Compute signal combination scores (updates combo scores for tomorrow's tagging)
     17. Mark run complete
 
 Each step is isolated — failure in one step marks run as partial, not fatal.
@@ -55,6 +57,7 @@ def run_nightly(
     skip_outcomes: bool = False,
     skip_reliability: bool = False,
     skip_retrain_check: bool = False,
+    skip_meta_scoring: bool = False,
     auto_retrain: bool = False,
     triggered_by: str = "scheduler",
     snapshot_version: str | None = None,
@@ -223,6 +226,34 @@ def run_nightly(
             step_results["predict"] = {"status": "failed", "error": str(exc)}
     else:
         log.info("pipeline.predict_skipped")
+
+    # ── Step 10.5: Attach meta-signal scores (non-fatal) ─
+    # Tags today's predictions with combo_key and meta_score from yesterday's
+    # signal_combination_scores table. Requires signal_combination_scores to have
+    # been populated by at least one prior run of compute_signal_combination_scores.py.
+    if not skip_meta_scoring and not skip_predict:
+        try:
+            import importlib.util as _ilu_meta
+            import sys as _sys_meta
+            _script_meta = settings.ROOT_DIR / "scripts" / "attach_meta_scores.py"
+            if _script_meta.exists():
+                _spec_meta = _ilu_meta.spec_from_file_location("attach_meta_scores", _script_meta)
+                _mod_meta  = _ilu_meta.module_from_spec(_spec_meta)
+                _sys_meta.modules["attach_meta_scores"] = _mod_meta
+                _spec_meta.loader.exec_module(_mod_meta)
+                import os as _os_meta
+                from sqlalchemy import create_engine as _ce_meta
+                _engine_meta = _ce_meta(_os_meta.environ["DATABASE_URL"])
+                _n_meta = _mod_meta.attach_meta_scores(run_date, _engine_meta)
+                step_results["meta_tagging"] = {"predictions_tagged": _n_meta}
+                log.info("pipeline.meta_tagging_done", tagged=_n_meta)
+            else:
+                step_results["meta_tagging"] = {"status": "skipped", "reason": "script_not_found"}
+        except Exception as exc:
+            log.warning("pipeline.meta_tagging_failed", error=str(exc))
+            step_results["meta_tagging"] = {"status": "failed", "error": str(exc)}
+    else:
+        log.info("pipeline.meta_tagging_skipped")
 
     # ── Step 11: Prediction outcomes (non-fatal) ──────────
     # Retroactively scores mature predictions and upserts to prediction_outcomes.
@@ -407,6 +438,37 @@ def run_nightly(
     except Exception as exc:
         log.error("pipeline.attribution_failed", error=str(exc))
         step_results["attribution"] = {"status": "failed", "error": str(exc)}
+
+    # ── Step 16.5: Compute signal combination scores (non-fatal) ─
+    # Updates rolling 30/60/90d combo scores after attribution has run.
+    # These scores are used by Step 10.5 in the NEXT nightly run.
+    if not skip_meta_scoring:
+        try:
+            import importlib.util as _ilu_scs
+            import sys as _sys_scs
+            _script_scs = settings.ROOT_DIR / "scripts" / "compute_signal_combination_scores.py"
+            if _script_scs.exists():
+                _spec_scs = _ilu_scs.spec_from_file_location(
+                    "compute_signal_combination_scores", _script_scs
+                )
+                _mod_scs  = _ilu_scs.module_from_spec(_spec_scs)
+                _sys_scs.modules["compute_signal_combination_scores"] = _mod_scs
+                _spec_scs.loader.exec_module(_mod_scs)
+                import os as _os_scs
+                from sqlalchemy import create_engine as _ce_scs
+                _engine_scs = _ce_scs(_os_scs.environ["DATABASE_URL"])
+                _ta_df  = _mod_scs.load_trade_attribution(_engine_scs)
+                _sc_df  = _mod_scs.compute_scores(_ta_df, run_date)
+                _n_scs  = _mod_scs.upsert_scores(_sc_df, _engine_scs)
+                step_results["combo_scoring"] = {"combos_upserted": _n_scs}
+                log.info("pipeline.combo_scoring_done", combos=_n_scs)
+            else:
+                step_results["combo_scoring"] = {"status": "skipped", "reason": "script_not_found"}
+        except Exception as exc:
+            log.warning("pipeline.combo_scoring_failed", error=str(exc))
+            step_results["combo_scoring"] = {"status": "failed", "error": str(exc)}
+    else:
+        log.info("pipeline.combo_scoring_skipped")
 
     # ── Step 17: mark complete ────────────────────────────────
     error_str = "; ".join(errors) if errors else None
