@@ -21,6 +21,8 @@ Steps (in order):
     16. Wide table refresh
     16.5 [META] Compute signal combination scores (updates combo scores for tomorrow's tagging)
     17. Mark run complete
+    18. [INTRADAY] Ingest 5-min bars, detect setups, compute outcomes (if enabled)
+    18.5 [INTRADAY] Update intraday candidate watchlist
 
 Each step is isolated — failure in one step marks run as partial, not fatal.
 Validation failures are warnings, not errors (partial data is normal).
@@ -58,6 +60,8 @@ def run_nightly(
     skip_reliability: bool = False,
     skip_retrain_check: bool = False,
     skip_meta_scoring: bool = False,
+    skip_intraday: bool = False,
+    intraday_only: bool = False,
     auto_retrain: bool = False,
     triggered_by: str = "scheduler",
     snapshot_version: str | None = None,
@@ -69,6 +73,8 @@ def run_nightly(
         run_date:          Date to process. Defaults to today.
         force_full_ingest: Re-download full BACKFILL_YEARS of history.
         skip_*:            Skip individual steps for re-runs / debugging.
+        skip_intraday:     Skip Steps 18/18.5 (5-min intraday collection).
+        intraday_only:     Run only Steps 18/18.5; skip all daily steps.
         triggered_by:      'scheduler' | 'cli' | 'test'
         snapshot_version:  Tag written to every feature_snapshots row this run.
                            Defaults to 'run_YYYY-MM-DD'.
@@ -97,6 +103,9 @@ def run_nightly(
     _quality_scores: dict[str, float] = {}
     _quality_flags:  dict[str, str]   = {}
 
+    # intraday_only: skip all daily steps below
+    _run_daily = not intraday_only
+
     try:
         # ── Step 2: load universe ─────────────────────────────
         tickers = repository.get_active_tickers()
@@ -107,7 +116,10 @@ def run_nightly(
         log.info("pipeline.universe", count=len(tickers))
 
         # ── Steps 3 & 4: ingest ───────────────────────────────
-        if not skip_ingest:
+        if not _run_daily:
+            counters["tickers_processed"] = len(tickers)
+            log.info("pipeline.daily_skipped", reason="intraday_only=True")
+        if _run_daily and not skip_ingest:
             start_date = _ingest_start(run_date, force_full_ingest)
             log.info("pipeline.ingest", start=str(start_date), end=str(run_date))
             bars_ok, failed = download_universe(
@@ -128,7 +140,7 @@ def run_nightly(
             log.info("pipeline.ingest_skipped")
 
         # ── Step 5: validate + step 6: features ───────────────
-        if not skip_features:
+        if _run_daily and not skip_features:
             spy_bars = repository.get_bars("SPY", end=run_date)
             features_written, val_summary = _run_features(
                 tickers, run_date, spy_bars, snap_ver
@@ -149,12 +161,14 @@ def run_nightly(
             # Quality scores / flags for the parquet step
             _quality_scores = val_summary.get("quality_scores", {})
             _quality_flags  = val_summary.get("quality_flags", {})
+        elif not _run_daily:
+            _quality_scores, _quality_flags = {}, {}
         else:
             log.info("pipeline.features_skipped")
             _quality_scores, _quality_flags = {}, {}
 
         # ── Step 7: labels ────────────────────────────────────
-        if not skip_labels:
+        if _run_daily and not skip_labels:
             labels_n = build_labels_for_universe(tickers, as_of=run_date)
             counters["labels_generated"] = labels_n
             step_results["labels"] = {"rows": labels_n}
@@ -163,7 +177,7 @@ def run_nightly(
             log.info("pipeline.labels_skipped")
 
         # ── Step 8: parquet export ────────────────────────────
-        if not skip_parquet:
+        if _run_daily and not skip_parquet:
             try:
                 parquet_path = run_parquet_export(
                     run_date,
@@ -181,7 +195,7 @@ def run_nightly(
             log.info("pipeline.parquet_skipped")
 
         # ── Step 9: JSON export ───────────────────────────────
-        if not skip_json_export:
+        if _run_daily and not skip_json_export:
             try:
                 records = run_export(run_date, feature_version=settings.FEATURE_VERSION)
                 step_results["json_export"] = {"records": len(records)}
@@ -199,7 +213,7 @@ def run_nightly(
 
     # ── Step 10: Predict-only (non-fatal) ─────────────────
     # Score today's parquet with the latest trained model + adaptive calibrator.
-    if not skip_predict:
+    if _run_daily and not skip_predict:
         try:
             import glob as _glob
             model_dir = settings.MODEL_DIR
@@ -231,7 +245,7 @@ def run_nightly(
     # Tags today's predictions with combo_key and meta_score from yesterday's
     # signal_combination_scores table. Requires signal_combination_scores to have
     # been populated by at least one prior run of compute_signal_combination_scores.py.
-    if not skip_meta_scoring and not skip_predict:
+    if _run_daily and not skip_meta_scoring and not skip_predict:
         try:
             import importlib.util as _ilu_meta
             import sys as _sys_meta
@@ -257,7 +271,7 @@ def run_nightly(
 
     # ── Step 11: Prediction outcomes (non-fatal) ──────────
     # Retroactively scores mature predictions and upserts to prediction_outcomes.
-    if not skip_outcomes:
+    if _run_daily and not skip_outcomes:
         try:
             import sys as _sys
             import importlib.util as _ilu
@@ -302,7 +316,7 @@ def run_nightly(
         log.info("pipeline.outcomes_skipped")
 
     # ── Step 12: Feature reliability (non-fatal) ──────────
-    if not skip_reliability:
+    if _run_daily and not skip_reliability:
         try:
             _script_r = settings.ROOT_DIR / "scripts" / "compute_feature_reliability.py"
             if _script_r.exists():
@@ -326,7 +340,7 @@ def run_nightly(
         log.info("pipeline.reliability_skipped")
 
     # ── Step 13: Retrain check (non-fatal) ────────────────
-    if not skip_retrain_check:
+    if _run_daily and not skip_retrain_check:
         try:
             _script_rt = settings.ROOT_DIR / "scripts" / "check_retrain_needed.py"
             if _script_rt.exists():
@@ -369,110 +383,169 @@ def run_nightly(
     else:
         log.info("pipeline.retrain_check_skipped")
 
-    # ── Step 14: wide table refresh (non-fatal) ──────────────
-    # Pivots EAV feature_snapshots → feature_snapshots_wide for today.
-    # Failure must not stop ingestion.
-    try:
-        import os as _os2
-        _research_url_wide = _os2.environ.get("DATABASE_URL", "")
-        if _research_url_wide:
-            from atlas_research.exports.wide_export import refresh_wide
-            _n_wide = refresh_wide(run_date, _research_url_wide,
-                                   feature_version=settings.FEATURE_VERSION)
-            step_results["wide_refresh"] = {"rows": _n_wide}
-            log.info("pipeline.wide_refresh_done", rows=_n_wide)
-        else:
-            step_results["wide_refresh"] = {"rows": 0, "reason": "no DATABASE_URL"}
-    except Exception as exc:
-        log.error("pipeline.wide_refresh_failed", error=str(exc))
-        step_results["wide_refresh"] = {"status": "failed", "error": str(exc)}
-        # Intentionally not appended to errors — wide refresh failure is non-fatal
-
-    # ── Step 15: calibration (non-fatal) ─────────────────────
-    # Syncs alpha signal snapshots then runs score component decomposition.
-    # Requires DATABASE_URL_ALPHA env var for the sync phase.
-    # Failure here must never stop ingestion — all errors are logged only.
-    try:
-        import os as _os
-        alpha_url = _os.environ.get("DATABASE_URL_ALPHA")
-        research_url = _os.environ.get("DATABASE_URL", "")
-
-        if alpha_url and research_url:
-            from atlas_research.calibration.engine import sync_snapshots
-            n_synced = sync_snapshots(alpha_url, research_url)
-            log.info("pipeline.calibration_sync_done", n_synced=n_synced)
-        else:
-            n_synced = 0
-            log.info("pipeline.calibration_sync_skipped",
-                     reason="DATABASE_URL_ALPHA not configured")
-
-        from atlas_research.calibration.score_decomp import run_nightly_calibration
-        cal = run_nightly_calibration(run_date=run_date, research_url=research_url)
-        step_results["calibration"] = {**cal, "n_synced": n_synced}
-        log.info("pipeline.calibration_done", **cal)
-
-    except Exception as exc:
-        log.error("pipeline.calibration_failed", error=str(exc))
-        step_results["calibration"] = {"status": "failed", "error": str(exc)}
-        # Intentionally not appended to errors — calibration failure is non-fatal
-
-    # ── Step 16: attribution pipeline (non-fatal) ────────────
-    # Runs after labels are computed so matured outcomes are available.
-    try:
-        from atlas_research.attribution.outcomes import compute_matured_outcomes
-        from atlas_research.attribution.classifier import attribute_errors
-        from atlas_research.attribution.reliability import compute_signal_reliability
-        from atlas_research.attribution.recommendations import generate_recommendations
-
-        attr_outcomes = compute_matured_outcomes(as_of=run_date)
-        n_attributed  = attribute_errors()
-        compute_signal_reliability(as_of=run_date)
-        n_recs = generate_recommendations(as_of=run_date)
-        step_results["attribution"] = {
-            "outcomes":        attr_outcomes,
-            "attributed":      n_attributed,
-            "recommendations": n_recs,
-        }
-        log.info("pipeline.attribution_done",
-                 outcomes=attr_outcomes, attributed=n_attributed, recs=n_recs)
-    except Exception as exc:
-        log.error("pipeline.attribution_failed", error=str(exc))
-        step_results["attribution"] = {"status": "failed", "error": str(exc)}
-
-    # ── Step 16.5: Compute signal combination scores (non-fatal) ─
-    # Updates rolling 30/60/90d combo scores after attribution has run.
-    # These scores are used by Step 10.5 in the NEXT nightly run.
-    if not skip_meta_scoring:
+    # ── Steps 14–16.5 are skipped in intraday_only mode ─────────────────────────
+    if _run_daily:
+        # ── Step 14: wide table refresh (non-fatal) ──────────────
         try:
-            import importlib.util as _ilu_scs
-            import sys as _sys_scs
-            _script_scs = settings.ROOT_DIR / "scripts" / "compute_signal_combination_scores.py"
-            if _script_scs.exists():
-                _spec_scs = _ilu_scs.spec_from_file_location(
-                    "compute_signal_combination_scores", _script_scs
-                )
-                _mod_scs  = _ilu_scs.module_from_spec(_spec_scs)
-                _sys_scs.modules["compute_signal_combination_scores"] = _mod_scs
-                _spec_scs.loader.exec_module(_mod_scs)
-                import os as _os_scs
-                from sqlalchemy import create_engine as _ce_scs
-                _engine_scs = _ce_scs(_os_scs.environ["DATABASE_URL"])
-                _ta_df  = _mod_scs.load_trade_attribution(_engine_scs)
-                _sc_df  = _mod_scs.compute_scores(_ta_df, run_date)
-                _n_scs  = _mod_scs.upsert_scores(_sc_df, _engine_scs)
-                step_results["combo_scoring"] = {"combos_upserted": _n_scs}
-                log.info("pipeline.combo_scoring_done", combos=_n_scs)
+            import os as _os2
+            _research_url_wide = _os2.environ.get("DATABASE_URL", "")
+            if _research_url_wide:
+                from atlas_research.exports.wide_export import refresh_wide
+                _n_wide = refresh_wide(run_date, _research_url_wide,
+                                       feature_version=settings.FEATURE_VERSION)
+                step_results["wide_refresh"] = {"rows": _n_wide}
+                log.info("pipeline.wide_refresh_done", rows=_n_wide)
             else:
-                step_results["combo_scoring"] = {"status": "skipped", "reason": "script_not_found"}
+                step_results["wide_refresh"] = {"rows": 0, "reason": "no DATABASE_URL"}
         except Exception as exc:
-            log.warning("pipeline.combo_scoring_failed", error=str(exc))
-            step_results["combo_scoring"] = {"status": "failed", "error": str(exc)}
-    else:
-        log.info("pipeline.combo_scoring_skipped")
+            log.error("pipeline.wide_refresh_failed", error=str(exc))
+            step_results["wide_refresh"] = {"status": "failed", "error": str(exc)}
+
+        # ── Step 15: calibration (non-fatal) ─────────────────────
+        try:
+            import os as _os
+            alpha_url    = _os.environ.get("DATABASE_URL_ALPHA")
+            research_url = _os.environ.get("DATABASE_URL", "")
+            if alpha_url and research_url:
+                from atlas_research.calibration.engine import sync_snapshots
+                n_synced = sync_snapshots(alpha_url, research_url)
+                log.info("pipeline.calibration_sync_done", n_synced=n_synced)
+            else:
+                n_synced = 0
+                log.info("pipeline.calibration_sync_skipped",
+                         reason="DATABASE_URL_ALPHA not configured")
+            from atlas_research.calibration.score_decomp import run_nightly_calibration
+            cal = run_nightly_calibration(run_date=run_date, research_url=research_url)
+            step_results["calibration"] = {**cal, "n_synced": n_synced}
+            log.info("pipeline.calibration_done", **cal)
+        except Exception as exc:
+            log.error("pipeline.calibration_failed", error=str(exc))
+            step_results["calibration"] = {"status": "failed", "error": str(exc)}
+
+        # ── Step 16: attribution pipeline (non-fatal) ────────────
+        try:
+            from atlas_research.attribution.outcomes import compute_matured_outcomes
+            from atlas_research.attribution.classifier import attribute_errors
+            from atlas_research.attribution.reliability import compute_signal_reliability
+            from atlas_research.attribution.recommendations import generate_recommendations
+            attr_outcomes = compute_matured_outcomes(as_of=run_date)
+            n_attributed  = attribute_errors()
+            compute_signal_reliability(as_of=run_date)
+            n_recs = generate_recommendations(as_of=run_date)
+            step_results["attribution"] = {
+                "outcomes":        attr_outcomes,
+                "attributed":      n_attributed,
+                "recommendations": n_recs,
+            }
+            log.info("pipeline.attribution_done",
+                     outcomes=attr_outcomes, attributed=n_attributed, recs=n_recs)
+        except Exception as exc:
+            log.error("pipeline.attribution_failed", error=str(exc))
+            step_results["attribution"] = {"status": "failed", "error": str(exc)}
+
+        # ── Step 16.5: Compute signal combination scores (non-fatal) ─
+        # Updates rolling 30/60/90d combo scores after attribution has run.
+        # These scores are used by Step 10.5 in the NEXT nightly run.
+        if not skip_meta_scoring:
+            try:
+                import importlib.util as _ilu_scs
+                import sys as _sys_scs
+                _script_scs = settings.ROOT_DIR / "scripts" / "compute_signal_combination_scores.py"
+                if _script_scs.exists():
+                    _spec_scs = _ilu_scs.spec_from_file_location(
+                        "compute_signal_combination_scores", _script_scs
+                    )
+                    _mod_scs  = _ilu_scs.module_from_spec(_spec_scs)
+                    _sys_scs.modules["compute_signal_combination_scores"] = _mod_scs
+                    _spec_scs.loader.exec_module(_mod_scs)
+                    import os as _os_scs
+                    from sqlalchemy import create_engine as _ce_scs
+                    _engine_scs = _ce_scs(_os_scs.environ["DATABASE_URL"])
+                    _ta_df  = _mod_scs.load_trade_attribution(_engine_scs)
+                    _sc_df  = _mod_scs.compute_scores(_ta_df, run_date)
+                    _n_scs  = _mod_scs.upsert_scores(_sc_df, _engine_scs)
+                    step_results["combo_scoring"] = {"combos_upserted": _n_scs}
+                    log.info("pipeline.combo_scoring_done", combos=_n_scs)
+                else:
+                    step_results["combo_scoring"] = {"status": "skipped", "reason": "script_not_found"}
+            except Exception as exc:
+                log.warning("pipeline.combo_scoring_failed", error=str(exc))
+                step_results["combo_scoring"] = {"status": "failed", "error": str(exc)}
+        else:
+            log.info("pipeline.combo_scoring_skipped")
+
+    # end if _run_daily
 
     # ── Step 17: mark complete ────────────────────────────────
     error_str = "; ".join(errors) if errors else None
     repository.complete_research_run(run_id, error=error_str, **counters)
+
+    # ── Step 18: Intraday 5-min collection (non-fatal) ───────
+    # Fetches today's 5-min bars, detects setups, computes outcomes,
+    # attaches daily context. Runs after the daily pipeline so daily
+    # predictions are available for context attachment.
+    # Enabled by default; disable with skip_intraday=True.
+    if not skip_intraday:
+        try:
+            import importlib.util as _ilu_id
+            import sys as _sys_id
+            import os as _os_id
+            from sqlalchemy import create_engine as _ce_id
+            _script_id = settings.ROOT_DIR / "scripts" / "ingest_intraday_5m.py"
+            if _script_id.exists():
+                _spec_id = _ilu_id.spec_from_file_location("ingest_intraday_5m", _script_id)
+                _mod_id  = _ilu_id.module_from_spec(_spec_id)
+                _sys_id.modules["ingest_intraday_5m"] = _mod_id
+                _spec_id.loader.exec_module(_mod_id)
+                _engine_id  = _ce_id(_os_id.environ["DATABASE_URL"])
+                _vendor_id  = _mod_id.YahooVendor()
+                _daily_ctx  = _mod_id.load_daily_context(tickers, _engine_id)
+                _id_bars = _id_setups = _id_outcomes = 0
+                for _t in tickers:
+                    _res = _mod_id.process_ticker(
+                        _t, _vendor_id, "5d", _daily_ctx, False, _engine_id
+                    )
+                    _id_bars     += _res.get("bars", 0)
+                    _id_setups   += _res.get("setups", 0)
+                    _id_outcomes += _res.get("outcomes", 0)
+                step_results["intraday_collection"] = {
+                    "bars":     _id_bars,
+                    "setups":   _id_setups,
+                    "outcomes": _id_outcomes,
+                }
+                log.info("pipeline.intraday_collection_done",
+                         bars=_id_bars, setups=_id_setups, outcomes=_id_outcomes)
+            else:
+                step_results["intraday_collection"] = {"status": "skipped", "reason": "script_not_found"}
+        except Exception as exc:
+            log.warning("pipeline.intraday_collection_failed", error=str(exc))
+            step_results["intraday_collection"] = {"status": "failed", "error": str(exc)}
+
+        # ── Step 18.5: Update intraday candidate watchlist ────
+        try:
+            import importlib.util as _ilu_ic
+            import sys as _sys_ic
+            import os as _os_ic
+            from sqlalchemy import create_engine as _ce_ic
+            _script_ic = settings.ROOT_DIR / "scripts" / "update_intraday_candidates.py"
+            if _script_ic.exists():
+                _spec_ic = _ilu_ic.spec_from_file_location("update_intraday_candidates", _script_ic)
+                _mod_ic  = _ilu_ic.module_from_spec(_spec_ic)
+                _sys_ic.modules["update_intraday_candidates"] = _mod_ic
+                _spec_ic.loader.exec_module(_mod_ic)
+                _engine_ic = _ce_ic(_os_ic.environ["DATABASE_URL"])
+                _ic_result = _mod_ic.run_candidate_update(_engine_ic, run_date)
+                step_results["intraday_candidates"] = _ic_result
+                log.info("pipeline.intraday_candidates_done", **{
+                    k: v for k, v in _ic_result.items() if k != "by_status"
+                })
+            else:
+                step_results["intraday_candidates"] = {"status": "skipped", "reason": "script_not_found"}
+        except Exception as exc:
+            log.warning("pipeline.intraday_candidates_failed", error=str(exc))
+            step_results["intraday_candidates"] = {"status": "failed", "error": str(exc)}
+    else:
+        log.info("pipeline.intraday_skipped")
 
     status = "complete" if not errors else "partial"
     log.info("pipeline.finished", run_id=run_id, status=status, **counters)

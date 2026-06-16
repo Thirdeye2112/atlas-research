@@ -9,6 +9,7 @@ migrations = [
     'db/migrations/0035_signal_combination_scores.sql',
     'db/migrations/0036_predictions_meta_columns.sql',
     'db/migrations/0037_intraday_tables.sql',
+    'db/migrations/0038_intraday_candidate_setups.sql',
 ]
 root = os.path.join(os.path.dirname(__file__), '..')
 for f in migrations:
