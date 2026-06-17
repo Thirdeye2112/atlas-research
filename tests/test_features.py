@@ -39,7 +39,8 @@ class TestTrend:
     def test_all_keys(self):
         r = trend.compute(_close(300))
         assert set(r) == {"distance_sma20","distance_sma50","distance_sma200",
-                          "above_sma20","above_sma50","above_sma200"}
+                          "above_sma20","above_sma50","above_sma200",
+                          "distance_sma20_momentum"}
 
     def test_below_sma50_falling(self):
         close = np.linspace(120, 80, 60)
