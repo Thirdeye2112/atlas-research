@@ -9,7 +9,28 @@ import numpy as np
 import pandas as pd
 import psycopg2
 from psycopg2.extras import execute_batch
+from psycopg2.extensions import register_adapter, AsIs
 from dotenv import load_dotenv
+
+# psycopg2 cannot adapt numpy scalar types (numpy.int64/float64/bool_) that
+# leak in from pandas/raw_bars columns, so OHLCV values raise
+# "can't adapt type 'numpy.int64'" on insert.  Register adapters that unwrap
+# them to native Python scalars (NaN -> SQL NULL).
+def _adapt_numpy_int(v):
+    return AsIs(int(v))
+
+def _adapt_numpy_float(v):
+    return AsIs('NULL') if np.isnan(v) else AsIs(repr(float(v)))
+
+def _adapt_numpy_bool(v):
+    return AsIs('TRUE' if bool(v) else 'FALSE')
+
+for _t in (np.int8, np.int16, np.int32, np.int64,
+           np.uint8, np.uint16, np.uint32, np.uint64):
+    register_adapter(_t, _adapt_numpy_int)
+for _t in (np.float16, np.float32, np.float64):
+    register_adapter(_t, _adapt_numpy_float)
+register_adapter(np.bool_, _adapt_numpy_bool)
 
 # Load environment variables from .env
 load_dotenv()
@@ -657,8 +678,11 @@ def process_ticker_data(ticker, df, conn):
             o.get('return_1'), o.get('return_3'), o.get('return_6'),
             o.get('return_12'), o.get('return_24'), o.get('return_eod'),
             o.get('mfe'), o.get('mae'), o.get('hit_target'), o.get('hit_stop'),
-            json.dumps(o.get('regime')), json.dumps(o.get('vix_proxy')), json.dumps(o.get('vwap_position')),
-            json.dumps(o.get('prior_trend')), json.dumps(o.get('volume_context')), json.dumps(o.get('daily_context'))
+            # regime/vwap_position/prior_trend/volume_context/daily_context are
+            # varchar and vix_proxy is double precision in candlestick_outcomes —
+            # these are scalar values (not dicts), so insert them directly.
+            o.get('regime'), o.get('vix_proxy'), o.get('vwap_position'),
+            o.get('prior_trend'), o.get('volume_context'), o.get('daily_context')
         ) for o in outcomes]
         
         with conn.cursor() as cursor:
@@ -667,7 +691,7 @@ def process_ticker_data(ticker, df, conn):
                 (ticker, timestamp, candle_name, event_id, return_1, return_3, return_6,
                  return_12, return_24, return_eod, mfe, mae, hit_target, hit_stop,
                  regime, vix_proxy, vwap_position, prior_trend, volume_context, daily_context)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::json, %s::json, %s::json, %s::json, %s::json, %s::json)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, outcome_data)
         conn.commit()
         logger.info(f"  Saved {len(outcomes)} outcomes for {ticker}")
