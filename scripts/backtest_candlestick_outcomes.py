@@ -92,8 +92,17 @@ def calculate_rolling_stats(df, window=20):
         df['avg_volume_20'] = df[vol_col].rolling(window=window).mean()
     df['prior_trend'] = 'neutral'
     if len(df) >= 3:
-        df.loc[df['close'].rolling(3).apply(lambda x: all(x.diff().dropna() > 0), raw=True), 'prior_trend'] = 'up'
-        df.loc[df['close'].rolling(3).apply(lambda x: all(x.diff().dropna() < 0), raw=True), 'prior_trend'] = 'down'
+        closes = df['close'].values
+        diffs = np.diff(closes)
+        up_trend = np.array([False] * len(closes))
+        down_trend = np.array([False] * len(closes))
+        for i in range(2, len(closes)):
+            if diffs[i-2] > 0 and diffs[i-1] > 0:
+                up_trend[i] = True
+            if diffs[i-2] < 0 and diffs[i-1] < 0:
+                down_trend[i] = True
+        df.loc[up_trend, 'prior_trend'] = 'up'
+        df.loc[down_trend, 'prior_trend'] = 'down'
     return df
 
 
