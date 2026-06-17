@@ -2,7 +2,7 @@
 # Backtest Script - Pattern Detection & Outcome Analysis
 # Updated: Support for loading OHLCV from raw_bars PostgreSQL table
 
-import argparse, os, sys, logging
+import argparse, os, sys, logging, json
 from pathlib import Path
 from datetime import datetime
 import numpy as np
@@ -621,7 +621,7 @@ def process_ticker_data(ticker, df, conn):
     if events:
         event_data = [(
             e['ticker'], e['timestamp'], e['timeframe'], e['candle_name'],
-            e['direction'], e['strength'], e['context'],
+            e['direction'], e['strength'], json.dumps(e['context']),
             e['o'], e['h'], e['l'], e['c'], e['v']
         ) for e in events]
         
@@ -629,7 +629,7 @@ def process_ticker_data(ticker, df, conn):
             execute_batch(cursor, """
                 INSERT INTO candlestick_events 
                 (ticker, timestamp, timeframe, candle_name, direction, strength, context, o, h, l, c, v)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s::json, %s, %s, %s, %s, %s)
                 ON CONFLICT (ticker, timestamp, timeframe, candle_name) DO NOTHING
             """, event_data)
         conn.commit()
