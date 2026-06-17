@@ -19,13 +19,26 @@ import pytest
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import Session, sessionmaker
 
-from atlas_research.db.models import Base, RawBar, FeatureSnapshot, Label, ResearchRun
+# The ORM models module (atlas_research.db.models) was removed when the project
+# moved to raw-SQL repositories; the DB fixtures below are unused by any current
+# test. Guard the import so collection of the (DB-free) unit tests still works.
+try:
+    from atlas_research.db.models import Base, RawBar, FeatureSnapshot, Label, ResearchRun
+    _DB_MODELS_AVAILABLE = True
+except ModuleNotFoundError:
+    _DB_MODELS_AVAILABLE = False
+    Base = RawBar = FeatureSnapshot = Label = ResearchRun = None  # type: ignore
+
+
+_DB_FIXTURE_SKIP = "atlas_research.db.models removed — DB ORM fixtures unavailable"
 
 
 # ── Engine fixture ────────────────────────────────────────────
 
 @pytest.fixture(scope="session")
 def db_engine():
+    if not _DB_MODELS_AVAILABLE:
+        pytest.skip(_DB_FIXTURE_SKIP)
     """
     SQLAlchemy engine backed by SQLite in-memory for unit tests,
     or a real PostgreSQL URL if TEST_DATABASE_URL is set.

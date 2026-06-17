@@ -10,10 +10,37 @@ Usage:
 
 from __future__ import annotations
 
+import io
 import logging
 import sys
 
 import structlog
+
+
+def _utf8_stream(stream):
+    """
+    Return a UTF-8 stream wrapping ``stream`` so log records never raise
+    UnicodeEncodeError on a non-UTF-8 console (Windows cp1252).
+
+    Prefers in-place reconfigure (Python 3.7+ TextIOWrapper.reconfigure);
+    falls back to wrapping the underlying buffer; returns the stream
+    unchanged if neither is possible.
+    """
+    # Already UTF-8 — nothing to do.
+    if getattr(stream, "encoding", "").lower().replace("-", "") == "utf8":
+        return stream
+    try:
+        stream.reconfigure(encoding="utf-8", errors="backslashreplace")
+        return stream
+    except (AttributeError, ValueError):
+        pass
+    buffer = getattr(stream, "buffer", None)
+    if buffer is not None:
+        return io.TextIOWrapper(
+            buffer, encoding="utf-8", errors="backslashreplace",
+            line_buffering=True,
+        )
+    return stream
 
 
 def configure_logging(level: str = "INFO", fmt: str = "console") -> None:
@@ -61,7 +88,16 @@ def configure_logging(level: str = "INFO", fmt: str = "console") -> None:
         ],
     )
 
-    handler = logging.StreamHandler(sys.stdout)
+    # Force UTF-8 on the console stream.  On Windows the default stdout
+    # encoding is cp1252, which raises UnicodeEncodeError whenever a log
+    # record contains a non-Latin-1 character (e.g. a real "→" U+2192 in a
+    # message or exception).  Python's logging module swallows that handler
+    # error, so the offending record — including wf.fold_complete metrics —
+    # is SILENTLY DROPPED from the console.  Reconfiguring to UTF-8 with a
+    # backslashreplace fallback guarantees every record is emitted.
+    stream = _utf8_stream(sys.stdout)
+
+    handler = logging.StreamHandler(stream)
     handler.setFormatter(formatter)
 
     root = logging.getLogger()

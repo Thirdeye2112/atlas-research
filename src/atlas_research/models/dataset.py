@@ -191,17 +191,23 @@ def apply_purge_gap(
     purge_days: int,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Remove rows from train_df that are within purge_days of val_df's start.
+    Remove the last ``purge_days`` *trading* days of training.
 
     This prevents label leakage: a training row on date T with a 5-day label
-    window overlaps with validation rows on T+1 through T+5.  Removing the
-    last purge_days rows from training ensures no forward-looking information
-    bleeds into the validation set.
+    window uses data through T+5.  The training rows nearest the validation
+    period are exactly the ones whose forward-label window overlaps it, so we
+    drop them.
+
+    The purge is counted in trading days, not calendar days.  The previous
+    implementation used ``val_start - timedelta(days=purge_days)`` (calendar),
+    which over a weekend/holiday leaves ~1-2 trading days still leaking.  Here
+    we drop rows on the last ``purge_days`` *distinct trading dates* present in
+    the training set, which is leak-free regardless of weekends/holidays.
 
     Args:
         train_df:    Training DataFrame with a 'date' column.
         val_df:      Validation DataFrame with a 'date' column.
-        purge_days:  Number of trading days to purge before val_start.
+        purge_days:  Number of trading days to purge from the end of training.
 
     Returns:
         (purged_train_df, val_df) — val_df is unchanged.
@@ -209,30 +215,43 @@ def apply_purge_gap(
     if train_df.empty or val_df.empty:
         return train_df, val_df
 
-    # Convert date column to actual date objects for comparison
+    if purge_days <= 0:
+        log.info("dataset.purge_applied", purge_days=purge_days, rows_purged=0)
+        return train_df.reset_index(drop=True), val_df
+
+    # Normalise the date column to plain date objects for comparison.
     def to_date(s: pd.Series) -> pd.Series:
-        if hasattr(s.iloc[0], "date"):
+        if len(s) and hasattr(s.iloc[0], "date"):
             return s.apply(lambda d: d.date() if hasattr(d, "date") else d)
         return s
 
     train_dates = to_date(train_df["date"])
-    val_dates   = to_date(val_df["date"])
 
-    val_start   = val_dates.min()
-    purge_cutoff = val_start - timedelta(days=purge_days)
+    # Sorted unique trading dates in the training set; drop rows falling on the
+    # last ``purge_days`` of them.
+    unique_dates = np.sort(train_dates.unique())
+    if len(unique_dates) <= purge_days:
+        # Entire training set is within the purge window.
+        purge_cutoff = unique_dates[0] if len(unique_dates) else None
+        purged_dates = set(unique_dates.tolist())
+    else:
+        purge_cutoff = unique_dates[-purge_days]   # first purged trading date
+        purged_dates = set(unique_dates[-purge_days:].tolist())
 
     before = len(train_df)
-    train_df = train_df[train_dates < purge_cutoff].reset_index(drop=True)
-    purged   = before - len(train_df)
+    keep_mask = ~train_dates.isin(purged_dates).to_numpy()
+    out = train_df[keep_mask].reset_index(drop=True)
+    purged = before - len(out)
 
     log.info(
         "dataset.purge_applied",
-        val_start=str(val_start),
+        val_start=str(to_date(val_df["date"]).min()),
         purge_cutoff=str(purge_cutoff),
         purge_days=purge_days,
+        trading_dates_purged=min(purge_days, len(unique_dates)),
         rows_purged=purged,
     )
-    return train_df, val_df
+    return out, val_df
 
 
 def cross_sectional_normalize(
@@ -248,6 +267,10 @@ def cross_sectional_normalize(
     and makes features more comparable across different market periods.
 
     data_quality_score and boolean/flag columns are excluded from normalization.
+    Ranking a binary 0/1 flag would destroy its meaning (every 1 maps to the
+    same mid-rank within the day, every 0 to another), so flags are detected by
+    their value set ({-1, 0, 1}) and skipped — this covers above_sma*, *_above,
+    spy_above_*, market_trend, bounce flags, and binary interaction products.
 
     Args:
         df:           DataFrame with 'date' and feature columns.
@@ -258,7 +281,16 @@ def cross_sectional_normalize(
         DataFrame with normalized feature columns; date and ticker unchanged.
     """
     skip = set(exclude or []) | {"data_quality_score"}
-    to_normalize = [c for c in feature_cols if c not in skip and c in df.columns]
+    candidates = [c for c in feature_cols if c not in skip and c in df.columns]
+
+    # Detect binary / flag columns by their value set and exclude them.
+    flag_values = {-1.0, 0.0, 1.0}
+    to_normalize = []
+    for c in candidates:
+        vals = df[c].dropna().unique()
+        if len(vals) > 0 and set(vals).issubset(flag_values):
+            continue  # binary / ternary flag — leave unchanged
+        to_normalize.append(c)
 
     if not to_normalize:
         return df

@@ -74,11 +74,15 @@ def _build_labels_for_ticker(ticker: str, as_of: date) -> int:
         if snap_date > as_of:
             break
 
-        # Check we have enough future bars for the longest horizon
-        max_horizon = max(HORIZONS)
-        if i + max_horizon >= n:
-            # Can't compute all labels for this date — skip partial
-            # (we could write partial rows; for now we skip)
+        # Write a row as soon as the SHORTEST horizon is computable; longer
+        # horizons that don't yet have enough future bars are left NULL and
+        # backfilled on a later run.  The previous gate required the LONGEST
+        # horizon (60 trading days), so a computable 5-day label was withheld
+        # for ~60 trading days after the snapshot — starving recent training
+        # folds of their most recent labels.
+        min_horizon = min(HORIZONS)
+        if i + min_horizon >= n:
+            # Not even the shortest forward bar exists yet — nothing to write.
             continue
 
         row = _compute_label_row(ticker, snap_date, i, prices, highs, lows, dates)

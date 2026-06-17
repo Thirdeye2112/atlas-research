@@ -57,6 +57,12 @@ except ImportError:
     _LGB_AVAILABLE = False
 
 
+# Below this raw-score std the classifier is effectively degenerate (e.g. a
+# 1-3 tree fold on a weak 5-day signal); calibrating it would collapse all
+# probabilities to the base rate, so we skip Platt and return raw scores.
+CALIBRATION_MIN_STD: float = 0.01
+
+
 def _require_lgb() -> None:
     if not _LGB_AVAILABLE:
         raise ImportError(
@@ -224,22 +230,43 @@ def train_classifier(
         "split": model.feature_importance(importance_type="split").tolist(),
     }
 
-    # Platt calibration on validation fold
-    val_raw = model.predict(X_val)
-    platt = _fit_platt(val_raw, y_val)
+    # ── Platt calibration ────────────────────────────────────────────────
+    # CALIBRATION MUST NOT SEE THE VALIDATION FOLD.  The old code fitted Platt
+    # on (X_val, y_val) and then scored probabilities on that SAME X_val — a
+    # leak: the saved scaler was tuned on the data it is later evaluated/served
+    # against.  We instead fit on the early-stopping holdout (X_es, y_es), which
+    # is carved from the training window and never scored downstream.
+    #
+    # Degenerate folds (1-3 trees on a weak 5-day signal) produce near-constant
+    # raw scores; fitting Platt there yields a near-zero slope that flattens all
+    # probabilities to the base rate.  When raw-score std < CALIBRATION_MIN_STD
+    # we skip calibration and return raw probabilities (platt=None).
+    es_raw = model.predict(X_es)
+    raw_std = float(np.std(es_raw))
 
-    if platt is not None:
-        val_prob = platt.predict_proba(val_raw.reshape(-1, 1))[:, 1]
+    if raw_std < CALIBRATION_MIN_STD:
+        platt = None
+        log.info("train.classifier_done",
+                 n_trees=model.num_trees(), calibration="skipped (degenerate)",
+                 raw_std=round(raw_std, 5))
+    else:
+        platt = _fit_platt(es_raw, y_es)
+        # Report metrics on the val fold (Platt applied untouched, no refit).
+        val_raw = model.predict(X_val)
+        if platt is not None:
+            val_prob = platt.predict_proba(val_raw.reshape(-1, 1))[:, 1]
+            calib = "platt(es_holdout)"
+        else:
+            val_prob = val_raw
+            calib = "none (sklearn missing)"
         from atlas_research.models.evaluate import brier_score, roc_auc
         log.info(
             "train.classifier_done",
             n_trees=model.num_trees(),
+            calibration=calib,
             val_auc=round(roc_auc(y_val, val_prob), 4),
             val_brier=round(brier_score(y_val, val_prob), 4),
         )
-    else:
-        log.info("train.classifier_done",
-                 n_trees=model.num_trees(), calibration="none (sklearn missing)")
 
     return model, platt, importances
 

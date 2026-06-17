@@ -88,6 +88,38 @@ class TestPurgeGap:
         train_dates=purged["date"].apply(lambda d: d.date() if hasattr(d,"date") else d)
         assert (train_dates<cutoff).all()
 
+    def test_purges_exactly_n_trading_dates(self):
+        # 30 consecutive trading dates x 4 tickers; purge 5 trading days.
+        train=_df(30,4,start=date(2020,1,1)); val=_df(10,4,start=date(2021,1,1))
+        purged,_=apply_purge_gap(train,val,purge_days=5)
+        # Exactly 5 distinct dates removed -> 5 * 4 = 20 rows.
+        assert train["date"].nunique()-purged["date"].nunique()==5
+        assert len(train)-len(purged)==5*4
+        # The 5 most-recent training dates are gone.
+        all_dates=sorted(train["date"].unique())
+        kept=set(purged["date"].unique())
+        assert all(d not in kept for d in all_dates[-5:])
+        assert all(d in kept for d in all_dates[:-5])
+
+    def test_counts_trading_days_not_calendar(self):
+        # Build a training set whose last dates are spaced 4 calendar days
+        # apart, so a calendar-day cutoff (timedelta(days=5)) would purge the
+        # wrong number of dates.  Trading-day purge must drop exactly 3 dates.
+        dates=[date(2020,1,6),date(2020,1,13),date(2020,1,20),
+               date(2020,1,27),date(2020,2,3),date(2020,2,10)]
+        rows=[{"ticker":f"T{t}","date":d,"return_5d":0.0,"rsi_14":50.0,
+               "volume_ratio_20":1.0,"data_quality_score":1.0,
+               "label_return_5d":0.0,"label_positive_5d":0.0}
+              for d in dates for t in range(3)]
+        train=pd.DataFrame(rows)
+        val=_df(5,3,start=date(2020,3,1))
+        purged,_=apply_purge_gap(train,val,purge_days=3)
+        remaining=sorted(purged["date"].unique())
+        assert len(remaining)==3
+        assert max(remaining)==np.datetime64(date(2020,1,20)) or \
+               (hasattr(max(remaining),'date') and max(remaining).date()==date(2020,1,20)) or \
+               max(remaining)==date(2020,1,20)
+
 # ── cross_sectional_normalize ────────────────────────────────────────────────
 class TestNormalize:
     def test_values_in_0_1(self):

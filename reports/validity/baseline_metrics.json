@@ -1,0 +1,110 @@
+{
+  "1": {
+    "rank_ic": 0.1831,
+    "clf_auc": 0.601,
+    "clf_brier": 0.2416,
+    "reg_trees": 37,
+    "clf_trees": 27,
+    "train_rows": 126962,
+    "val_rows": 47145
+  },
+  "2": {
+    "rank_ic": 0.1014,
+    "clf_auc": 0.5362,
+    "clf_brier": 0.2465,
+    "reg_trees": 42,
+    "clf_trees": 62,
+    "train_rows": 170465,
+    "val_rows": 47503
+  },
+  "3": {
+    "rank_ic": -0.0397,
+    "clf_auc": 0.5214,
+    "clf_brier": 0.2456,
+    "reg_trees": 1,
+    "clf_trees": 2,
+    "train_rows": 214812,
+    "val_rows": 47466
+  },
+  "4": {
+    "rank_ic": 0.0586,
+    "clf_auc": 0.5255,
+    "clf_brier": 0.242,
+    "reg_trees": 2,
+    "clf_trees": 1,
+    "train_rows": 258580,
+    "val_rows": 48020
+  },
+  "5": {
+    "rank_ic": 0.0344,
+    "clf_auc": 0.491,
+    "clf_brier": 0.246,
+    "reg_trees": 19,
+    "clf_trees": 8,
+    "train_rows": 302864,
+    "val_rows": 48710
+  },
+  "6": {
+    "rank_ic": 0.0446,
+    "clf_auc": 0.4841,
+    "clf_brier": 0.2461,
+    "reg_trees": 4,
+    "clf_trees": 1,
+    "train_rows": 347761,
+    "val_rows": 49758
+  },
+  "7": {
+    "rank_ic": 0.0015,
+    "clf_auc": 0.5185,
+    "clf_brier": 0.2416,
+    "reg_trees": 14,
+    "clf_trees": 7,
+    "train_rows": 393659,
+    "val_rows": 50336
+  },
+  "8": {
+    "rank_ic": 0.0445,
+    "clf_auc": 0.5047,
+    "clf_brier": 0.2495,
+    "reg_trees": 11,
+    "clf_trees": 1,
+    "train_rows": 440073,
+    "val_rows": 51069
+  },
+  "9": {
+    "rank_ic": 0.0487,
+    "clf_auc": 0.5528,
+    "clf_brier": 0.2479,
+    "reg_trees": 1,
+    "clf_trees": 1,
+    "train_rows": 487896,
+    "val_rows": 51441
+  },
+  "10": {
+    "rank_ic": 0.0435,
+    "clf_auc": 0.5483,
+    "clf_brier": 0.2465,
+    "reg_trees": 1,
+    "clf_trees": 18,
+    "train_rows": 535324,
+    "val_rows": 52117
+  },
+  "11": {
+    "rank_ic": 0.0233,
+    "clf_auc": 0.4981,
+    "clf_brier": 0.2499,
+    "reg_trees": 4,
+    "clf_trees": 7,
+    "train_rows": 583422,
+    "val_rows": 174190
+  },
+  "12": {
+    "rank_ic": -0.0503,
+    "clf_auc": 0.528,
+    "clf_brier": 0.2493,
+    "reg_trees": 1,
+    "clf_trees": 16,
+    "train_rows": 730601,
+    "val_rows": 212731
+  }
+}

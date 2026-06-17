@@ -201,6 +201,12 @@ WF_PURGE_DAYS: int = int(os.environ.get("WF_PURGE_DAYS", "5"))
 WF_MIN_TRAIN_YEARS: int = int(os.environ.get("WF_MIN_TRAIN_YEARS", "3"))
 WF_VAL_MONTHS: int = int(os.environ.get("WF_VAL_MONTHS", "12"))
 
+# Out-of-sample embargo: the final WF_OOS_MONTHS of data are reserved as a
+# hold-out that fold generation never touches.  All fold selection / tuning
+# happens strictly before this window; the OOS is scored exactly once, at the
+# end, on the single chosen model.  Set to 0 to disable (use all data for folds).
+WF_OOS_MONTHS: int = int(os.environ.get("WF_OOS_MONTHS", "12"))
+
 # Parallel fold execution — deferred to Phase 3.
 # Set to 1 (sequential) until walk-forward correctness is proven on real data.
 # When ready: set > 1 and implement ProcessPoolExecutor in walk_forward.py.
@@ -263,8 +269,17 @@ _DEGRADING_FEATURES: list[str] = [
     "omni_82_value",
 ]
 
-# V1 — full feature set (39 features).  Baseline / rollback.
-TRAIN_FEATURES_V1: list[str] = ALL_FEATURES + ["data_quality_score"]
+# V1 — full feature set.  Baseline / rollback.
+#
+# data_quality_score is intentionally EXCLUDED: across the entire parquet corpus
+# (2011-2026) it is a dead constant == 1.0 (nunique==1), because the ingest
+# validation layer never emits a discriminating score.  As a model feature it is
+# pure noise/overhead; as the TRAIN_MIN_QUALITY_SCORE>=0.70 hard filter it never
+# drops a row (quality_dropped==0 on every fold).  The filter is therefore inert
+# today — fixing the upstream scorer to discriminate is a separate pipeline task
+# (would require re-running ingest validation and re-exporting all parquet).
+# Until then we neither feed nor rely on the constant.
+TRAIN_FEATURES_V1: list[str] = list(ALL_FEATURES)
 
 # V2 — degrading features removed (27 features).
 # Holdout-validated: V2 did NOT beat V1 on holdout (V1 wins 4/7 metrics).

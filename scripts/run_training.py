@@ -137,6 +137,7 @@ def main() -> None:
             min_quality_score    = settings.TRAIN_MIN_QUALITY_SCORE,
             write_db             = write_db,
             feature_set_version  = settings.MODEL_FEATURE_SET_VERSION,
+            oos_months           = settings.WF_OOS_MONTHS,
         )
         ok  = [r for r in results if not r.error]
         err = [r for r in results if r.error]

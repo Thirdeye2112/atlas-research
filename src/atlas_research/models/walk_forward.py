@@ -91,26 +91,59 @@ class FoldResult:
 # Fold generation
 # ---------------------------------------------------------------------------
 
+def _subtract_months(d: date, months: int) -> date:
+    """Return the date ``months`` calendar months before ``d`` (clamped day)."""
+    import calendar
+    if months <= 0:
+        return d
+    total = (d.year * 12 + (d.month - 1)) - months
+    year, month = divmod(total, 12)
+    month += 1
+    last_day = calendar.monthrange(year, month)[1]
+    return date(year, month, min(d.day, last_day))
+
+
+def oos_window(data_end: date, oos_months: int) -> tuple[date | None, date | None]:
+    """
+    Return (oos_start, oos_end) for the reserved out-of-sample hold-out, or
+    (None, None) when oos_months <= 0.
+
+    oos_start is the first day fold generation must NOT cross; oos_end == data_end.
+    """
+    if oos_months <= 0:
+        return None, None
+    oos_start = _subtract_months(data_end, oos_months) + timedelta(days=1)
+    return oos_start, data_end
+
+
 def generate_folds(
     data_start: date,
     data_end: date,
     min_train_years: int,
     val_months: int,
+    oos_months: int = 0,
 ) -> list[Fold]:
     """
     Generate expanding-window fold descriptors.
 
     Args:
         data_start:       Earliest date with training data.
-        data_end:         Latest date available (excludes OOS test period).
+        data_end:         Latest date available.
         min_train_years:  Minimum years of history before first fold.
         val_months:       Validation period length in months.
+        oos_months:       Final months reserved as out-of-sample hold-out.
+                          Fold generation never produces a fold whose validation
+                          window enters this embargoed region.
 
     Returns:
         List of Fold objects in chronological order.
     """
     folds = []
     fold_num = 1
+
+    # Reserve the final oos_months as an embargoed hold-out: folds are generated
+    # only up to fold_horizon, so no fold's validation window touches the OOS.
+    fold_horizon = _subtract_months(data_end, oos_months) if oos_months > 0 else data_end
 
     # First training end: data_start + min_train_years
     train_end = date(
@@ -130,9 +163,9 @@ def generate_folds(
         last_day = calendar.monthrange(val_end_year, val_end_month)[1]
         val_end  = date(val_end_year, val_end_month, last_day)
 
-        if val_start >= data_end:
+        if val_start >= fold_horizon:
             break
-        val_end = min(val_end, data_end)
+        val_end = min(val_end, fold_horizon)
 
         folds.append(Fold(
             number      = fold_num,
@@ -234,7 +267,7 @@ def run_fold(
                 clf_val   = cross_sectional_normalize(clf_val,   feature_cols)
 
         # ── Convert to arrays ─────────────────────────────────
-        X_train, y_reg_train, _, _  = to_arrays(train_df, feature_cols, reg_target)
+        X_train, y_reg_train, _, train_dates  = to_arrays(train_df, feature_cols, reg_target)
         X_val,   y_reg_val,   val_tickers, val_dates = \
             to_arrays(val_df, feature_cols, reg_target)
 
@@ -295,14 +328,20 @@ def run_fold(
         result.val_metrics["clf_auc"]   = clf_metrics.get("auc", float("nan"))
         result.val_metrics["clf_brier"] = clf_metrics.get("brier", float("nan"))
 
-        # Train metrics (on last 30 days of training set — cheaper than full)
+        # Train metrics (on a random sample of the training set — cheaper than
+        # full).  Use the sampled rows' OWN training dates so the in-sample
+        # cross-sectional IC groups correctly; the previous code passed
+        # val_dates.iloc[:n], mismatching predictions to unrelated dates and
+        # making in-sample IC meaningless.
         sample_idx = np.random.default_rng(42).choice(
             len(X_train), min(5000, len(X_train)), replace=False
         )
         result.train_metrics = evaluate_fold(
             y_reg_train[sample_idx],
             reg_model.predict(X_train[sample_idx]),
-            None, val_dates.iloc[:len(sample_idx)], "regression"
+            None,
+            train_dates.iloc[sample_idx].reset_index(drop=True),
+            "regression",
         )
 
         # ── Feature IC on validation ──────────────────────────
@@ -403,16 +442,22 @@ def run_walk_forward(
     min_quality_score: float,
     write_db: bool = True,
     feature_set_version: str = "v1",
+    oos_months: int = 0,
 ) -> list[FoldResult]:
     """
     Run full expanding-window walk-forward validation.
 
+    The final ``oos_months`` of data are reserved as an embargoed out-of-sample
+    hold-out that fold generation never touches.
+
     Returns a list of FoldResult objects (one per fold).
     Folds run sequentially — parallelism deferred to Phase 3.
     """
-    folds = generate_folds(data_start, data_end, min_train_years, val_months)
+    folds = generate_folds(data_start, data_end, min_train_years, val_months, oos_months)
+    oos_start, oos_end = oos_window(data_end, oos_months)
     log.info("wf.started", n_folds=len(folds), data_start=str(data_start),
-             data_end=str(data_end))
+             data_end=str(data_end),
+             oos_reserved=(f"{oos_start}->{oos_end}" if oos_start else "none"))
 
     # PARALLEL EXECUTION PLACEHOLDER
     # When WF_PARALLEL_FOLDS > 1 is enabled in Phase 3, replace this loop with:
