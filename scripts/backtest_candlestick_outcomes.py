@@ -1,1 +1,23 @@
-# Test content
+# Atlas Candlestick Knowledge Layer v1
+# Backtest Script - Pattern Detection & Outcome Analysis
+# Updated: Support for Atlas date-partitioned parquet exports (feature_matrix_YYYY-MM-DD.parquet)
+
+import argparse, os, sys, logging
+from pathlib import Path
+from datetime import datetime
+import numpy as np
+import pandas as pd
+import psycopg2
+from psycopg2.extras import execute_batch
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[logging.FileHandler('candlestick_backtest.log'), logging.StreamHandler()]
+)
+logger = logging.getLogger(__name__)
+
+PATTERN_DETECTORS = {
+    'Doji': 'detect_doji', 'Long-legged doji': 'detect_long_legged_doji',
+    'Hammer': 'detect_hammer'
+}
