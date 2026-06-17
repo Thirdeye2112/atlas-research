@@ -433,20 +433,20 @@ def load_from_raw_bars(conn, universe_tickers, start_date, end_date):
         df = pd.DataFrame(rows, columns=columns)
         logger.info(f"Total rows loaded from raw_bars: {len(df)}")
         
-        # Group by ticker
+        # Group by ticker in a single pass (O(n)).  The previous implementation
+        # filtered df[df['ticker']==t] once per ticker — O(tickers x rows), which
+        # is hours of work for the full ~6k-ticker universe.
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
         ticker_data = {}
-        for ticker in universe_tickers:
-            ticker_df = df[df['ticker'] == ticker].copy()
-            if len(ticker_df) > 0:
-                ticker_df['timestamp'] = pd.to_datetime(ticker_df['timestamp'])
-                ticker_df = ticker_df.sort_values('timestamp').reset_index(drop=True)
-                ticker_data[ticker] = ticker_df
+        verbose = len(universe_tickers) <= 50  # quiet per-ticker logging at scale
+        for ticker, ticker_df in df.groupby('ticker', sort=False):
+            ticker_df = ticker_df.sort_values('timestamp').reset_index(drop=True)
+            ticker_data[ticker] = ticker_df
+            if verbose:
                 first_date = ticker_df['timestamp'].iloc[0].strftime('%Y-%m-%d')
                 last_date = ticker_df['timestamp'].iloc[-1].strftime('%Y-%m-%d')
                 logger.info(f"  Ticker {ticker}: {len(ticker_df)} rows (date range: {first_date} to {last_date})")
-            else:
-                logger.warning(f"  Ticker {ticker}: NO DATA FOUND")
-        
+
         # Report missing tickers
         found_tickers = set(ticker_data.keys())
         missing_tickers = set(universe_tickers) - found_tickers
@@ -454,7 +454,7 @@ def load_from_raw_bars(conn, universe_tickers, start_date, end_date):
             logger.warning(f"Missing data for {len(missing_tickers)} tickers: {sorted(list(missing_tickers)[:10])}")
             if len(missing_tickers) > 10:
                 logger.warning(f"  ... and {len(missing_tickers) - 10} more")
-        
+
         return ticker_data
         
     except Exception as e:
@@ -700,6 +700,32 @@ def process_ticker_data(ticker, df, conn):
 
 
 # =============================================================================
+# Universe discovery / resume helpers
+# =============================================================================
+
+def get_all_db_tickers(conn, start_date, end_date):
+    """Return every distinct ticker in raw_bars within the date range."""
+    with conn.cursor() as cursor:
+        cursor.execute("""
+            SELECT DISTINCT ticker FROM raw_bars
+            WHERE date >= %s AND date <= %s
+            ORDER BY ticker
+        """, (start_date, end_date))
+        return [r[0] for r in cursor.fetchall()]
+
+
+def get_processed_tickers(conn):
+    """Tickers that already have rows in candlestick_events (for --resume)."""
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT DISTINCT ticker FROM candlestick_events")
+            return {r[0] for r in cursor.fetchall()}
+    except Exception:
+        conn.rollback()
+        return set()
+
+
+# =============================================================================
 # Main Function
 # =============================================================================
 
@@ -713,7 +739,14 @@ Examples:
   python backtest_candlestick_outcomes.py --universe config/universe_500.csv --start 2020-01-01 --end 2026-06-17 --limit 10
         """
     )
-    parser.add_argument('--universe', type=str, required=True, help='Path to universe CSV file')
+    parser.add_argument('--universe', type=str, default=None,
+                        help='Path to universe CSV file (omit when using --all-db)')
+    parser.add_argument('--all-db', action='store_true',
+                        help='Backtest every distinct ticker in raw_bars within the date range')
+    parser.add_argument('--batch-size', type=int, default=200,
+                        help='Tickers loaded+processed per batch in --all-db mode (default: 200)')
+    parser.add_argument('--resume', action='store_true',
+                        help='Skip tickers already present in candlestick_events')
     parser.add_argument('--start', type=str, required=True, help='Start date (YYYY-MM-DD)')
     parser.add_argument('--end', type=str, required=True, help='End date (YYYY-MM-DD)')
     parser.add_argument('--data_dir', type=str, default='exports/parquet', 
@@ -727,74 +760,87 @@ Examples:
     
     args = parser.parse_args()
 
-    # Load universe
-    try:
-        universe = pd.read_csv(args.universe)
-        if 'ticker' not in universe.columns:
-            universe = universe.rename(columns={universe.columns[0]: 'ticker'})
-        universe_tickers = universe['ticker'].tolist()
-        if args.limit:
-            universe_tickers = universe_tickers[:args.limit]
-    except Exception as e:
-        logger.error(f"Error loading universe file: {e}")
+    if not args.all_db and not args.universe:
+        logger.error("Provide --universe <csv> or --all-db")
         sys.exit(1)
-    
-    logger.info(f"Processing {len(universe_tickers)} tickers from universe")
-    logger.info(f"Date range: {args.start} to {args.end}")
-    logger.info(f"Source: {args.source}")
-    
+
     # Determine database URL
     db_url = args.db_url or os.environ.get('DATABASE_URL') or 'postgresql://postgres:Postnat74%3F@localhost:5432/atlas_research'
     logger.info(f"Database: {db_url.split('@')[0]}@...")
-    
-    # Connect to database
+    logger.info(f"Date range: {args.start} to {args.end}  |  Source: {args.source}")
+
     with get_db_connection(db_url) as conn:
-        # Load OHLCV data from specified source
-        ticker_data = load_ohlcv_data(
-            source=args.source,
-            data_dir=args.data_dir,
-            conn=conn,
-            universe_tickers=universe_tickers,
-            start_date=args.start,
-            end_date=args.end
-        )
-        
-        if not ticker_data:
-            logger.error("No OHLCV data loaded. Check your source and data availability.")
-            sys.exit(1)
-        
-        logger.info(f"Loaded data for {len(ticker_data)} tickers")
-        
-        # Process each ticker
-        total_events = 0
-        total_outcomes = 0
-        
-        for i, ticker in enumerate(universe_tickers):
-            logger.info(f"[{i+1}/{len(universe_tickers)}] Processing {ticker}")
-            
-            if ticker not in ticker_data:
-                logger.warning(f"  No data for {ticker}, skipping")
-                continue
-            
+        # ── Resolve the ticker universe ──────────────────────────────────────
+        if args.all_db:
+            universe_tickers = get_all_db_tickers(conn, args.start, args.end)
+            logger.info(f"--all-db: {len(universe_tickers)} distinct tickers in raw_bars")
+        else:
             try:
-                df = ticker_data[ticker]
-                events, outcomes = process_ticker_data(ticker, df, conn)
-                total_events += events
-                total_outcomes += outcomes
-                
-            except Exception as ex:
-                logger.error(f"  Error processing {ticker}: {ex}", exc_info=True)
-        
+                universe = pd.read_csv(args.universe)
+                if 'ticker' not in universe.columns:
+                    universe = universe.rename(columns={universe.columns[0]: 'ticker'})
+                universe_tickers = universe['ticker'].tolist()
+            except Exception as e:
+                logger.error(f"Error loading universe file: {e}")
+                sys.exit(1)
+
+        if args.resume:
+            done = get_processed_tickers(conn)
+            before = len(universe_tickers)
+            universe_tickers = [t for t in universe_tickers if t not in done]
+            logger.info(f"--resume: skipping {before - len(universe_tickers)} already-processed tickers")
+
+        if args.limit:
+            universe_tickers = universe_tickers[:args.limit]
+
+        if not universe_tickers:
+            logger.info("No tickers left to process.")
+            return
+
+        logger.info(f"Processing {len(universe_tickers)} tickers "
+                    f"in batches of {args.batch_size}")
+
+        # ── Batched load + process (bounds memory; resilient per ticker) ─────
+        total_events = total_outcomes = 0
+        tickers_with_data = processed = errored = 0
+        n = len(universe_tickers)
+
+        for b0 in range(0, n, args.batch_size):
+            batch = universe_tickers[b0:b0 + args.batch_size]
+            ticker_data = load_ohlcv_data(
+                source=args.source, data_dir=args.data_dir, conn=conn,
+                universe_tickers=batch, start_date=args.start, end_date=args.end,
+            )
+            for j, ticker in enumerate(batch):
+                idx = b0 + j + 1
+                if ticker not in ticker_data:
+                    continue
+                tickers_with_data += 1
+                try:
+                    events, outcomes = process_ticker_data(ticker, ticker_data[ticker], conn)
+                    total_events += events
+                    total_outcomes += outcomes
+                    processed += 1
+                except Exception as ex:
+                    # One bad ticker must not abort the whole run — roll back the
+                    # failed transaction so the connection stays usable.
+                    conn.rollback()
+                    errored += 1
+                    logger.error(f"  [{idx}/{n}] Error processing {ticker}: {ex}")
+            logger.info(f"  progress: {min(b0 + args.batch_size, n)}/{n} tickers "
+                        f"| events={total_events} outcomes={total_outcomes} errors={errored}")
+
         logger.info("=" * 60)
         logger.info("BACKTEST SUMMARY")
         logger.info("=" * 60)
         logger.info(f"Source used: {args.source}")
-        logger.info(f"Tickers processed: {len(universe_tickers)}")
-        logger.info(f"Tickers with data: {len(ticker_data)}")
+        logger.info(f"Tickers requested: {n}")
+        logger.info(f"Tickers with data: {tickers_with_data}")
+        logger.info(f"Tickers processed OK: {processed}  |  errored: {errored}")
         logger.info(f"Total events detected: {total_events}")
         logger.info(f"Total outcomes calculated: {total_outcomes}")
-        if total_events > 0:
-            logger.info(f"Average events per ticker: {total_events / len(ticker_data):.2f}")
+        if processed > 0:
+            logger.info(f"Average events per ticker: {total_events / processed:.2f}")
         logger.info("=" * 60)
 
 
