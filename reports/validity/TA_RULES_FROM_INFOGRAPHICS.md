@@ -125,6 +125,53 @@ hypotheses to test first:
    iter-1..3 finding that candles alone are a coin flip).
 4. **Selectivity + fixed-risk R-multiple exits** over prediction.
 
+---
+
+# Set 3 (Swing Ankit rules, MU price-action, 5 confirmation indicators)
+
+## J. ADX — trend-strength filter  ⭐ new indicator (not yet a feature)
+- ADX < 20 = weak/chop (avoid), 20–25 = average, **> 25 = strong trend (trade)**.
+- Quantifies the "don't trade in chop / no EMA bias = no trade" rule with a number.
+→ Add ADX(14) to the feature set; gate setups on ADX > 25.
+
+## K. Extension / exhaustion filters (don't chase)  ⭐
+- **Extension**: price too far above 20/50 EMA → "doesn't need bad news to fall."
+  We already have distance_sma20/50 → flag extended when distance > threshold (or in ATRs).
+- **Climax run**: large fast move (e.g. +N% in 1 week) = exhaustion, reversal risk.
+- **Don't buy the first bounce** after a wide-range high-volume drop (needs to digest).
+→ Encodable as: extended = distance_sma50 > k*ATR%; climax = ret_5 > threshold & extended.
+
+## L. Volume as accumulation/distribution  ⭐
+- **Volume spike on a DOWN day = institutional distribution** (smart money exiting).
+- Volume spike on an UP day / breakout = accumulation/confirmation.
+- **Wide-range indecision day** (range >> avg, close mid-bar) = no trade, wait.
+→ Encodable: vol/avg_vol * sign(day return); wide_range = range > k*avg_range & |close-loc| mid.
+
+## M. Indicator confirmation set (reconfirms F) — "keep it simple"
+Volume (strength) + VWAP (intraday bull/bear; real session VWAP on the 5-min layer)
++ **RSI 50-line** (>50 bullish momentum, <50 bearish — momentum regime, NOT 30/70
+reversal; reconfirms Set 2) + EMA 20/50 (direction) + ADX (strength).
+**GOLDEN RULE (stated by ~every source): price action = decision, indicators =
+confirmation.** Don't stack too many — a few strong filters.
+
+## N. Risk / portfolio circuit breakers (Swing Ankit, reinforced)
+- Risk ≤ 1%/trade; **daily loss limit 2% → stop trading for the day**.
+- **Max 2–3 open positions**; R:R ≥ 1:2 (aim 1:3); book partial + trail the rest.
+- Pre-trade go/no-go **checklist** = a binary confluence gate: trend clear? setup
+  clear? R:R ≥ 2? stop placed? size correct? no news/earnings? → all yes or skip.
+
+## CONVERGENCE NOW OVERWHELMING (13 images, multiple independent traders)
+The same handful of mechanics recur across every source — build & test THESE first:
+1. **30-week MA = master trend gate** (Kotegawa, Weinstein, Minervini, GW).
+2. **Low-volume tight-range base → volatility-expansion breakout** (VCP, Kotegawa,
+   MU "bases are built on low-volume consolidation") — the dominant entry.
+3. **Indicators = confirmation, never prediction** (stated explicitly by Set 1/2/3).
+4. **RSI = 50-line momentum / pullback timing, NOT 30-70 reversal** (Set 2 & 3).
+5. **Relative strength vs index** (Minervini RS>70, GW, MU relative-weakness).
+6. **Don't chase extension / climax** (Kotegawa "not far above MA", MU extension).
+7. **Fixed-risk (1-2%) + R-multiple exits (>=2R, stop below swing low) + daily/loss
+   circuit breakers** over prediction.
+
 ## Proposed next experiment (ties it together)
 On the clean tradeable universe, define the **A+ long setup**:
 `price > 200EMA  AND  RS_percentile > 70  AND  (pullback into 21–50 EMA OR tight-base breakout)  AND  volume confirmation`
