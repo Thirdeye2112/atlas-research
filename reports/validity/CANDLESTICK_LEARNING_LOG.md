@@ -68,7 +68,48 @@ Other slices:
 **Verdict:** one-way context gives little; the missing ingredient is a *real* prior-trend
 classification, plus the swing-pivot view (what happens at true highest-highs / lowest-lows).
 
-### Fixes queued for Iteration 3
+---
+
+## Iteration 3 — Multi-timeframe confirmation (weekly + daily)
+
+Built a weekly+daily trend classifier from raw_bars (adjusted_close, split-safe):
+WEEKLY = sign of ~10-week return (W-FRI closes); DAILY = sign of 20-day return.
+Re-measured daily candlestick directional win @12d on the clean universe
+(price>=$5, $vol>=$1M, ~4,280 tickers) conditioned on the higher-timeframe trend.
+
+**Headline — trading WITH the weekly trend gives NO edge:**
+| pool | vs weekly | n | win% |
+|---|---|---|---|
+| bull | with (uptrend)   | 129,686 | 49.0 |
+| bull | against          | 122,832 | 50.0 |
+| bear | with (downtrend) | 109,304 | 49.7 |
+| bear | against          | 177,039 | 50.3 |
+
+Across the full weekly×daily grid every real bucket sits **47.9–51.0%** (the only
+outliers are tiny 'na'/warmup buckets, n<6k — ignore). Best real bucket ≈ 51%.
+Notably **bull-in-confirmed-uptrend (weekly up + daily up) = 48.3%** — bullish
+candles in extended uptrends slightly *mean-revert* (short-term exhaustion).
+
+**Verdict (robust):** even with proper weekly+daily MTF confirmation, single
+daily candlestick patterns have **no standalone 12-day edge**. This matches the
+rigorous literature and is a real finding, not a pipeline failure — it tells us
+the daily candlestick layer is not an edge by itself.
+
+**Implication / pivot:** the edge (if any) lives in
+(a) the **5-min entry-timing layer** — candlesticks may matter for intraday
+    timing of a higher-TF setup (this was the user's original thesis: 5-min
+    triggers confirmed by daily/weekly). The 5.5yr Alpaca 5-min pull enables
+    this next.
+(b) candlesticks as **features inside** the existing conviction/confluence/ML
+    stack, not as standalone signals.
+(c) high-selectivity setups (S/R, volume profile) rather than every instance.
+
+Next: once 5-min ingest completes, run THIS SAME MTF methodology on 5-min
+signals (5m pattern -> confirm vs daily+weekly trend -> measure outcome).
+
+---
+
+## (superseded) Fixes that were queued for Iteration 3
 1. **Compute a real prior_trend** from raw_bars (e.g. N-day return / SMA slope before the
    signal) — done in analysis (join events→raw_bars), no 8h re-run needed.
 2. **Exclude warmup-default artifacts** (idx<20) from all stats.
