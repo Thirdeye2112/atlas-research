@@ -72,6 +72,59 @@ MFE/MAE machinery already in intraday_outcomes).
 
 ---
 
+---
+
+# Set 2 (MACD/RSI/EMA roles, Kotegawa, Stage Analysis, "Learn Again")
+
+## F. Indicator ROLES — confluence stack (we already have rsi_14, macd_histogram)
+- **EMA = direction** (foundation; "no EMA bias → no trade"). Ignore in chop.
+- **MACD = trend-strength CONFIRMATION, not entry**: histogram rising = momentum
+  intact; use to hold winners / avoid early exits. (12,26,9). Histogram > crossover.
+- **RSI = pullback TIMING, most misused**: use RSI *cooling* inside an uptrend to
+  time a healthy pullback entry — NOT as an oversold-reversal / top-bottom picker.
+  "RSI confirms, it never predicts." Never use RSI against the trend.
+- **Combine:** EMA defines direction → MACD confirms strength → RSI times the
+  pullback. **If EMA & MACD disagree, wait** (require agreement = confluence gate).
+→ Encodable now: regime(EMA) AND macd_histogram>0/ rising AND rsi pullback-then-turn.
+
+## G. STAGE ANALYSIS (Weinstein) — the master trend classifier  ⭐ new
+Classify every ticker/date into a stage using the **30-week MA** (≈150-day) +
+slope + structure. This supersedes my up/down/flat buckets:
+- **Stage 1 Accumulation**: sideways tight base, low vol, MA flattening. (no rush)
+- **Stage 2 Advancing/Markup**: clean breakout, higher highs+lows, price > rising
+  30-wk MA. **← the ONLY stage to buy longs.**
+- **Stage 3 Distribution**: price stalls near top, wider candles, failed breakouts,
+  vol rising. (reduce exposure)
+- **Stage 4 Decline**: breakdown, lower highs+lows, below MA. (stay out / short only)
+Rule: buy only Stage 2; hold while price > 30-wk MA; reduce in Stage 3; out in Stage 4.
+→ Build `stage` (1-4) from raw_bars: 30-wk MA level+slope, price vs MA, HH/HL structure.
+
+## H. Consolidation → breakout trigger (Kotegawa / VCP, precise)  ⭐ new
+Quiet base (ALL true): range tight over last N bars, **no candle > 1.5× recent
+average** range, MA flat (not falling), low volatility/interest.
+**Imbalance/entry trigger**: breakout candle **CLOSES above the range high (not a
+wick)**, candle size **≥ recent average** (range expansion), price **> 30-wk MA**.
+**No trade if**: price far above MA (extended/chased), move already printed (late).
+→ Encodable: base-tightness detector (rolling range/ATR contraction) + breakout
+  bar with close>range_high & size>=avg & not-extended. Pairs with the 5-min layer
+  as the *trigger* timeframe.
+
+## I. Risk circuit breakers (reinforced across sources)
+- 1–2% capital risk/trade; stop below recent swing low; size = risk ÷ stop-dist.
+- **3 consecutive losses → idea is wrong, stop & reassess** (regime circuit breaker).
+- Don't chase extended price; "one setup only."
+
+## CONVERGENCE (why these are strong priors)
+Independent successful traders repeat the SAME few mechanics — treat as high-prior
+hypotheses to test first:
+1. **30-week MA as the master trend gate** (Kotegawa, Weinstein Stage 2, Minervini
+   150-day, GreenWorkshops) — appears in nearly every source.
+2. **Tight base → volatility-expansion breakout** (VCP, Kotegawa quiet→imbalance,
+   Stage 1→2) — the dominant entry archetype.
+3. **Indicators = confirmation/timing, never standalone signal** (matches our
+   iter-1..3 finding that candles alone are a coin flip).
+4. **Selectivity + fixed-risk R-multiple exits** over prediction.
+
 ## Proposed next experiment (ties it together)
 On the clean tradeable universe, define the **A+ long setup**:
 `price > 200EMA  AND  RS_percentile > 70  AND  (pullback into 21–50 EMA OR tight-base breakout)  AND  volume confirmation`
