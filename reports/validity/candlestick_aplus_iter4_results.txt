@@ -1,0 +1,24 @@
+A+ test | 4,347 liquid tickers | 2R vs swing-low stop, 24d horizon
+  ...500/4347
+  ...1000/4347
+  ...1500/4347
+  ...2000/4347
+  ...2500/4347
+  ...3000/4347
+  ...3500/4347
+
+bucket                         n  win%(2R)   exp(R)
+ALL bullish events       368,341      26.8    0.037
++above_200ema            190,762      24.8    0.034
++above_30wk              175,199      24.9    0.036
++stage2                  143,791      25.9    0.054
++adx>25                  145,876      25.8    0.039
++rs>spy                  136,945      25.0    0.033
++not_extended            368,116      26.8    0.038
++rsi>50                  173,992      21.7    0.021
++macd>0                  149,218      20.8    0.036
++pullback_zone            28,569      32.0    0.030
+A+ (full stack)           16,489      13.2    0.035
+
+Baseline expectancy = +0.037R  | win = hit +2R before swing-low stop.
+A+ should lift win% and expectancy materially above baseline to be real.

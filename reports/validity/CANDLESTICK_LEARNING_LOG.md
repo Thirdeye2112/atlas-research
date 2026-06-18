@@ -109,6 +109,35 @@ signals (5m pattern -> confirm vs daily+weekly trend -> measure outcome).
 
 ---
 
+## Iteration 4 — A+ setup (convergent playbook) + R-multiple labeling
+
+Built a daily Stage-Analysis + filter classifier (EMA 9/21/50/200, SMA 50/150/200,
+ADX, RSI, MACD-hist, Weinstein stage, RS-vs-SPY, extension) and labeled outcomes
+as R-multiples (2R target vs swing-low stop, 24d horizon, split-safe adj OHLC).
+Tested on bullish candlestick events, full liquid universe (368,341 events).
+
+| bucket | n | win%(2R) | exp(R) |
+|---|---|---|---|
+| ALL bullish events | 368,341 | 26.8 | +0.037 |
+| +stage2 | 143,791 | 25.9 | +0.054 |
+| +adx>25 | 145,876 | 25.8 | +0.039 |
+| +pullback_zone | 28,569 | 32.0 | +0.030 |
+| A+ (full stack) | 16,489 | 13.2 | +0.035 |
+
+**Verdict:** the A+ stack (+0.035R) ≈ baseline (+0.037R) — NO edge at the daily
+timeframe. Only Stage 2 gives a faint lift (+0.054R). Baseline ~breakeven is
+mostly 2021-26 bull drift. (The earlier 30-ticker preview's +0.274R was
+small-sample noise from mega-caps.)
+
+**Conclusion across iter 1-4:** daily candlesticks carry no standalone swing edge,
+and neither MTF trend confirmation (iter 3) nor the full convergent A+ filter
+stack (iter 4) rescues them. The daily layer is **context/selection, not trigger**.
+Next: move the trigger search to the **5-min layer** (now being ingested, ~5yr
+deep) — SMC primitives (sweep+reclaim, FVG fill, BOS; TA_RULES set 4) gated by a
+daily Stage-2 uptrend, labeled by the same 2R/swing-stop R-multiple.
+
+---
+
 ## (superseded) Fixes that were queued for Iteration 3
 1. **Compute a real prior_trend** from raw_bars (e.g. N-day return / SMA slope before the
    signal) — done in analysis (join events→raw_bars), no 8h re-run needed.
