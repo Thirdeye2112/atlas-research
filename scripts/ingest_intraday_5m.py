@@ -251,6 +251,34 @@ def attach_daily_context(setups_df: pd.DataFrame, context_df: pd.DataFrame) -> p
 # Pipeline for a single ticker
 # ---------------------------------------------------------------------------
 
+def get_db_universe(engine, min_dvol: float, limit: int | None) -> list[str]:
+    """All tickers in raw_bars, ordered by recent dollar volume (liquid first)."""
+    sql = text("""
+        WITH recent AS (
+            SELECT ticker, avg(close * volume) AS dvol
+            FROM raw_bars
+            WHERE date >= (SELECT max(date) - 60 FROM raw_bars)
+            GROUP BY ticker
+        )
+        SELECT ticker FROM recent
+        WHERE dvol >= :min_dvol
+        ORDER BY dvol DESC NULLS LAST
+    """)
+    with engine.begin() as conn:
+        rows = conn.execute(sql, {"min_dvol": min_dvol}).fetchall()
+    tickers = [r[0] for r in rows]
+    return tickers[:limit] if limit else tickers
+
+
+def already_ingested(engine) -> set[str]:
+    """Tickers that already have 5m bars (for --resume)."""
+    with engine.begin() as conn:
+        rows = conn.execute(text(
+            "SELECT DISTINCT ticker FROM intraday_bars WHERE timeframe = :tf"
+        ), {"tf": TIMEFRAME}).fetchall()
+    return {r[0] for r in rows}
+
+
 def process_ticker(
     ticker: str,
     vendor: IntradayVendor,
@@ -258,6 +286,7 @@ def process_ticker(
     daily_ctx: pd.DataFrame,
     dry_run: bool,
     engine,
+    bars_only: bool = False,
 ) -> dict:
     result = {"ticker": ticker, "bars": 0, "setups": 0, "outcomes": 0, "error": None}
 
@@ -276,6 +305,10 @@ def process_ticker(
 
     if not dry_run:
         upsert_bars(bars_df, engine)
+
+    # Bars-only fast path: skip features/setups/outcomes (derive later).
+    if bars_only:
+        return result
 
     # 2. Compute features
     try:
@@ -385,58 +418,86 @@ def process_ticker(
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--tickers", nargs="+", default=None,
-                        help="Tickers to ingest (default: full universe)")
+                        help="Tickers to ingest (default: 10-ticker watchlist)")
+    parser.add_argument("--all", action="store_true",
+                        help="Ingest every ticker in raw_bars (ordered by recent liquidity)")
+    parser.add_argument("--min-dvol", type=float, default=0.0,
+                        help="With --all: skip tickers below this recent avg dollar volume")
+    parser.add_argument("--limit", type=int, default=None,
+                        help="With --all: cap number of tickers (most liquid first)")
+    parser.add_argument("--resume", action="store_true",
+                        help="Skip tickers that already have 5m bars")
+    parser.add_argument("--bars-only", action="store_true",
+                        help="Ingest bars only; skip features/setups/outcomes (fast bulk pull)")
     parser.add_argument("--period",  default="60d",
                         help="Lookback period for Yahoo (e.g. 30d, 60d)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Download and process but do not write to DB")
     args = parser.parse_args()
 
-    tickers = args.tickers or UNIVERSE_DEFAULT
     period  = args.period
     dry_run = args.dry_run
-
-    print("=== Atlas Intraday 5-Minute Learning Engine v1 -- Ingestion ===")
-    print(f"Universe: {len(tickers)} tickers   period={period}   dry_run={dry_run}")
-    print("ANALYSIS ONLY -- no live trading state modified")
-    print()
 
     engine = create_engine(DATABASE_URL)
     vendor = YahooVendor()
 
-    # Load daily context once for all tickers
-    print("[pre] Loading daily prediction context...")
-    daily_ctx = load_daily_context(tickers, engine)
-    if not daily_ctx.empty:
-        print(f"  Context rows: {len(daily_ctx)}")
+    if args.tickers:
+        tickers = args.tickers
+    elif args.all:
+        tickers = get_db_universe(engine, args.min_dvol, args.limit)
     else:
-        print("  No daily context available (prediction_outcomes may be empty for these tickers)")
+        tickers = UNIVERSE_DEFAULT
+
+    if args.resume:
+        done = already_ingested(engine)
+        before = len(tickers)
+        tickers = [t for t in tickers if t not in done]
+        print(f"--resume: skipping {before - len(tickers)} tickers already ingested")
+
+    print("=== Atlas Intraday 5-Minute Learning Engine v1 -- Ingestion ===")
+    print(f"Universe: {len(tickers)} tickers   period={period}   "
+          f"bars_only={args.bars_only}   dry_run={dry_run}")
+    print("ANALYSIS ONLY -- no live trading state modified")
+    print()
+
+    # Load daily context once (skipped for bars-only bulk pulls)
+    if args.bars_only:
+        daily_ctx = pd.DataFrame()
+    else:
+        print("[pre] Loading daily prediction context...")
+        daily_ctx = load_daily_context(tickers, engine)
+        print(f"  Context rows: {len(daily_ctx)}" if not daily_ctx.empty
+              else "  No daily context available")
 
     total_bars = total_setups = total_outcomes = 0
-    errors = []
+    errors = no_data = 0
 
     for i, ticker in enumerate(tickers, 1):
-        print(f"[{i}/{len(tickers)}] {ticker}...")
-        res = process_ticker(ticker, vendor, period, daily_ctx, dry_run, engine)
+        res = process_ticker(ticker, vendor, period, daily_ctx, dry_run, engine,
+                             bars_only=args.bars_only)
         total_bars     += res["bars"]
         total_setups   += res["setups"]
         total_outcomes += res["outcomes"]
         if res["error"]:
-            errors.append(f"{ticker}: {res['error']}")
-            print(f"  WARN: {res['error']}")
-        else:
-            print(f"  bars={res['bars']:,}  setups={res['setups']:,}  outcomes={res['outcomes']:,}")
+            if res["error"] == "no_bars":
+                no_data += 1
+            else:
+                errors += 1
+        # Compact progress line every 50 tickers (quiet at scale)
+        if i % 50 == 0 or i == len(tickers):
+            print(f"[{i}/{len(tickers)}] bars={total_bars:,} "
+                  f"setups={total_setups:,} no_data={no_data} errors={errors}",
+                  flush=True)
         time.sleep(0.5)   # be polite to Yahoo
 
     print()
     print("=== Summary ===")
+    print(f"  Tickers attempted:  {len(tickers):,}")
     print(f"  Bars ingested:      {total_bars:,}")
     print(f"  Setups detected:    {total_setups:,}")
     print(f"  Outcomes computed:  {total_outcomes:,}")
-    if errors:
-        print(f"  Errors ({len(errors)}):")
-        for e in errors:
-            print(f"    {e}")
+    print(f"  No data (skipped):  {no_data:,}")
+    print(f"  Errors:             {errors:,}")
     print()
     print("Done.")
 
