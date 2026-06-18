@@ -700,6 +700,28 @@ def process_ticker_data(ticker, df, conn):
 
 
 # =============================================================================
+# Keep-awake (Windows) — prevent idle system sleep during long runs.
+# Auto-reverts when the process exits.  Display may still sleep; a manual
+# sleep / lid-close still suspends the machine.
+# =============================================================================
+
+def prevent_system_sleep():
+    """Best-effort: stop Windows from idle-sleeping while this process runs."""
+    if not sys.platform.startswith('win'):
+        return
+    try:
+        import ctypes
+        ES_CONTINUOUS = 0x80000000
+        ES_SYSTEM_REQUIRED = 0x00000001
+        ctypes.windll.kernel32.SetThreadExecutionState(
+            ES_CONTINUOUS | ES_SYSTEM_REQUIRED
+        )
+        logger.info("Keep-awake enabled (system idle-sleep suppressed for this run)")
+    except Exception as e:
+        logger.warning(f"Could not set keep-awake: {e}")
+
+
+# =============================================================================
 # Universe discovery / resume helpers
 # =============================================================================
 
@@ -763,6 +785,10 @@ Examples:
     if not args.all_db and not args.universe:
         logger.error("Provide --universe <csv> or --all-db")
         sys.exit(1)
+
+    # Long runs (esp. --all-db) should not be killed by idle sleep.
+    if args.all_db:
+        prevent_system_sleep()
 
     # Determine database URL
     db_url = args.db_url or os.environ.get('DATABASE_URL') or 'postgresql://postgres:Postnat74%3F@localhost:5432/atlas_research'
