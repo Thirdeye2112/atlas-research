@@ -172,6 +172,41 @@ The same handful of mechanics recur across every source — build & test THESE f
 7. **Fixed-risk (1-2%) + R-multiple exits (>=2R, stop below swing low) + daily/loss
    circuit breakers** over prediction.
 
+---
+
+# Set 4 (SMC / ICT — "Institutional Trader Study Notes")  [implement on 5-min layer]
+
+Smart-Money-Concepts framework. More discretionary and loosely-defined than the
+MA/RSI playbook (and academically contentious — prone to hindsight fitting), BUT
+several primitives are precisely codeable and testable. Mostly an INTRADAY method
+→ best validated on the 5-min layer with the same R-multiple + OOS rigor.
+
+Codeable primitives:
+- **Swing pivots** (fractal high/low: bar whose high/low is the extreme of ±k bars)
+  — the foundation for everything below.
+- **BOS (Break of Structure)**: close beyond the prior swing high (bullish
+  continuation) / swing low (bearish). **CHoCH** (change of character) = the first
+  counter-trend break = potential reversal.
+- **Liquidity & sweeps**: resting stops sit beyond prior swing highs/lows, equal
+  highs/lows, and trendlines. A **liquidity sweep/grab** = wick beyond such a level
+  then close back inside (a stop-run) → reversal fuel. Encodable: bullish sweep =
+  low < prior_swing_low AND close > prior_swing_low.
+- **FVG (Fair Value Gap)**: 3-bar imbalance. Bullish FVG when low[i] > high[i-2]
+  (gap the middle impulse leaves). Price tends to retrace to FILL it.
+- **Order Block (OB)**: last opposite-color candle before the impulsive BOS move;
+  acts as a retracement entry zone.
+
+The pictured setup (long): **bearish liquidity sweep** (grab sell-side stops below
+a low) → **BOS up** (confirmation) → price **retraces to fill the FVG down into the
+Order Block** → **entry** there; **stop** beyond the sweep extreme; **target** =
+opposing/ trendline liquidity (prior highs). This is literally a sweep+reclaim
+reversal with a defined stop and a liquidity target — testable as an R-multiple
+setup.
+
+Caveats: validate hard (SMC concepts overfit easily); start with the few crisp
+primitives (FVG fill, sweep+reclaim, BOS) on the 5-min data, gated by the daily
+Stage/trend (Set 1-3) so we only take 5-min longs inside a daily Stage-2 uptrend.
+
 ## Proposed next experiment (ties it together)
 On the clean tradeable universe, define the **A+ long setup**:
 `price > 200EMA  AND  RS_percentile > 70  AND  (pullback into 21–50 EMA OR tight-base breakout)  AND  volume confirmation`
