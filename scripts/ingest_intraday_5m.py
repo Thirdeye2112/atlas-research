@@ -130,6 +130,51 @@ class YahooVendor(IntradayVendor):
         return raw[["ticker", "ts", "timeframe", "open", "high", "low", "close", "volume", "source"]]
 
 
+class AlpacaVendor(IntradayVendor):
+    """
+    Alpaca market data (alpaca-py). Free tier = IEX feed, multi-year 5m history
+    (far deeper than Yahoo's ~60 days). One request per ticker pulls the whole
+    [start, end] range (alpaca-py paginates internally). RTH-filtered to match
+    the Yahoo path so downstream code is vendor-agnostic.
+    """
+
+    def __init__(self, key: str, secret: str, start, end=None, feed: str = "iex"):
+        from alpaca.data.historical import StockHistoricalDataClient
+        from alpaca.data.enums import DataFeed
+        self._client = StockHistoricalDataClient(key, secret)
+        self._start = start
+        self._end = end
+        self._feed = DataFeed.SIP if feed == "sip" else DataFeed.IEX
+
+    def fetch(self, ticker: str, period: str = None) -> pd.DataFrame:  # period ignored
+        from alpaca.data.requests import StockBarsRequest
+        from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
+        req = StockBarsRequest(
+            symbol_or_symbols=ticker,
+            timeframe=TimeFrame(5, TimeFrameUnit.Minute),
+            start=self._start, end=self._end, feed=self._feed,
+        )
+        df = self._client.get_stock_bars(req).df
+        if df is None or len(df) == 0:
+            return pd.DataFrame()
+        df = df.reset_index()                      # symbol, timestamp, o/h/l/c/volume, ...
+        df = df.rename(columns={"timestamp": "ts"})
+        df["ts"] = pd.to_datetime(df["ts"], utc=True)
+        # Regular trading hours only (9:30–16:00 ET)
+        local = df["ts"].dt.tz_convert("America/New_York")
+        tod = local.dt.hour * 60 + local.dt.minute
+        df = df[(tod >= 570) & (tod < 960)].copy()
+        for col in ["open", "high", "low", "close"]:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+        df["volume"] = pd.to_numeric(df["volume"], errors="coerce").fillna(0).astype(int)
+        df = df.dropna(subset=["open", "high", "low", "close"])
+        df = df[df["close"] > 0]
+        df["ticker"] = ticker
+        df["timeframe"] = TIMEFRAME
+        df["source"] = "alpaca_iex" if self._feed.value == "iex" else "alpaca_sip"
+        return df[["ticker", "ts", "timeframe", "open", "high", "low", "close", "volume", "source"]]
+
+
 # ---------------------------------------------------------------------------
 # DB helpers
 # ---------------------------------------------------------------------------
@@ -270,12 +315,21 @@ def get_db_universe(engine, min_dvol: float, limit: int | None) -> list[str]:
     return tickers[:limit] if limit else tickers
 
 
-def already_ingested(engine) -> set[str]:
-    """Tickers that already have 5m bars (for --resume)."""
+def already_ingested(engine, source_prefix: str | None = None) -> set[str]:
+    """
+    Tickers that already have 5m bars (for --resume).
+
+    When source_prefix is given (e.g. 'alpaca'), only count tickers already
+    pulled from THAT source — so a deep Alpaca pull doesn't skip tickers that
+    only have shallow 60-day Yahoo bars.
+    """
+    sql = "SELECT DISTINCT ticker FROM intraday_bars WHERE timeframe = :tf"
+    params = {"tf": TIMEFRAME}
+    if source_prefix:
+        sql += " AND source LIKE :sp"
+        params["sp"] = f"{source_prefix}%"
     with engine.begin() as conn:
-        rows = conn.execute(text(
-            "SELECT DISTINCT ticker FROM intraday_bars WHERE timeframe = :tf"
-        ), {"tf": TIMEFRAME}).fetchall()
+        rows = conn.execute(text(sql), params).fetchall()
     return {r[0] for r in rows}
 
 
@@ -429,8 +483,14 @@ def main():
                         help="Skip tickers that already have 5m bars")
     parser.add_argument("--bars-only", action="store_true",
                         help="Ingest bars only; skip features/setups/outcomes (fast bulk pull)")
+    parser.add_argument("--vendor", choices=["yahoo", "alpaca"], default="yahoo",
+                        help="Data vendor (alpaca = multi-year IEX 5m history)")
+    parser.add_argument("--start", default=None,
+                        help="Alpaca: history start YYYY-MM-DD (default ~3 years ago)")
+    parser.add_argument("--feed", choices=["iex", "sip"], default="iex",
+                        help="Alpaca feed (iex=free, sip=paid)")
     parser.add_argument("--period",  default="60d",
-                        help="Lookback period for Yahoo (e.g. 30d, 60d)")
+                        help="Yahoo lookback period (e.g. 30d, 60d)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Download and process but do not write to DB")
     args = parser.parse_args()
@@ -439,7 +499,15 @@ def main():
     dry_run = args.dry_run
 
     engine = create_engine(DATABASE_URL)
-    vendor = YahooVendor()
+    if args.vendor == "alpaca":
+        start = (datetime.strptime(args.start, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                 if args.start else datetime.now(timezone.utc) - timedelta(days=365 * 3))
+        vendor = AlpacaVendor(os.environ["ALPACA_API_KEY"], os.environ["ALPACA_SECRET_KEY"],
+                              start=start, feed=args.feed)
+        print(f"Vendor: Alpaca ({args.feed}) from {start.date()}")
+    else:
+        vendor = YahooVendor()
+        print("Vendor: Yahoo (60d cap)")
 
     if args.tickers:
         tickers = args.tickers
@@ -449,7 +517,8 @@ def main():
         tickers = UNIVERSE_DEFAULT
 
     if args.resume:
-        done = already_ingested(engine)
+        # For Alpaca, only skip tickers already pulled from Alpaca (not shallow Yahoo).
+        done = already_ingested(engine, "alpaca" if args.vendor == "alpaca" else None)
         before = len(tickers)
         tickers = [t for t in tickers if t not in done]
         print(f"--resume: skipping {before - len(tickers)} tickers already ingested")
