@@ -19,10 +19,13 @@ Does NOT auto-trade. Does NOT modify daily signals.
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import os
 import sys
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -179,23 +182,47 @@ class AlpacaVendor(IntradayVendor):
 # DB helpers
 # ---------------------------------------------------------------------------
 
+_BAR_COLS = ["ticker", "ts", "timeframe", "open", "high", "low", "close", "volume", "source"]
+
+
 def upsert_bars(df: pd.DataFrame, engine) -> int:
+    """
+    Bulk-load via COPY into a TEMP staging table, then one INSERT...SELECT
+    ...ON CONFLICT DO NOTHING into intraday_bars. Orders of magnitude faster
+    than per-row/batched INSERTs for the ~86k-bars-per-ticker deep history.
+    """
     if df.empty:
         return 0
-    sql = text("""
-    INSERT INTO intraday_bars (ticker, ts, timeframe, open, high, low, close, volume, source)
-    VALUES (:ticker, :ts, :timeframe, :open, :high, :low, :close, :volume, :source)
-    ON CONFLICT (ticker, ts, timeframe) DO NOTHING
-    """)
-    rows = df.to_dict(orient="records")
-    BATCH = 2000
-    total = 0
-    for start in range(0, len(rows), BATCH):
-        batch = rows[start:start + BATCH]
-        with engine.begin() as conn:
-            conn.execute(sql, batch)
-        total += len(batch)
-    return total
+    buf = io.StringIO()
+    df[_BAR_COLS].to_csv(buf, index=False, header=False)
+    buf.seek(0)
+
+    raw = engine.raw_connection()
+    try:
+        cur = raw.cursor()
+        cur.execute("""
+            CREATE TEMP TABLE _stage_bars (
+                ticker text, ts timestamptz, timeframe text,
+                open double precision, high double precision, low double precision,
+                close double precision, volume bigint, source text
+            ) ON COMMIT DROP
+        """)
+        cur.copy_expert(
+            "COPY _stage_bars (ticker, ts, timeframe, open, high, low, close, volume, source) "
+            "FROM STDIN WITH (FORMAT csv)",
+            buf,
+        )
+        cur.execute("""
+            INSERT INTO intraday_bars
+                (ticker, ts, timeframe, open, high, low, close, volume, source)
+            SELECT ticker, ts, timeframe, open, high, low, close, volume, source
+            FROM _stage_bars
+            ON CONFLICT (ticker, ts, timeframe) DO NOTHING
+        """)
+        raw.commit()
+    finally:
+        raw.close()
+    return len(df)
 
 
 def upsert_setups(rows: list[dict], engine) -> int:
@@ -483,6 +510,8 @@ def main():
                         help="Skip tickers that already have 5m bars")
     parser.add_argument("--bars-only", action="store_true",
                         help="Ingest bars only; skip features/setups/outcomes (fast bulk pull)")
+    parser.add_argument("--workers", type=int, default=1,
+                        help="Concurrent download workers (network-bound; try 5-8 for Alpaca bulk)")
     parser.add_argument("--vendor", choices=["yahoo", "alpaca"], default="yahoo",
                         help="Data vendor (alpaca = multi-year IEX 5m history)")
     parser.add_argument("--start", default=None,
@@ -498,7 +527,8 @@ def main():
     period  = args.period
     dry_run = args.dry_run
 
-    engine = create_engine(DATABASE_URL)
+    engine = create_engine(DATABASE_URL, pool_size=max(5, args.workers + 2),
+                            max_overflow=10, pool_pre_ping=True)
     if args.vendor == "alpaca":
         start = (datetime.strptime(args.start, "%Y-%m-%d").replace(tzinfo=timezone.utc)
                  if args.start else datetime.now(timezone.utc) - timedelta(days=365 * 3))
@@ -540,24 +570,40 @@ def main():
 
     total_bars = total_setups = total_outcomes = 0
     errors = no_data = 0
+    n = len(tickers)
+    lock = threading.Lock()
+    done = 0
 
-    for i, ticker in enumerate(tickers, 1):
-        res = process_ticker(ticker, vendor, period, daily_ctx, dry_run, engine,
-                             bars_only=args.bars_only)
-        total_bars     += res["bars"]
-        total_setups   += res["setups"]
-        total_outcomes += res["outcomes"]
-        if res["error"]:
+    def _tally(res):
+        nonlocal total_bars, total_setups, total_outcomes, errors, no_data, done
+        with lock:
+            total_bars     += res["bars"]
+            total_setups   += res["setups"]
+            total_outcomes += res["outcomes"]
             if res["error"] == "no_bars":
                 no_data += 1
-            else:
+            elif res["error"]:
                 errors += 1
-        # Compact progress line every 50 tickers (quiet at scale)
-        if i % 50 == 0 or i == len(tickers):
-            print(f"[{i}/{len(tickers)}] bars={total_bars:,} "
-                  f"setups={total_setups:,} no_data={no_data} errors={errors}",
-                  flush=True)
-        time.sleep(0.5)   # be polite to Yahoo
+            done += 1
+            if done % 50 == 0 or done == n:
+                print(f"[{done}/{n}] bars={total_bars:,} setups={total_setups:,} "
+                      f"no_data={no_data} errors={errors}", flush=True)
+
+    if args.workers > 1:
+        # Network-bound concurrent fetch (each worker uses its own DB connection
+        # from the pool and its own HTTP request; COPY upsert is thread-safe).
+        def work(tk):
+            return process_ticker(tk, vendor, period, daily_ctx, dry_run, engine,
+                                  bars_only=args.bars_only)
+        with ThreadPoolExecutor(max_workers=args.workers) as ex:
+            for fut in as_completed(ex.submit(work, tk) for tk in tickers):
+                _tally(fut.result())
+    else:
+        for ticker in tickers:
+            res = process_ticker(ticker, vendor, period, daily_ctx, dry_run, engine,
+                                 bars_only=args.bars_only)
+            _tally(res)
+            time.sleep(0.5)   # be polite (sequential / Yahoo)
 
     print()
     print("=== Summary ===")
