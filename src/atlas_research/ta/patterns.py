@@ -155,6 +155,43 @@ def flags(piv: list[Pivot], high, low, close,
     return out
 
 
+def swing_legs(piv: list[Pivot], high, low, close, min_amp=0.05, early_n=5) -> list[dict]:
+    """
+    The 'dome/hump' macro shape: a rise from a swing LOW to the next swing HIGH
+    (the up-leg), then the correction down to the following swing LOW.
+    Returns one dict per up-leg with the EARLY SIGNATURE (first `early_n` bars off
+    the low) and the eventual leg amplitude/duration + correction depth/duration —
+    so we can later study whether the early bars predict how high & how deep.
+    """
+    out = []
+    for i in range(len(piv) - 1):
+        a, b = piv[i], piv[i+1]
+        if not (a.kind == 'L' and b.kind == 'H' and a.price > 0):
+            continue
+        leg_amp = (b.price - a.price) / a.price
+        if leg_amp < min_amp:
+            continue
+        leg_bars = b.idx - a.idx
+        # correction to the next swing low (if any)
+        c = piv[i+2] if i+2 < len(piv) and piv[i+2].kind == 'L' else None
+        corr_depth = (b.price - c.price) / b.price if c else None
+        corr_bars = (c.idx - b.idx) if c else None
+        # early signature: first early_n bars off the low (capped at the peak)
+        e_end = min(a.idx + early_n, b.idx, len(close) - 1)
+        early_gain = (close[e_end] - a.price) / a.price if a.price > 0 else None
+        early_bars = e_end - a.idx
+        early_slope = (early_gain / early_bars) if early_bars else None
+        out.append(dict(
+            start_idx=a.idx, peak_idx=b.idx, corr_idx=(c.idx if c else None),
+            leg_amp=float(leg_amp), leg_bars=int(leg_bars),
+            corr_depth=(float(corr_depth) if corr_depth is not None else None),
+            corr_bars=(int(corr_bars) if corr_bars is not None else None),
+            early_n=int(early_bars), early_gain=(float(early_gain) if early_gain is not None else None),
+            early_slope=(float(early_slope) if early_slope is not None else None),
+        ))
+    return out
+
+
 def detect_all(piv: list[Pivot], high, low, close) -> list[Pattern]:
     pats = []
     pats += head_and_shoulders(piv, high, low, close)

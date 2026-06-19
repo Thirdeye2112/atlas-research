@@ -114,6 +114,26 @@ def trendline(pivots: list[Pivot], kind: str, n: int = 3):
     return float(slope), float(intercept), [p.idx for p in pts]
 
 
+def candle_label(o: float, h: float, l: float, c: float) -> str:
+    """Lightweight single-bar candle type (for tagging a confirmation bar)."""
+    rng = h - l
+    if rng <= 0:
+        return "flat"
+    body = abs(c - o); upper = h - max(o, c); lower = min(o, c) - l
+    br = body / rng
+    if br < 0.1:
+        return "doji"
+    if lower >= 2 * body and upper <= body:
+        return "hammer"           # long lower wick (bullish shape)
+    if upper >= 2 * body and lower <= body:
+        return "shooting_star"    # long upper wick (bearish shape)
+    if br > 0.8:
+        return "marubozu_up" if c > o else "marubozu_down"
+    if br < 0.4:
+        return "spinning_top"
+    return "bull_candle" if c > o else "bear_candle"
+
+
 def structure_summary(high, low, close, width: int = 3) -> dict:
     """One call: pivots + trend + nearest S/R + up/down trendlines."""
     piv = swing_pivots(high, low, width)
