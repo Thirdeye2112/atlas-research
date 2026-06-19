@@ -1,0 +1,157 @@
+"""
+patterns.py — classic chart-pattern recognition built on the structure layer.
+
+Each detector reads the swing-pivot sequence (from structure.swing_pivots) plus
+the price arrays and returns confirmed pattern instances. "Confirmed" means the
+breakout/neckline event has happened on a CLOSE — so confirm_idx is a real,
+no-lookahead entry-timing bar. Each instance carries entry / stop / target
+(measured move) so it can be backtested and drawn.
+
+Patterns implemented:
+  bull_flag, bear_flag          — pole + tight consolidation + breakout
+  hs_top, hs_bottom (inverse)   — head & shoulders / inverse
+  double_top, double_bottom
+
+Tolerances are parameters; defaults are sane for daily bars.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+import numpy as np
+from .structure import Pivot
+
+
+@dataclass
+class Pattern:
+    name: str
+    direction: str               # 'long' | 'short'
+    confirm_idx: int             # bar where the pattern confirmed (entry timing)
+    entry: float
+    stop: float
+    target: float
+    points: list = field(default_factory=list)   # [(idx, price), ...] key points
+    neckline: float | None = None
+
+    @property
+    def rr(self) -> float:
+        risk = abs(self.entry - self.stop)
+        return abs(self.target - self.entry) / risk if risk > 0 else float("nan")
+
+
+def _first_close_below(close, start, level_fn, limit):
+    for j in range(start, min(start + limit, len(close))):
+        if close[j] < level_fn(j):
+            return j
+    return None
+
+
+def _first_close_above(close, start, level_fn, limit):
+    for j in range(start, min(start + limit, len(close))):
+        if close[j] > level_fn(j):
+            return j
+    return None
+
+
+# ---------------------------------------------------------------- H&S -------
+def head_and_shoulders(piv: list[Pivot], high, low, close,
+                       shoulder_tol=0.06, confirm_within=40) -> list[Pattern]:
+    out = []
+    for i in range(len(piv) - 4):
+        a, b, c, d, e = piv[i:i+5]
+        # top: H L H L H, head highest, shoulders ~equal
+        if [a.kind,b.kind,c.kind,d.kind,e.kind] == ['H','L','H','L','H']:
+            if c.price > a.price and c.price > e.price and \
+               abs(a.price - e.price)/c.price < shoulder_tol and \
+               c.price > max(a.price, e.price) * 1.01:
+                neck_sl, neck_ic = np.polyfit([b.idx, d.idx], [b.price, d.price], 1)
+                lvl = lambda j: neck_sl*j + neck_ic
+                cj = _first_close_below(close, e.idx+1, lvl, confirm_within)
+                if cj is not None:
+                    entry = float(close[cj]); neck = float(lvl(cj))
+                    target = neck - (c.price - neck)
+                    out.append(Pattern("hs_top","short",cj,entry,float(e.price*1.005),
+                                       float(target),[(a.idx,a.price),(b.idx,b.price),
+                                       (c.idx,c.price),(d.idx,d.price),(e.idx,e.price)],neck))
+        # bottom (inverse): L H L H L, head lowest
+        if [a.kind,b.kind,c.kind,d.kind,e.kind] == ['L','H','L','H','L']:
+            if c.price < a.price and c.price < e.price and \
+               abs(a.price - e.price)/c.price < shoulder_tol and \
+               c.price < min(a.price, e.price) * 0.99:
+                neck_sl, neck_ic = np.polyfit([b.idx, d.idx], [b.price, d.price], 1)
+                lvl = lambda j: neck_sl*j + neck_ic
+                cj = _first_close_above(close, e.idx+1, lvl, confirm_within)
+                if cj is not None:
+                    entry = float(close[cj]); neck = float(lvl(cj))
+                    target = neck + (neck - c.price)
+                    out.append(Pattern("hs_bottom","long",cj,entry,float(e.price*0.995),
+                                       float(target),[(a.idx,a.price),(b.idx,b.price),
+                                       (c.idx,c.price),(d.idx,d.price),(e.idx,e.price)],neck))
+    return out
+
+
+# ------------------------------------------------------- double top/bottom --
+def double_top_bottom(piv: list[Pivot], high, low, close,
+                      eq_tol=0.03, confirm_within=40) -> list[Pattern]:
+    out = []
+    for i in range(len(piv) - 2):
+        a, b, c = piv[i:i+3]
+        if [a.kind,b.kind,c.kind] == ['H','L','H'] and abs(a.price-c.price)/a.price < eq_tol:
+            lvl = lambda j: b.price
+            cj = _first_close_below(close, c.idx+1, lvl, confirm_within)
+            if cj is not None:
+                entry = float(close[cj]); top = (a.price+c.price)/2
+                target = b.price - (top - b.price)
+                out.append(Pattern("double_top","short",cj,entry,float(top*1.005),
+                                   float(target),[(a.idx,a.price),(b.idx,b.price),(c.idx,c.price)],float(b.price)))
+        if [a.kind,b.kind,c.kind] == ['L','H','L'] and abs(a.price-c.price)/a.price < eq_tol:
+            lvl = lambda j: b.price
+            cj = _first_close_above(close, c.idx+1, lvl, confirm_within)
+            if cj is not None:
+                entry = float(close[cj]); bot = (a.price+c.price)/2
+                target = b.price + (b.price - bot)
+                out.append(Pattern("double_bottom","long",cj,entry,float(bot*0.995),
+                                   float(target),[(a.idx,a.price),(b.idx,b.price),(c.idx,c.price)],float(b.price)))
+    return out
+
+
+# -------------------------------------------------------------- flags -------
+def flags(piv: list[Pivot], high, low, close,
+          pole_min=0.08, pole_max_bars=25, max_retrace=0.55, confirm_within=20) -> list[Pattern]:
+    out = []
+    for i in range(len(piv) - 2):
+        a, b, c = piv[i:i+3]
+        # bull flag: low(a) -> high(b) pole, pullback to low(c), breakout above b
+        if [a.kind,b.kind,c.kind] == ['L','H','L']:
+            pole = (b.price - a.price)/a.price
+            dur = b.idx - a.idx
+            if pole >= pole_min and 0 < dur <= pole_max_bars:
+                retr = (b.price - c.price)/(b.price - a.price) if b.price>a.price else 1
+                if 0 < retr <= max_retrace:
+                    lvl = lambda j: b.price
+                    cj = _first_close_above(close, c.idx+1, lvl, confirm_within)
+                    if cj is not None:
+                        entry=float(close[cj]); target=entry + (b.price - a.price)
+                        out.append(Pattern("bull_flag","long",cj,entry,float(c.price),
+                                           float(target),[(a.idx,a.price),(b.idx,b.price),(c.idx,c.price)]))
+        # bear flag: high(a) -> low(b) pole, bounce to high(c), breakdown below b
+        if [a.kind,b.kind,c.kind] == ['H','L','H']:
+            pole = (a.price - b.price)/a.price
+            dur = b.idx - a.idx
+            if pole >= pole_min and 0 < dur <= pole_max_bars:
+                retr = (c.price - b.price)/(a.price - b.price) if a.price>b.price else 1
+                if 0 < retr <= max_retrace:
+                    lvl = lambda j: b.price
+                    cj = _first_close_below(close, c.idx+1, lvl, confirm_within)
+                    if cj is not None:
+                        entry=float(close[cj]); target=entry - (a.price - b.price)
+                        out.append(Pattern("bear_flag","short",cj,entry,float(c.price),
+                                           float(target),[(a.idx,a.price),(b.idx,b.price),(c.idx,c.price)]))
+    return out
+
+
+def detect_all(piv: list[Pivot], high, low, close) -> list[Pattern]:
+    pats = []
+    pats += head_and_shoulders(piv, high, low, close)
+    pats += double_top_bottom(piv, high, low, close)
+    pats += flags(piv, high, low, close)
+    return sorted(pats, key=lambda p: p.confirm_idx)
