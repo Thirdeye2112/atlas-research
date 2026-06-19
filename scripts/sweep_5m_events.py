@@ -27,11 +27,18 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT = ROOT / "reports" / "validity" / "smc_events.parquet"
 TARGETS = (1.0, 1.5, 2.0, 2.5, 3.0)
+def _f(d, *cols):
+    m = np.ones(len(d), bool)
+    for col in cols:
+        m = m & d[col].to_numpy()
+    return m
+
 CONF = {
     "base":            lambda d: np.ones(len(d), bool),
-    "+vol":            lambda d: d["c_vol"].to_numpy(),
-    "+vol+rsi":        lambda d: d["c_vol"].to_numpy() & d["c_rsi"].to_numpy(),
-    "+vol+rsi+notext": lambda d: d["c_vol"].to_numpy() & d["c_rsi"].to_numpy() & d["c_notext"].to_numpy(),
+    "+vol":            lambda d: _f(d, "c_vol"),
+    "+vol+rsi+notext": lambda d: _f(d, "c_vol", "c_rsi", "c_notext"),
+    "+vcp":            lambda d: _f(d, "c_vcp") if "c_vcp" in d else np.ones(len(d), bool),
+    "full+vcp":        lambda d: _f(d, "c_vol", "c_rsi", "c_notext", "c_vcp") if "c_vcp" in d else _f(d, "c_vol", "c_rsi", "c_notext"),
 }
 
 
@@ -56,12 +63,19 @@ def main():
     print(f"loaded {len(df):,} events | tickers={df['ticker'].nunique():,} | "
           f"OOS={df['is_oos'].mean()*100:.0f}% | cost={args.cost}R\n")
 
-    print(f"{'trigger':7}{'conf':17}{'tgt':>4} | {'n_tr':>9}{'win_tr':>7}{'exp_tr':>8} | "
+    has_entry = "entry_type" in df.columns
+    groups = ([(t, e) for t in sorted(df["trigger"].unique()) for e in sorted(df["entry_type"].unique())]
+              if has_entry else [(t, None) for t in sorted(df["trigger"].unique())])
+
+    print(f"{'trig/entry':18}{'conf':17}{'tgt':>4} | {'n_tr':>9}{'win_tr':>7}{'exp_tr':>8} | "
           f"{'n_oos':>8}{'win_oos':>8}{'exp_oos':>8}")
-    print("-"*88)
+    print("-"*96)
     best = None
-    for trig in ("bos", "sweep"):
+    for trig, etype in groups:
         dt = df[df["trigger"] == trig]
+        if etype is not None:
+            dt = dt[dt["entry_type"] == etype]
+        label = f"{trig}/{etype}" if etype else trig
         for cname, cf in CONF.items():
             mask = cf(dt); sub = dt[mask]
             tr = sub[~sub["is_oos"]]; oo = sub[sub["is_oos"]]
@@ -70,19 +84,19 @@ def main():
                 noo, woo, eoo = stats(oo, T, args.cost)
                 if ntr < 100:
                     continue
-                print(f"{trig:7}{cname:17}{T:>4} | {ntr:>9,}{wtr:>6.1f}%{etr:>8.3f} | "
+                print(f"{label:18}{cname:17}{T:>4} | {ntr:>9,}{wtr:>6.1f}%{etr:>8.3f} | "
                       f"{noo:>8,}{woo:>7.1f}%{eoo:>8.3f}")
                 # 'best' = positive & robust on BOTH splits, clears win floor on OOS
                 if (noo >= args.min_n_oos and etr > 0 and eoo > 0 and woo >= args.min_win):
                     score = min(etr, eoo)
                     if best is None or score > best[0]:
-                        best = (score, trig, cname, T, ntr, wtr, etr, noo, woo, eoo)
+                        best = (score, label, cname, T, ntr, wtr, etr, noo, woo, eoo)
         print()
 
     if best:
-        _, trig, cname, T, ntr, wtr, etr, noo, woo, eoo = best
+        _, label, cname, T, ntr, wtr, etr, noo, woo, eoo = best
         print(f"BEST robust config (win>={args.min_win}%, exp>0 both splits):")
-        print(f"  {trig} | {cname} | target {T}R")
+        print(f"  {label} | {cname} | target {T}R")
         print(f"  train: n={ntr:,} win={wtr:.1f}% exp={etr:+.3f}R | OOS: n={noo:,} win={woo:.1f}% exp={eoo:+.3f}R")
     else:
         print(f"No config cleared win>={args.min_win}% with exp>0 on both splits — "

@@ -138,6 +138,38 @@ daily Stage-2 uptrend, labeled by the same 2R/swing-stop R-multiple.
 
 ---
 
+## Iteration 5-6 — 5-min SMC trigger gated by daily Stage-2 (the pivot that worked)
+
+Built compute-once event table (extract_5m_events.py, 2.55M Stage-2-gated 5m
+BOS/sweep triggers, top 2000 liquid) + instant sweeper (sweep_5m_events.py).
+R-multiple outcomes (target vs swing-low stop), train + last-12mo OOS, net 0.05R cost.
+
+**The daily Stage-2 gate lifts the 5m trigger** (iter 5: BOS +0.097->+0.139R gross).
+Full sweep (iter 6) maps the win-rate/target tradeoff:
+
+| bos +vol+rsi+notext | target | win% OOS | exp OOS (net) |
+|---|---|---|---|
+| | 1.0R | 48.7 | -0.032 |
+| | 1.5R | 38.6 | +0.017 |
+| | 2.0R | 31.2 | +0.060 |
+| | 2.5R | 25.4 | +0.097 |
+| | 3.0R | 20.8 | +0.125 |
+
+**Findings:**
+- First OOS-positive, cost-surviving edge in the project: bos + Stage-2 + full
+  confluence, +0.10..0.125R OOS at 2.5-3R. Confluence helps win at every target.
+- Sweep (liquidity-grab) trigger is weaker than BOS; often negative net of cost.
+- **Win-rate vs target tradeoff is exhausted**: high win% (≈48% @1R) loses money
+  (cost + stops); profitable configs win only ~20-31%. Low win rate is NORMAL for
+  a breakout system. Target tuning cannot give both high win% AND positive exp.
+- Cost (0.05R) is optimistic for 5m; the 3R config has the most cushion.
+
+**Next lever (not targets): entry/stop quality** — retest/pullback entry with a
+tighter structure stop (smaller R -> same move hits target more often -> higher
+win% AND expectancy) + VCP base requirement. Building now (iter 7).
+
+---
+
 ## (superseded) Fixes that were queued for Iteration 3
 1. **Compute a real prior_trend** from raw_bars (e.g. N-day return / SMA slope before the
    signal) — done in analysis (join events→raw_bars), no 8h re-run needed.
