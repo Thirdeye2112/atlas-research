@@ -165,8 +165,27 @@ Full sweep (iter 6) maps the win-rate/target tradeoff:
 - Cost (0.05R) is optimistic for 5m; the 3R config has the most cushion.
 
 **Next lever (not targets): entry/stop quality** — retest/pullback entry with a
-tighter structure stop (smaller R -> same move hits target more often -> higher
-win% AND expectancy) + VCP base requirement. Building now (iter 7).
+tighter structure stop + VCP base requirement. Built in iter 7.
+
+## Iteration 7 — retest entry + VCP (FULL universe, 3.55M events)
+
+Correcting a 25-ticker preview that looked like a VCP breakthrough — it did NOT
+hold at scale:
+- **VCP ≈ plain confluence** at full scale (no real lift). full+vcp@1.5R was
+  +0.055R on 25 tickers but **-0.008R train** on the full set.
+- **Retest entry is decisively negative everywhere** (tight structure stop gets
+  noise-stopped on 5m). Dropped.
+- **No config clears 40%+ win AND positive on both splits.** Win-rate ceiling for
+  these 5m breakouts is ~48-50% (at 1R) — just under the cost-adjusted breakeven
+  (~52%). Win rate is NOT improvable past ~30% while staying profitable.
+- Robust edge = bos + confluence @2.5-3R: ~20% win, +0.06-0.09R TRAIN net of
+  0.05R cost (OOS higher, but 2025-26 bull tailwind, not robustness).
+
+**Conclusion:** 5-min Stage-2 breakouts are a genuine but modest, low-win-rate,
+cost-sensitive, fat-tailed edge. Target/confluence/VCP/retest are exhausted.
+The one untested lever is EXIT design (partial-at-1R + trailing runner), which
+needs richer path capture than the current summary. Otherwise: accept the
+low-win-rate profitable profile, or stress-test cost (0.10R) + regime split.
 
 ---
 
