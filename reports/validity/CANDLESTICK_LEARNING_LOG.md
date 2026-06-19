@@ -248,3 +248,22 @@ often (400k signals); we never truly applied "A+ only / few trades" selectivity.
 Do NOT wire into Atlas yet. Next: drastically increase selectivity (fewer,
 higher-quality setups), re-run portfolio; this also motivates steps 3 (audit)
 and 4 (learning loop).
+
+## Iteration 10 — Audit-corrected portfolio (artifact-free, realistic stops)
+
+Stop-floor (v4) dropped max R 815->29 but be_runner mean expectancy barely moved
+(+0.303 train / +0.356 OOS full confluence) -> the edge mean is NOT an artifact
+of the extreme outliers (too rare); it's the legitimate fat tail (q95~3.7R).
+
+Portfolio (be_runner, full confluence, r_cap 10R, 1% risk, realistic stops):
+- TRAIN: 3/day 16x Sharpe 1.73 DD -27%; 5/day 132x Sharpe 2.25 DD -26%.
+- OOS:   3/day 1.04x +3.8%CAGR Sharpe 0.18 DD -24%; 5/day 1.60x Sharpe 1.08 DD -29%.
+- High-concurrency (10-20/day) multiples are compounding artifacts -> ignore.
+
+Note: iter-9's "OOS loses" used a 3R cap that removes the fat tail the edge needs;
+the honest picture (r_cap 10) is MARGINAL positive OOS, fat-tail-dependent, ~25-30% DD.
+
+**Audit verdict:** method sound (no lookahead, realistic stops, costs+regime applied);
+data is the overhang (free IEX 5m thin -> stop-floor mitigates, SIP would be cleaner);
+edge is real but marginal/fragile/high-DD. Needs better TRADE SELECTION (step 4
+learning loop) before it's trustworthy or deployable. Atlas wiring still on hold.
