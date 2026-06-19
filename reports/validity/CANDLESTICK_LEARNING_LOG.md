@@ -189,6 +189,35 @@ low-win-rate profitable profile, or stress-test cost (0.10R) + regime split.
 
 ---
 
+## Iteration 8 — EXIT design solves it (full universe, 2.07M events, 1,904 tickers)
+
+The win-rate problem was an EXIT problem, not a selection problem. With a
+breakeven+trailing-runner exit (move stop to BE at +1R, then trail giving back
+1R from the peak), the bos + Stage-2 + confluence setup achieves:
+
+| exit (full confluence) | win_tr | exp_tr | win_oos | exp_oos | exp_oosNON-bull | exp@0.10R |
+|---|---|---|---|---|---|---|
+| fixed_2R   | 39% | +0.037 | 40% | +0.060 | +0.005 | +0.010 |
+| fixed_3R   | 35% | +0.090 | 36% | +0.125 | +0.061 | +0.075 |
+| **be_runner** | **50%** | **+0.298** | **51%** | **+0.345** | **+0.263** | **+0.295** |
+| partial    | 50% | +0.127 | 51% | +0.157 | +0.096 | +0.107 |
+
+**be_runner passes every robustness gate** (positive train AND OOS AND non-bull
+regime AND at 0.10R cost) AND held at full scale (where VCP did not). It
+dominates all fixed/partial exits on both win% (~50%) and expectancy (~+0.3R).
+
+Recommended config: **5m BOS, daily Stage-2 gate, confluence (vol+rsi+notext),
+breakeven@1R + trail give-back-1R, ~1-day horizon.** (VCP optional; ~no lift.)
+
+Caveats: expectancy is mean R — fat-tailed (trail captures big runners; many
+trades exit ~breakeven, hence ~50% "win"). Horizon is 1 day (intraday/overnight),
+not multi-day swing. Frequent signals (~1/ticker/day) -> in practice take a subset.
+
+Status: this is the project's first robust, win-rate-respectable, cost- and
+regime-surviving edge. Next: productionize (wire as an Atlas signal; paper-validate).
+
+---
+
 ## (superseded) Fixes that were queued for Iteration 3
 1. **Compute a real prior_trend** from raw_bars (e.g. N-day return / SMA slope before the
    signal) — done in analysis (join events→raw_bars), no 8h re-run needed.
