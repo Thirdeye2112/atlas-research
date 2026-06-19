@@ -86,6 +86,10 @@ def parse_args() -> argparse.Namespace:
                          "threshold the ratio stayed flat despite a big price-level jump, which "
                          "means adjusted_close did NOT absorb it -> 'unhandled split or bad print' "
                          "(counted as bad data). Default: 0.3")
+    p.add_argument("--canonical-out", default="config/clean_universe.csv",
+                    help="On a FULL run, also write the whitelist here as the canonical "
+                         "source downstream code reads (default: config/clean_universe.csv). "
+                         "Set '' to skip.")
     return p.parse_args()
 
 
@@ -545,9 +549,13 @@ def main() -> None:
     bad_bars_path = os.path.join(args.output_dir, "bad_bars.parquet")
     bad_bars_out.to_parquet(bad_bars_path, index=False)
 
-    # --- write clean_universe.csv ---
+    # --- write clean_universe.csv (dated audit copy) + promote to canonical ---
     clean_path = os.path.join(args.output_dir, "clean_universe.csv")
     clean_universe.to_csv(clean_path, index=False)
+    if not args.limit and args.canonical_out:   # only promote on a FULL run
+        os.makedirs(os.path.dirname(args.canonical_out) or ".", exist_ok=True)
+        clean_universe.to_csv(args.canonical_out, index=False)
+        print(f"  promoted canonical whitelist -> {args.canonical_out}")
 
     # --- write markdown report ---
     report_path = os.path.join(args.output_dir, "DATA_QUALITY_AUDIT.md")

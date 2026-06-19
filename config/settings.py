@@ -31,6 +31,15 @@ UNIVERSE_CSV: Path = Path(
     os.environ.get("UNIVERSE_CSV", str(CONFIG_DIR / "universe.csv"))
 )
 
+# Canonical CLEAN whitelist for downstream backtests: trustworthy tickers only
+# (passes the data-quality audit — see scripts/data_quality_audit.py). Regenerated
+# by that audit (recommend weekly). All backtests should read THIS, not a hardcoded
+# path, so there is a single source of truth. The dated audit bundle (report +
+# bad_bars) stays in reports/validity/ as the provenance trail.
+CLEAN_UNIVERSE_CSV: Path = Path(
+    os.environ.get("CLEAN_UNIVERSE_CSV", str(CONFIG_DIR / "clean_universe.csv"))
+)
+
 # ---------------------------------------------------------------------------
 # Download
 # ---------------------------------------------------------------------------
