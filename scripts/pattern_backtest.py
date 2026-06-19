@@ -48,6 +48,39 @@ def walk(p, high, low, close, horizon):
     return "timeout", min(horizon, n - 1 - p.confirm_idx)
 
 
+def retest(p, high, low, close, horizon, wait=15):
+    """
+    Better entry: after confirmation, wait for price to pull back to the neckline
+    and enter there, with a TIGHTER stop just beyond the pattern's structure
+    extreme. Bigger reward:risk. Returns (outcome, rr) where outcome is
+    'win'/'loss'/'timeout'/'nofill'. Only for neckline patterns.
+    """
+    if p.neckline is None:
+        return ("na", float("nan"))
+    N = p.neckline; ci = p.confirm_idx; n = len(close)
+    pts = [pt[1] for pt in p.points]
+    if p.direction == "long":
+        stop = min(pts) * 0.995
+        fill = next((j for j in range(ci+1, min(ci+1+wait, n)) if low[j] <= N), None)
+        if fill is None or N - stop <= 0:
+            return ("nofill", float("nan"))
+        rr = (p.target - N) / (N - stop)
+        for j in range(fill+1, min(fill+1+horizon, n)):
+            if low[j] <= stop:    return ("loss", rr)
+            if high[j] >= p.target: return ("win", rr)
+        return ("timeout", rr)
+    else:
+        stop = max(pts) * 1.005
+        fill = next((j for j in range(ci+1, min(ci+1+wait, n)) if high[j] >= N), None)
+        if fill is None or stop - N <= 0:
+            return ("nofill", float("nan"))
+        rr = (N - p.target) / (stop - N)
+        for j in range(fill+1, min(fill+1+horizon, n)):
+            if high[j] >= stop:   return ("loss", rr)
+            if low[j] <= p.target: return ("win", rr)
+        return ("timeout", rr)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--min-dvol", type=float, default=1_000_000)
@@ -85,12 +118,15 @@ def main():
                 ci=p.confirm_idx
                 if ci>=len(cl)-2 or not np.isfinite(sma200[ci]): continue
                 outcome, held = walk(p, h, l, cl, args.horizon)
+                rt_out, rt_rr = retest(p, h, l, cl, args.horizon)
                 # context
                 recent=[q for q in piv if q.idx<=ci]
                 dtrend=S.classify_trend(recent)
                 aligned = (p.direction=="long" and dtrend=="up") or (p.direction=="short" and dtrend=="down")
                 rows.append(dict(ticker=tk, date=dates.iloc[ci], name=p.name, direction=p.direction,
                     outcome=outcome, win=int(outcome=="win"), held=held, rr=p.rr,
+                    retest_outcome=rt_out, retest_win=int(rt_out=="win"),
+                    retest_filled=bool(rt_out in ("win","loss","timeout")), retest_rr=float(rt_rr),
                     daily_trend=dtrend, aligned=bool(aligned),
                     above_200=bool(cl[ci]>sma200[ci]), weekly_up=bool(wk_up[ci]),
                     vol_confirm=bool(np.isfinite(vavg[ci]) and vol[ci]>1.3*vavg[ci])))
