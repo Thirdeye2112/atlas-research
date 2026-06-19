@@ -226,3 +226,25 @@ regime-surviving edge. Next: productionize (wire as an Atlas signal; paper-valid
    window and study which patterns + contexts cluster around true swing turns.
 4. Keep the tradeable filter (price ≥ $5, $vol ≥ $1M); treat pennies as noise except on
    volume-backed big moves (flag & analyze those separately).
+
+## Iteration 9 — Portfolio reality check (deflates iter 8)
+
+Turned the be_runner per-trade edge into a portfolio (1% risk/trade sizing,
+max-concurrent cap, 2% daily-loss, compounding) on full confluence.
+
+- **R distribution is extreme**: median R = 0.00 (half exit ~breakeven), mean
+  +0.36 carried by a tiny tail (q99.9=19R, **max=815R** = untradeable artifact).
+- Capping runners at a realistic 3R: edge = +0.119R train / +0.150R OOS net cost
+  (vs +0.30 uncapped). Real but modest.
+- Portfolio at REALISTIC settings (max 3 trades/day, 3R cap, 1% risk):
+  TRAIN 2.03x / 17% CAGR / Sharpe 0.61 / maxDD -55%; **OOS 0.80x / -20% CAGR /
+  Sharpe -0.62**. OOS LOSES at honest sizing; drawdowns severe.
+- The eye-popping high-concurrency multiples (10000x+) are compounding artifacts
+  (risking 20%/day) — not real.
+
+**Verdict: NOT deployable as-is.** The iter-8 ~50%-win/+0.3R was true per-trade
+but does not survive realistic sizing OOS. Root cause: trigger fires far too
+often (400k signals); we never truly applied "A+ only / few trades" selectivity.
+Do NOT wire into Atlas yet. Next: drastically increase selectivity (fewer,
+higher-quality setups), re-run portfolio; this also motivates steps 3 (audit)
+and 4 (learning loop).
