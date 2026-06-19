@@ -58,6 +58,8 @@ def head_and_shoulders(piv: list[Pivot], high, low, close,
     out = []
     for i in range(len(piv) - 4):
         a, b, c, d, e = piv[i:i+5]
+        if min(a.price, c.price, e.price) <= 0:   # bad-data guard (zero price)
+            continue
         # top: H L H L H, head highest, shoulders ~equal
         if [a.kind,b.kind,c.kind,d.kind,e.kind] == ['H','L','H','L','H']:
             if c.price > a.price and c.price > e.price and \
@@ -95,6 +97,8 @@ def double_top_bottom(piv: list[Pivot], high, low, close,
     out = []
     for i in range(len(piv) - 2):
         a, b, c = piv[i:i+3]
+        if min(a.price, b.price, c.price) <= 0:    # bad-data guard
+            continue
         if [a.kind,b.kind,c.kind] == ['H','L','H'] and abs(a.price-c.price)/a.price < eq_tol:
             lvl = lambda j: b.price
             cj = _first_close_below(close, c.idx+1, lvl, confirm_within)
@@ -120,6 +124,8 @@ def flags(piv: list[Pivot], high, low, close,
     out = []
     for i in range(len(piv) - 2):
         a, b, c = piv[i:i+3]
+        if min(a.price, b.price, c.price) <= 0:    # bad-data guard
+            continue
         # bull flag: low(a) -> high(b) pole, pullback to low(c), breakout above b
         if [a.kind,b.kind,c.kind] == ['L','H','L']:
             pole = (b.price - a.price)/a.price

@@ -66,9 +66,10 @@ def main():
     if args.limit: univ = univ[:args.limit]
     print(f"pattern backtest | {len(univ):,} tickers | horizon {args.horizon}d")
 
-    rows = []
+    rows = []; errors = 0
     with connection.get_connection() as conn:
         for ti, tk in enumerate(univ):
+          try:
             df = pd.read_sql(text("SELECT date,high,low,close,adjusted_close,volume "
                                   "FROM raw_bars WHERE ticker=:t ORDER BY date"), conn, params={"t": tk})
             if len(df) < 260: continue
@@ -93,9 +94,13 @@ def main():
                     daily_trend=dtrend, aligned=bool(aligned),
                     above_200=bool(cl[ci]>sma200[ci]), weekly_up=bool(wk_up[ci]),
                     vol_confirm=bool(np.isfinite(vavg[ci]) and vol[ci]>1.3*vavg[ci])))
-            if (ti+1)%300==0: print(f"  ...{ti+1}/{len(univ)}  patterns={len(rows):,}", flush=True)
+            if (ti+1)%300==0: print(f"  ...{ti+1}/{len(univ)}  patterns={len(rows):,} errs={errors}", flush=True)
+          except Exception as e:
+            errors += 1
+            if errors <= 5: print(f"  err {tk}: {repr(e)[:90]}", flush=True)
 
     df=pd.DataFrame(rows)
+    print(f"(per-ticker errors handled: {errors})")
     OUT.parent.mkdir(parents=True, exist_ok=True); df.to_parquet(OUT, index=False)
     print(f"\n{len(df):,} patterns -> {OUT}\n")
 
