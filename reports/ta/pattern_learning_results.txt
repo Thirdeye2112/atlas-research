@@ -1,0 +1,46 @@
+=== FULL DONE ===
+172,372 patterns -> C:\Atlas\atlas-research\reports\ta\pattern_outcomes.parquet
+
+pattern             n  win%(all) win%(resolved)  timeout%
+bear_flag      22,420      14.3%          19.2%     25.3%
+bull_flag      22,672      29.3%          35.5%     17.3%
+double_bottom  49,238      62.3%          67.5%      7.6%
+double_top     47,682      52.4%          57.8%      9.4%
+hs_bottom      15,120      49.9%          57.5%     13.2%
+hs_top         15,240      39.7%          46.4%     14.3%
+
+=== best pattern x context (resolved win%, n>=300) ===
+  double_bottom aligned=False,vol=True   n=13,569  win=74.1%
+  hs_bottom     aligned=False,vol=True   n= 2,642  win=67.9%
+  double_bottom aligned=False,vol=False  n=19,736  win=66.2%
+  double_top    aligned=False,vol=True   n=14,941  win=64.5%
+  double_bottom aligned=True,vol=True    n= 5,032  win=64.4%
+  double_bottom aligned=True,vol=False   n= 7,153  win=60.4%
+  hs_bottom     aligned=False,vol=False  n= 7,058  win=59.1%
+  double_top    aligned=False,vol=False  n=17,888  win=57.2%
+  hs_top        aligned=False,vol=True   n= 2,687  win=55.3%
+  double_top    aligned=True,vol=True    n= 4,845  win=54.0%
+  hs_bottom     aligned=True,vol=True    n= 1,646  win=52.9%
+  hs_top        aligned=False,vol=False  n= 7,009  win=50.8%
+
+win = measured-move target hit before invalidation stop (plain win rate).
+
+=== LEARNING (win% + expectancy) ===
+loaded 172,372 patterns | 4,025 tickers | 2012-03-27 -> 2026-06-10
+
+=== by pattern (all contexts) ===
+pattern              n    win%   exp(R)  med R:R
+bear_flag       22,420   14.3%   -0.310     2.14
+bull_flag       22,672   29.3%    0.065     2.04
+double_bottom   49,238   62.3%    0.099     0.74
+double_top      47,682   52.4%   -0.058     0.73
+hs_bottom       15,120   49.9%    0.216     1.22
+hs_top          15,240   39.7%   -0.002     1.25
+
+=== high-confidence setups (win>=65.0%, exp>0, n>=500) ===
+  double_bottom vol_confirm+above_200              n=14,849 win= 67.0% exp=+0.102R
+  double_bottom vol_confirm                        n=19,982 win= 66.5% exp=+0.094R
+  double_bottom vol_confirm+above_200+weekly_up    n=11,895 win= 66.0% exp=+0.098R
+  double_bottom vol_confirm+weekly_up              n=12,229 win= 65.9% exp=+0.096R
+
+win = target before stop; exp(R) accounts for reward:risk (the profit truth-check).
