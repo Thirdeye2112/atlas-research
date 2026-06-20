@@ -46,3 +46,10 @@ pnpm-lock.yaml
 # Logs
 logs/
 *.log
+
+*.key
+*.pem
+.env
+*recovery*
+Alpaca*Keys*
+Alpaca*
