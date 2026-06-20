@@ -116,10 +116,17 @@ class Frame:
         self.ret20=(cls/cls.shift(20)-1).to_numpy(); self.ret60=(cls/cls.shift(60)-1).to_numpy()
         self.spy20=spy20; self.spy60=spy60; self.mkt=mkt; self.wk_tr=wk_tr
         self.piv=S.swing_pivots(h,l,width=width)
+        self._piv_idx=np.array([p.idx for p in self.piv], dtype=int)  # sorted; for O(log n) recency cut
 
-    def ctx(self, ci, start_idx, height):
+    def ctx(self, ci, start_idx, height, sr_window=None):
+        # sr_window bounds how many recent pivots feed support/resistance.
+        # None = all pivots up to ci (daily default, unchanged). On long 5-min
+        # series, passing a small window (e.g. 40) avoids the O(pivots*instances)
+        # blow-up and is better TA (recent levels matter, not years-old ones).
         o,h,l,cl=self.o,self.h,self.l,self.cl
-        price=cl[ci]; recent=[q for q in self.piv if q.idx<=ci]
+        price=cl[ci]
+        k=int(np.searchsorted(self._piv_idx, ci, side="right"))
+        recent=self.piv[max(0,k-sr_window):k] if sr_window else self.piv[:k]
         lv=S.support_resistance(recent, price)
         sup=[x["level"] for x in lv if x["level"]<=price]; res=[x["level"] for x in lv if x["level"]>=price]
         def fin(a,i): return np.isfinite(a[i])
@@ -195,15 +202,16 @@ def daily_frame(tk, conn, spy_ctx, width):
     return F
 
 
-def candles_to_rows(tk, tf, F, candles, slow_override=None):
+def candles_to_rows(tk, tf, F, candles, slow_override=None, sr_window=None):
     rows=[]
     o,h,l,cl=F.o,F.h,F.l,F.cl; dates=F.dates
     for cd in candles:
         ci=cd.confirm_idx; si=cd.start_idx
-        if ci<60 or not np.isfinite(F.s200[ci]) if slow_override is None else ci<60:
+        # daily requires its own SMA200 backdrop; 5m gets the slow fields from the join.
+        if ci<60 or (slow_override is None and not np.isfinite(F.s200[ci])):
             continue
         height=(np.max(h[si:ci+1])-np.min(l[si:ci+1]))/cl[ci] if cl[ci]>0 else 0.0
-        cx=F.ctx(ci,si,height)
+        cx=F.ctx(ci,si,height,sr_window=sr_window)
         if slow_override is not None:
             so=slow_override(dates.iloc[ci])
             if so is None:   # no daily backdrop for this date -> skip
@@ -218,14 +226,14 @@ def candles_to_rows(tk, tf, F, candles, slow_override=None):
     return rows
 
 
-def chartpat_to_rows(tk, tf, F, slow_override):
+def chartpat_to_rows(tk, tf, F, slow_override, sr_window=None):
     rows=[]; h,l,cl=F.h,F.l,F.cl; dates=F.dates
     for p in P.detect_all(F.piv,h,l,cl):
         ci=p.confirm_idx
         if ci<60: continue
         si=min(pt[0] for pt in p.points)
         ph=[pt[1] for pt in p.points]; height=(max(ph)-min(ph))/cl[ci] if cl[ci]>0 else 0.0
-        cx=F.ctx(ci,si,height)
+        cx=F.ctx(ci,si,height,sr_window=sr_window)
         so=slow_override(dates.iloc[ci]) if slow_override else {}
         if so is None: continue
         cx.update(so or {})
@@ -247,14 +255,31 @@ def intraday_frame(tk, conn, width):
 
 
 def slow_map_from_daily(F):
-    """date -> {slow fields} from the daily frame, for joining onto 5-min rows."""
+    """date -> {slow daily-scale fields} for joining onto 5-min rows.
+
+    Computed directly from arrays — does NOT call F.ctx (which would run
+    support/resistance per day needlessly; S/R is not a SLOW_FIELD).
+    """
     dates=F.dates.dt.date.to_numpy()
+    fin=np.isfinite
     recs={}
     for i in range(len(dates)):
-        if i<60 or not np.isfinite(F.s200[i]):
+        if i<60 or not fin(F.s200[i]):
             continue
-        cx=F.ctx(i,i,0.0)
-        recs[dates[i]]={k:cx[k] for k in SLOW_FIELDS}
+        price=F.cl[i]
+        recs[dates[i]]=dict(
+            trend_higher=(str(F.wk_tr[i]) if F.wk_tr is not None else None),
+            market_trend=(str(F.mkt[i]) if F.mkt is not None else None),
+            rs_spy20=(float(F.ret20[i]-F.spy20[i]) if F.spy20 is not None
+                      and fin(F.ret20[i]) and fin(F.spy20[i]) else None),
+            rs_spy60=(float(F.ret60[i]-F.spy60[i]) if F.spy60 is not None
+                      and fin(F.ret60[i]) and fin(F.spy60[i]) else None),
+            dist_sma50=(float(price/F.s50[i]-1) if fin(F.s50[i]) else None),
+            dist_sma200=(float(price/F.s200[i]-1) if fin(F.s200[i]) else None),
+            sma_stacked=(bool(F.s50[i]>F.s150[i]>F.s200[i]) if fin(F.s150[i]) and fin(F.s200[i]) else None),
+            dist_52w_high=(float(price/F.hi52[i]-1) if fin(F.hi52[i]) and F.hi52[i]>0 else None),
+            dist_52w_low=(float(price/F.lo52[i]-1) if fin(F.lo52[i]) and F.lo52[i]>0 else None),
+        )
     keys=sorted(recs.keys())
     def lookup(ts):
         d=pd.Timestamp(ts).date()
@@ -272,6 +297,8 @@ def main():
     ap.add_argument("--limit",type=int,default=None)
     ap.add_argument("--tickers",nargs="+",default=None)
     ap.add_argument("--width",type=int,default=5)
+    ap.add_argument("--resume",action="store_true",
+                    help="5m: skip tickers already logged at timeframe=5m (resumable)")
     args=ap.parse_args()
 
     clean=pd.read_csv(settings.CLEAN_UNIVERSE_CSV)["ticker"].astype(str).str.upper().tolist()
@@ -311,34 +338,39 @@ def main():
 
     # -------- 5-min chart patterns + candlesticks --------
     if args.timeframe in ("5m","both"):
-        with connection.get_connection() as conn:
-            it=[r[0] for r in conn.execute(text(
-                "SELECT DISTINCT ticker FROM intraday_bars WHERE timeframe='5m' ORDER BY ticker"))]
-        it=[t for t in it if t.upper() in clean_set]   # clean-universe filter
-        if args.tickers: it=[t for t in it if t in args.tickers]
+        # Source tickers from the clean universe CSV (NOT a DISTINCT scan of the
+        # 210M-row intraday table). Per-ticker reads below seek idx_ibar_ticker_ts;
+        # tickers without 5m bars are skipped cheaply (intraday_frame -> None).
+        it=list(args.tickers) if args.tickers else list(clean)
+        if args.resume:
+            with connection.get_connection() as conn:
+                done={r[0] for r in conn.execute(text(
+                    "SELECT DISTINCT ticker FROM pattern_memory WHERE timeframe='5m'"))}
+            before=len(it); it=[t for t in it if t not in done]
+            print(f"[5m] --resume: skipping {before-len(it)} tickers already done",flush=True)
         if args.limit: it=it[:args.limit]
-        print(f"[5m] {len(it)} clean-universe tickers with 5m bars")
-        total=errors=proc=0
+        print(f"[5m] {len(it)} candidate tickers (clean universe; skip those w/o 5m bars)",flush=True)
+        total=errors=proc=skipped=0
         with connection.get_connection() as conn:
             for tk in it:
                 try:
-                    DF=daily_frame(tk,conn,spy_ctx,args.width)     # for the slow backdrop
-                    slow=slow_map_from_daily(DF) if DF is not None else (lambda ts: {})
                     IF=intraday_frame(tk,conn,args.width)
-                    if IF is None: continue
+                    if IF is None: skipped+=1; continue   # no/short 5m history
+                    DF=daily_frame(tk,conn,spy_ctx,args.width)     # daily backdrop for slow fields
+                    slow=slow_map_from_daily(DF) if DF is not None else (lambda ts: {})
                     # 5m denoise: tighter tweezer tolerance + drop doji/spinning_top
-                    # (they fire on most 5-min bars; low signal, huge volume).
+                    # (fire on most 5-min bars; low signal). sr_window bounds S/R cost.
                     rows =candles_to_rows(tk,"5m",IF,
                                           K.detect_all_candles(IF.o,IF.h,IF.l,IF.cl,
                                               eq_tol=0.0008, skip_neutral=True),
-                                          slow_override=slow)
-                    rows+=chartpat_to_rows(tk,"5m",IF,slow_override=slow)
+                                          slow_override=slow, sr_window=40)
+                    rows+=chartpat_to_rows(tk,"5m",IF,slow_override=slow, sr_window=40)
                     tally(rows); total+=_flush(eng,rows); proc+=1
-                    if proc%50==0: print(f"  ...{proc}/{len(it)} logged={total:,} errs={errors}",flush=True)
+                    if proc%25==0: print(f"  ...{proc} done (+{skipped} no-5m) logged={total:,} errs={errors}",flush=True)
                 except Exception as e:
                     errors+=1
                     if errors<=5: print(f"  err {tk}: {repr(e)[:120]}",flush=True)
-        print(f"[5m] DONE logged={total:,} errors={errors}")
+        print(f"[5m] DONE processed={proc} skipped_no5m={skipped} logged={total:,} errors={errors}")
 
     # -------- report --------
     print("\n=== instance counts by (timeframe, pattern_type) ===")
