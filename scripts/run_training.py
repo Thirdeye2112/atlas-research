@@ -29,7 +29,7 @@ load_dotenv()
 
 from config import settings
 from atlas_research.db.connection import check_connection
-from atlas_research.models.walk_forward import run_baseline, run_walk_forward
+from atlas_research.models.walk_forward import run_baseline, run_walk_forward, oos_window
 from atlas_research.utils.logging import configure_logging, get_logger
 
 configure_logging(level=settings.LOG_LEVEL, fmt=settings.LOG_FORMAT)
@@ -124,6 +124,13 @@ def main() -> None:
         _print_metrics(result.val_metrics)
 
     else:
+        oos_start, oos_end = oos_window(end_date, settings.WF_OOS_MONTHS)
+        if oos_start:
+            print(f"\n[OOS] Reserved hold-out (never used for fold selection): "
+                  f"{oos_start} -> {oos_end} ({settings.WF_OOS_MONTHS} months)")
+        else:
+            print("\n[OOS] No hold-out reserved (WF_OOS_MONTHS <= 0).")
+
         results = run_walk_forward(
             data_start           = start_date,
             data_end             = end_date,
