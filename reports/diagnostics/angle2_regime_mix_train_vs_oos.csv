@@ -1,0 +1,7 @@
+regime,train_pct,oos_pct
+bear_high_vol,5.37,3.1
+bear_low_vol,3.84,1.98
+bull_high_vol,11.06,29.55
+bull_low_vol,45.67,23.31
+range_high_vol,15.6,25.15
+range_low_vol,18.45,16.9
