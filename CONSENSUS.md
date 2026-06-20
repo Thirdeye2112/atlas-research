@@ -250,6 +250,40 @@ V3 is preserved as `MODEL_FEATURE_SET_VERSION=v3`. Reassess after first bear reg
 
 ---
 
+## Caveat — 2026-06-19 model-validity session
+
+The "Current System State" section immediately below is **stale** as of
+this date. Verified facts that supersede it (full detail:
+`reports/validity/MODEL_VALIDITY_FIXES_REPORT.md`):
+
+- **Active feature count is 38, not 39.** `data_quality_score` was dropped
+  from `TRAIN_FEATURES_V1` (dead constant, `nunique==1` across the whole
+  corpus) in a prior session, before this one.
+- **Walk-forward is 11 folds, not 12.** `WF_OOS_MONTHS` (default 12) now
+  embargoes the final year from fold selection; the old 12th fold's
+  validation window (2025-07→2026-06) is exactly the now-reserved range, not
+  an independent extra fold.
+- **This session's clean 11-fold re-run: mean rank IC = 0.0712, mean AUC =
+  0.5248** (vs. the 0.0599 below, which was the pre-embargo, 12-fold,
+  39-feature number — a different fold sample, not a regression).
+- **OOS reconfirmed degraded:** single-shot OOS score (2025-06-15→2026-06-14)
+  gives rank IC -0.0061 / mean IC -0.0052 — matches the prior session's
+  independent -0.0052 finding. "KEEP V1 BUT MARK DEGRADED" still stands.
+- **Production model artifact pointer below (`return_regressor_v1_2025-07-01`)
+  predates the OOS embargo** — it was trained on the now-reserved window.
+  The current walk-forward's last fold artifact is
+  `return_regressor_v1_2024-07-01`; the current OOS-scored artifact is
+  `return_regressor_v1_2025-06-14`.
+- **Conviction/confluence backtest numbers moved** (VERY_HIGH 5d HR 55.6%→
+  54.2%, 5+ aligned 58.1%→54.4%, both permutation tests losing significance)
+  between the committed reports and this session's re-run — confirmed
+  **not attributable to the model fixes**; dominated by a +67% change in
+  scored population and a probability-tier activation from concurrent,
+  unrelated work. See the linked report §4 before citing either report's
+  numbers as a clean comparison.
+
+---
+
 ## Current System State (as of 2026-06-15)
 
 ### Infrastructure

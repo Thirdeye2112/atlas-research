@@ -78,6 +78,44 @@ Chronological record of what was built each session. Updated at end of every ses
 
 ---
 
+## 2026-06-19 — Model Validity Fixes (correctness pass, no tuning)
+
+### atlas-research
+- **Audit:** Fix 1 (Platt calibration leak), Fix 2 (calendar-day purge), and
+  Fix 3 (no OOS embargo) were all **already fixed** in `train.py`/
+  `dataset.py`/`walk_forward.py` before this session — verified via `git log`
+  to ancestor commit `63a105e`. Fix 4 (`ingest_alpaca_corpactions_news.py`)
+  didn't exist in the repo at session start; appeared mid-session as
+  untracked, concurrent work with the fix already applied — left untouched.
+- **Hardened Fix 1:** Added `tests/test_train.py` (real-LightGBM, asserts
+  Platt is fit on the ES holdout, never the val fold) and fixed a stale
+  module docstring still describing the old leaky behavior.
+- **Hardened Fix 3:** Added an explicit `[OOS] Reserved hold-out...` console
+  print to `run_training.py` (previously only in structlog debug output) and
+  `scripts/score_oos.py` — a driver that scores the embargoed OOS block
+  exactly once via `walk_forward.run_fold()`.
+- **Re-ran clean V1 walk-forward:** 11 folds (OOS-embargoed), mean rank IC
+  **0.0712**, mean AUC 0.5248 — vs `CONSENSUS.md`'s stale 12-fold/no-embargo
+  baseline of 0.0599; difference fully explained by the 12th (now-embargoed)
+  fold + a 39→38 feature count decision that predates this session, not a
+  regression.
+- **Re-ran the single OOS score:** rank IC -0.0061, mean IC -0.0052 — matches
+  the prior session's independently-computed -0.0052 almost exactly.
+  Reconfirms (does not revisit) "KEEP V1 BUT MARK DEGRADED."
+- **Re-ran confluence + conviction backtests:** found the comparison is
+  confounded — `build_model_map`'s tie-break shadows 11/11 of this session's
+  retrained fold artifacts behind same-dated `_clean_` artifacts from
+  concurrent clean-universe work; only the new OOS artifact (10/2,880 signal
+  dates) is actually this session's. The observed HR/significance drop
+  (VERY_HIGH 55.6%→54.2%, 5+ aligned 58.1%→54.4%, both permutation tests
+  flipping from p<0.05 to non-significant) is dominated by a +67% change in
+  scored population and a probability-tier activation between report
+  snapshots — not isolable as a calibration effect.
+- **Full report:** `reports/validity/MODEL_VALIDITY_FIXES_REPORT.md`.
+- **Commits:** `3f07b1c`, `4a8fdd5`, plus this entry's commit.
+
+---
+
 ## Reference
 
 ### Key Metrics (as of 2026-06-12)

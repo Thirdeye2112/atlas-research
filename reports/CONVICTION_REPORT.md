@@ -1,7 +1,7 @@
 # Atlas Conviction Layer Backtest Report
-**Date generated:** 2026-06-15
-**Backtest period:** 2015-01-01 to 2026-06-15
-**Total observations:** 529,505
+**Date generated:** 2026-06-19
+**Backtest period:** 2015-01-01 to 2026-06-19
+**Total observations:** 884,794
 
 > **Methodology:** Walk-forward V1 ML artifacts (out-of-sample). Conviction score is a parallel
 > output — it does NOT change confluence score, weights, or component logic.
@@ -14,16 +14,16 @@
 
 | Finding | Value |
 |---------|-------|
-| VERY_HIGH conviction 5d HR | 55.6% (n=167,688) |
-| VERY_HIGH conviction 5d avg return | +0.377% |
-| Score 60-80 bucket 5d HR | 54.5% (n=103,098) |
+| VERY_HIGH conviction 5d HR | 54.2% (n=156,439) |
+| VERY_HIGH conviction 5d avg return | +0.305% |
+| Score 60-80 bucket 5d HR | 53.3% (n=119,222) |
 | VERY_HIGH beats Score 60-80 (HR) | YES |
 | VERY_HIGH beats Score 60-80 (avg return) | YES |
-| Conviction spread (VERY_HIGH - LOW) 5d HR | 1.6% |
-| Score spread (60-80 - 0-20) 5d HR | -2.0% |
+| Conviction spread (VERY_HIGH - LOW) 5d HR | 4.2% |
+| Score spread (60-80 - 0-20) 5d HR | 3.3% |
 | Conviction levels monotone (LOW<MOD<HIGH<VH) | YES |
-| Permutation: VERY_HIGH conviction significant | p<0.05 YES |
-| Permutation: Score >= 60 significant | p<0.05 YES |
+| Permutation: VERY_HIGH conviction significant | NO |
+| Permutation: Score >= 60 significant | NO |
 
 ---
 
@@ -35,31 +35,31 @@ How many components agree → forward return gradient.
 
 | aligned_grp    |    HR 1d |    HR 3d |    HR 5d |   HR 10d |   HR 20d |
 |----------------|----------|----------|----------|----------|----------|
-| 1              |    52.1% |    54.0% |    54.2% |    54.5% |    53.1% |
-| 2              |    51.9% |    53.2% |    54.0% |    54.9% |    55.5% |
-| 3              |    52.6% |    53.8% |    54.4% |    55.7% |    57.2% |
-| 4              |    52.4% |    54.1% |    55.3% |    56.9% |    59.0% |
-| 5+             |    51.6% |    55.9% |    58.1% |    59.5% |    60.2% |
+| 1              |    48.4% |    49.3% |    49.2% |    49.7% |    50.2% |
+| 2              |    49.1% |    50.5% |    51.0% |    51.4% |    52.4% |
+| 3              |    50.7% |    52.4% |    53.2% |    54.7% |    55.0% |
+| 4              |    51.6% |    53.3% |    54.1% |    55.8% |    57.7% |
+| 5+             |    51.5% |    53.4% |    54.4% |    56.3% |    58.9% |
 
 ### Average Returns
 
 | aligned_grp    |   Avg 1d |   Avg 3d |   Avg 5d |  Avg 10d |  Avg 20d |
 |----------------|----------|----------|----------|----------|----------|
-| 1              |  +0.015% |  +0.093% |  +0.199% |  +0.346% |  +0.646% |
-| 2              |  +0.045% |  +0.121% |  +0.236% |  +0.519% |  +1.003% |
-| 3              |  +0.069% |  +0.204% |  +0.302% |  +0.577% |  +1.162% |
-| 4              |  +0.078% |  +0.214% |  +0.351% |  +0.695% |  +1.513% |
-| 5+             |  +0.046% |  +0.289% |  +0.560% |  +1.136% |  +1.595% |
+| 1              |  +0.093% |  +0.175% |  +0.297% |  +0.554% |  +1.107% |
+| 2              |  +0.108% |  +0.263% |  +0.399% |  +0.696% |  +1.344% |
+| 3              |  +0.111% |  +0.333% |  +0.567% |  +1.017% |  +1.621% |
+| 4              |  +0.077% |  +0.199% |  +0.306% |  +0.679% |  +1.438% |
+| 5+             |  +0.056% |  +0.177% |  +0.296% |  +0.670% |  +1.461% |
 
 ### Max Drawdown and Runup
 
 | aligned_grp    |    DD 5d | Runup 5d |   DD 10d | Runup 10d |        N |
 |----------------|----------|----------|----------|----------|----------|
-| 1              |  -3.150% |  +3.181% |  -4.616% |  +4.630% |    24095 |
-| 2              |  -2.799% |  +2.937% |  -4.002% |  +4.327% |   138298 |
-| 3              |  -2.587% |  +2.837% |  -3.720% |  +4.173% |   199424 |
-| 4              |  -2.678% |  +2.932% |  -3.803% |  +4.337% |   147658 |
-| 5+             |  -2.580% |  +3.060% |  -3.612% |  +4.641% |    20030 |
+| 1              |  -4.879% |  +6.125% |  -6.922% |  +9.521% |    64841 |
+| 2              |  -4.270% |  +5.371% |  -6.091% |  +8.053% |   336219 |
+| 3              |  -3.596% |  +4.488% |  -5.039% |  +6.699% |   327295 |
+| 4              |  -2.974% |  +3.325% |  -4.191% |  +4.941% |   130909 |
+| 5+             |  -2.553% |  +2.825% |  -3.643% |  +4.254% |    25530 |
 
 ---
 
@@ -69,28 +69,28 @@ How many components agree → forward return gradient.
 
 | score_bucket   |    HR 1d |    HR 3d |    HR 5d |   HR 10d |   HR 20d |
 |----------------|----------|----------|----------|----------|----------|
-| 0-20           |    51.4% |    55.0% |    56.5% |    59.1% |    58.0% |
-| 20-40          |    52.1% |    53.4% |    54.2% |    55.2% |    56.2% |
-| 40-60          |    52.7% |    54.2% |    54.9% |    56.4% |    57.9% |
-| 60-80          |    51.8% |    53.5% |    54.5% |    55.4% |    56.8% |
+| 0-20           |    46.4% |    49.1% |    50.0% |    51.8% |    52.6% |
+| 20-40          |    49.6% |    51.1% |    51.8% |    52.7% |    53.6% |
+| 40-60          |    50.2% |    51.8% |    52.4% |    53.5% |    54.3% |
+| 60-80          |    51.4% |    52.7% |    53.3% |    54.2% |    55.3% |
 
 ### Average Returns
 
 | score_bucket   |   Avg 1d |   Avg 3d |   Avg 5d |  Avg 10d |  Avg 20d |
 |----------------|----------|----------|----------|----------|----------|
-| 0-20           |  -0.016% |  +0.057% |  +0.200% |  +0.675% |  +1.830% |
-| 20-40          |  +0.049% |  +0.153% |  +0.264% |  +0.546% |  +1.137% |
-| 40-60          |  +0.077% |  +0.203% |  +0.311% |  +0.612% |  +1.220% |
-| 60-80          |  +0.049% |  +0.191% |  +0.358% |  +0.679% |  +1.243% |
+| 0-20           |  +0.101% |  +0.285% |  +0.508% |  +1.346% |  +2.620% |
+| 20-40          |  +0.128% |  +0.292% |  +0.475% |  +0.837% |  +1.515% |
+| 40-60          |  +0.100% |  +0.289% |  +0.462% |  +0.825% |  +1.487% |
+| 60-80          |  +0.051% |  +0.141% |  +0.227% |  +0.489% |  +0.850% |
 
 ### Max Drawdown and Runup
 
 | score_bucket   |    DD 5d | Runup 5d |   DD 10d | Runup 10d |        N |
 |----------------|----------|----------|----------|----------|----------|
-| 0-20           |  -3.508% |  +3.331% |  -5.035% |  +5.085% |     8923 |
-| 20-40          |  -2.826% |  +2.997% |  -4.050% |  +4.395% |   158966 |
-| 40-60          |  -2.641% |  +2.882% |  -3.773% |  +4.233% |   258518 |
-| 60-80          |  -2.545% |  +2.829% |  -3.645% |  +4.243% |   103098 |
+| 0-20           |  -4.685% |  +6.201% |  -6.547% | +10.293% |    24674 |
+| 20-40          |  -4.109% |  +5.307% |  -5.820% |  +7.999% |   271065 |
+| 40-60          |  -3.768% |  +4.611% |  -5.348% |  +6.871% |   469833 |
+| 60-80          |  -3.230% |  +3.548% |  -4.522% |  +5.244% |   119222 |
 
 ---
 
@@ -104,28 +104,28 @@ How many components agree → forward return gradient.
 
 | conviction_level |    HR 1d |    HR 3d |    HR 5d |   HR 10d |   HR 20d |
 |----------------|----------|----------|----------|----------|----------|
-| LOW            |    52.0% |    53.7% |    54.0% |    55.1% |    54.1% |
-| MODERATE       |    51.9% |    53.3% |    54.0% |    54.8% |    55.4% |
-| HIGH           |    52.6% |    53.8% |    54.4% |    55.7% |    57.2% |
-| VERY_HIGH      |    52.3% |    54.3% |    55.6% |    57.2% |    59.1% |
+| LOW            |    48.8% |    49.9% |    49.9% |    50.8% |    51.4% |
+| MODERATE       |    49.0% |    50.4% |    50.9% |    51.2% |    52.2% |
+| HIGH           |    50.7% |    52.4% |    53.2% |    54.7% |    55.0% |
+| VERY_HIGH      |    51.6% |    53.3% |    54.2% |    55.9% |    57.9% |
 
 ### Average Returns by Conviction Level
 
 | conviction_level |   Avg 1d |   Avg 3d |   Avg 5d |  Avg 10d |  Avg 20d |
 |----------------|----------|----------|----------|----------|----------|
-| LOW            |  +0.014% |  +0.064% |  +0.150% |  +0.381% |  +0.846% |
-| MODERATE       |  +0.047% |  +0.130% |  +0.250% |  +0.520% |  +0.974% |
-| HIGH           |  +0.069% |  +0.204% |  +0.302% |  +0.577% |  +1.161% |
-| VERY_HIGH      |  +0.074% |  +0.223% |  +0.377% |  +0.750% |  +1.523% |
+| LOW            |  +0.105% |  +0.205% |  +0.331% |  +0.678% |  +1.287% |
+| MODERATE       |  +0.106% |  +0.258% |  +0.394% |  +0.671% |  +1.308% |
+| HIGH           |  +0.111% |  +0.333% |  +0.567% |  +1.017% |  +1.622% |
+| VERY_HIGH      |  +0.074% |  +0.196% |  +0.305% |  +0.677% |  +1.442% |
 
 ### Max Drawdown and Runup by Conviction Level
 
 | conviction_level |    DD 5d | Runup 5d |   DD 10d | Runup 10d |        N |
 |----------------|----------|----------|----------|----------|----------|
-| LOW            |  -3.241% |  +3.197% |  -4.685% |  +4.669% |    30086 |
-| MODERATE       |  -2.761% |  +2.923% |  -3.958% |  +4.305% |   132343 |
-| HIGH           |  -2.587% |  +2.836% |  -3.719% |  +4.172% |   199388 |
-| VERY_HIGH      |  -2.666% |  +2.948% |  -3.779% |  +4.375% |   167688 |
+| LOW            |  -4.770% |  +5.969% |  -6.759% |  +9.269% |    71646 |
+| MODERATE       |  -4.281% |  +5.390% |  -6.110% |  +8.078% |   329445 |
+| HIGH           |  -3.596% |  +4.488% |  -5.039% |  +6.699% |   327264 |
+| VERY_HIGH      |  -2.903% |  +3.242% |  -4.099% |  +4.825% |   156439 |
 
 ---
 
@@ -138,14 +138,14 @@ How many components agree → forward return gradient.
 
 | Filter | HR 1d | HR 3d | HR 5d | HR 10d | HR 20d | Avg 5d | N |
 |--------|-------|-------|-------|--------|--------|--------|---|
-| Conviction LOW                 |   52.0% |   53.7% |   54.0% |    55.1% |    54.1% |  +0.150% |    30,086 |
-| Conviction MODERATE            |   51.9% |   53.3% |   54.0% |    54.8% |    55.4% |  +0.250% |   132,343 |
-| Conviction HIGH                |   52.6% |   53.8% |   54.4% |    55.7% |    57.2% |  +0.302% |   199,388 |
-| Conviction VERY_HIGH           |   52.3% |   54.3% |   55.6% |    57.2% |    59.1% |  +0.377% |   167,688 |
-| Score 0-20                     |   51.4% |   55.0% |   56.5% |    59.1% |    58.0% |  +0.200% |     8,923 |
-| Score 20-40                    |   52.1% |   53.4% |   54.2% |    55.2% |    56.2% |  +0.264% |   158,966 |
-| Score 40-60                    |   52.7% |   54.2% |   54.9% |    56.4% |    57.9% |  +0.311% |   258,718 |
-| Score 60-80                    |   51.8% |   53.4% |   54.4% |    55.3% |    56.7% |  +0.353% |   104,292 |
+| Conviction LOW                 |   48.8% |   49.9% |   49.9% |    50.8% |    51.4% |  +0.331% |    71,646 |
+| Conviction MODERATE            |   49.0% |   50.4% |   50.9% |    51.2% |    52.2% |  +0.394% |   329,445 |
+| Conviction HIGH                |   50.7% |   52.4% |   53.2% |    54.7% |    55.0% |  +0.567% |   327,264 |
+| Conviction VERY_HIGH           |   51.6% |   53.3% |   54.2% |    55.9% |    57.9% |  +0.305% |   156,439 |
+| Score 0-20                     |   46.4% |   49.1% |   50.0% |    51.8% |    52.6% |  +0.508% |    24,674 |
+| Score 20-40                    |   49.6% |   51.1% |   51.8% |    52.7% |    53.6% |  +0.475% |   271,065 |
+| Score 40-60                    |   50.2% |   51.8% |   52.4% |    53.5% |    54.3% |  +0.462% |   469,936 |
+| Score 60-80                    |   51.4% |   52.7% |   53.4% |    54.1% |    55.0% |  +0.231% |   132,962 |
 | Score 80-100                   |     n/a |     n/a |     n/a |      n/a |      n/a |      n/a |         0 |
 
 ---
@@ -159,25 +159,25 @@ How many components agree → forward return gradient.
 
 | group                                      |    HR 1d |    HR 3d |    HR 5d |   HR 10d |   HR 20d |
 |--------------------------------------------|----------|----------|----------|----------|----------|
-| VERY_HIGH | 4-aligned                      |    52.4% |    54.1% |    55.3% |    56.9% |    59.0% |
-| VERY_HIGH | 5-aligned                      |    51.6% |    55.9% |    58.1% |    59.5% |    60.2% |
-| VERY_HIGH | regime agrees                  |    52.1% |    54.0% |    55.2% |    56.4% |    58.0% |
-| VERY_HIGH | regime neutral                 |    55.8% |    56.4% |    59.9% |    62.9% |    65.2% |
-| VERY_HIGH | regime conflicts               |    54.2% |    57.7% |    59.4% |    64.3% |    69.4% |
-| VERY_HIGH | strong ML (prob>0.65)          |    68.9% |    75.4% |    72.8% |    61.1% |    80.4% |
-| VERY_HIGH | moderate ML (0.55-0.65)        |    52.5% |    54.7% |    56.3% |    57.9% |    60.1% |
+| VERY_HIGH | 4-aligned                      |    51.6% |    53.3% |    54.1% |    55.8% |    57.7% |
+| VERY_HIGH | 5-aligned                      |    51.5% |    53.4% |    54.4% |    56.3% |    58.9% |
+| VERY_HIGH | regime agrees                  |    51.3% |    52.7% |    53.3% |    54.7% |    56.6% |
+| VERY_HIGH | regime neutral                 |    55.8% |    58.4% |    61.8% |    68.8% |    68.1% |
+| VERY_HIGH | regime conflicts               |    52.5% |    56.8% |    58.9% |    61.4% |    65.2% |
+| VERY_HIGH | strong ML (prob>0.65)          |    55.0% |    58.2% |    59.5% |    61.2% |    61.5% |
+| VERY_HIGH | moderate ML (0.55-0.65)        |    51.7% |    53.4% |    54.4% |    56.6% |    58.5% |
 
 ### Average Returns
 
 | group                                      |   Avg 1d |   Avg 3d |   Avg 5d |  Avg 10d |  Avg 20d |
 |--------------------------------------------|----------|----------|----------|----------|----------|
-| VERY_HIGH | 4-aligned                      |  +0.078% |  +0.214% |  +0.351% |  +0.695% |  +1.513% |
-| VERY_HIGH | 5-aligned                      |  +0.046% |  +0.289% |  +0.560% |  +1.136% |  +1.595% |
-| VERY_HIGH | regime agrees                  |  +0.059% |  +0.198% |  +0.330% |  +0.638% |  +1.162% |
-| VERY_HIGH | regime neutral                 |  +0.131% |  +0.463% |  +0.756% |  +1.586% |  +2.903% |
-| VERY_HIGH | regime conflicts               |  +0.229% |  +0.413% |  +0.775% |  +1.713% |  +5.218% |
-| VERY_HIGH | strong ML (prob>0.65)          |  +0.587% |  +1.506% |  +1.924% |  +0.432% |  +5.961% |
-| VERY_HIGH | moderate ML (0.55-0.65)        |  +0.074% |  +0.229% |  +0.391% |  +0.778% |  +1.618% |
+| VERY_HIGH | 4-aligned                      |  +0.077% |  +0.199% |  +0.306% |  +0.679% |  +1.438% |
+| VERY_HIGH | 5-aligned                      |  +0.056% |  +0.177% |  +0.296% |  +0.670% |  +1.461% |
+| VERY_HIGH | regime agrees                  |  +0.044% |  +0.131% |  +0.202% |  +0.493% |  +1.069% |
+| VERY_HIGH | regime neutral                 |  +0.405% |  +0.840% |  +1.311% |  +2.751% |  +3.825% |
+| VERY_HIGH | regime conflicts               |  +0.207% |  +0.515% |  +0.821% |  +1.483% |  +3.784% |
+| VERY_HIGH | strong ML (prob>0.65)          |  +0.167% |  +0.490% |  +0.721% |  +1.261% |  +2.092% |
+| VERY_HIGH | moderate ML (0.55-0.65)        |  +0.075% |  +0.198% |  +0.331% |  +0.734% |  +1.587% |
 
 ---
 
@@ -187,25 +187,25 @@ How many components agree → forward return gradient.
 > A significant result (p < 0.05) confirms the grouping is not due to chance.
 
 ### VERY_HIGH conviction (>= 68) (threshold=68.0)
-- Observations in top group: 167,688
-- Observed 5d avg return: +0.377%
-- Permuted mean: +0.303%, 95th pct: +0.317%
-- p-value: 0.0000
-- Result: **SIGNIFICANT (p < 0.05)**
+- Observations in top group: 156,439
+- Observed 5d avg return: +0.305%
+- Permuted mean: +0.436%, 95th pct: +0.530%
+- p-value: 1.0000
+- Result: NOT significant
 
 ### 5+ aligned (threshold=5)
-- Observations in top group: 20,030
-- Observed 5d avg return: +0.560%
-- Permuted mean: +0.303%, 95th pct: +0.354%
-- p-value: 0.0000
-- Result: **SIGNIFICANT (p < 0.05)**
+- Observations in top group: 25,530
+- Observed 5d avg return: +0.296%
+- Permuted mean: +0.446%, 95th pct: +0.779%
+- p-value: 0.8580
+- Result: NOT significant
 
 ### Score >= 60 (threshold=60)
-- Observations in top group: 104,292
-- Observed 5d avg return: +0.353%
-- Permuted mean: +0.303%, 95th pct: +0.323%
-- p-value: 0.0000
-- Result: **SIGNIFICANT (p < 0.05)**
+- Observations in top group: 132,962
+- Observed 5d avg return: +0.231%
+- Permuted mean: +0.436%, 95th pct: +0.540%
+- p-value: 1.0000
+- Result: NOT significant
 
 ---
 
@@ -213,12 +213,12 @@ How many components agree → forward return gradient.
 
 | regime_grp                     |    HR 1d |    HR 3d |    HR 5d |   Avg 1d |   Avg 3d |   Avg 5d |        N |
 |--------------------------------|----------|----------|----------|----------|----------|----------|----------|
-| bear_high_vol                  |    53.4% |    56.7% |    57.8% |  +0.177% |  +0.512% |  +0.721% |    13487 |
-| bear_low_vol                   |    55.0% |    59.4% |    60.9% |  +0.206% |  +0.676% |  +1.044% |    22014 |
-| bull_high_vol                  |    51.5% |    53.2% |    54.5% |  +0.050% |  +0.130% |  +0.206% |    30022 |
-| bull_low_vol                   |    51.8% |    53.0% |    53.7% |  +0.046% |  +0.136% |  +0.223% |   264647 |
-| range_high_vol                 |    54.4% |    55.8% |    55.6% |  -0.027% |  +0.073% |  +0.085% |     6272 |
-| range_low_vol                  |    56.1% |    58.2% |    60.2% |  +0.181% |  +0.499% |  +0.780% |    30634 |
+| bear_high_vol                  |    53.2% |    55.5% |    57.1% |  +0.224% |  +0.664% |  +0.888% |    13361 |
+| bear_low_vol                   |    53.5% |    57.6% |    59.6% |  +0.217% |  +0.645% |  +1.200% |    32725 |
+| bull_high_vol                  |    49.0% |    50.3% |    51.3% |  +0.027% |  +0.161% |  +0.236% |    40722 |
+| bull_low_vol                   |    50.4% |    51.5% |    52.1% |  +0.038% |  +0.113% |  +0.188% |   319290 |
+| range_high_vol                 |    55.2% |    61.0% |    63.4% |  +0.348% |  +1.149% |  +1.955% |    11760 |
+| range_low_vol                  |    52.7% |    55.0% |    56.3% |  +0.298% |  +0.778% |  +1.292% |    65845 |
 
 ---
 
@@ -226,18 +226,18 @@ How many components agree → forward return gradient.
 
 | year                           |    HR 1d |    HR 3d |   Avg 1d |   Avg 3d |        N |
 |--------------------------------|----------|----------|----------|----------|----------|
-| 2015                           |    49.5% |    50.3% |  +0.005% |  +0.041% |    28548 |
-| 2016                           |    52.4% |    54.1% |  +0.067% |  +0.213% |    30206 |
-| 2017                           |    53.7% |    56.4% |  +0.092% |  +0.272% |    38360 |
-| 2018                           |    51.9% |    51.9% |  -0.013% |  -0.040% |    37512 |
-| 2019                           |    55.0% |    57.2% |  +0.116% |  +0.341% |    40507 |
-| 2020                           |    51.9% |    54.4% |  +0.096% |  +0.325% |    43097 |
-| 2021                           |    53.1% |    55.7% |  +0.104% |  +0.319% |    33399 |
-| 2022                           |    51.4% |    52.3% |  +0.143% |  +0.259% |     9722 |
-| 2023                           |    52.2% |    52.3% |  +0.059% |  +0.149% |    25978 |
-| 2024                           |    52.3% |    53.1% |  +0.046% |  +0.132% |    31807 |
-| 2025                           |    52.0% |    53.7% |  +0.078% |  +0.239% |    26870 |
-| 2026                           |    52.3% |    54.0% |  +0.117% |  +0.334% |    21070 |
+| 2015                           |    49.3% |    50.4% |  +0.004% |  +0.040% |    30924 |
+| 2016                           |    52.8% |    54.2% |  +0.079% |  +0.241% |    25447 |
+| 2017                           |    53.6% |    56.5% |  +0.085% |  +0.262% |    26168 |
+| 2018                           |    52.0% |    52.4% |  -0.006% |  -0.027% |    32080 |
+| 2019                           |    55.2% |    57.8% |  +0.165% |  +0.492% |    33839 |
+| 2020                           |    52.1% |    54.3% |  +0.118% |  +0.311% |    38503 |
+| 2021                           |    53.3% |    55.8% |  +0.108% |  +0.328% |    41274 |
+| 2022                           |    49.7% |    51.4% |  +0.031% |  +0.132% |    27373 |
+| 2023                           |    52.6% |    53.6% |  +0.101% |  +0.258% |    26572 |
+| 2024                           |    52.1% |    52.8% |  +0.041% |  +0.128% |    37310 |
+| 2025                           |    48.5% |    49.8% |  +0.154% |  +0.441% |    81222 |
+| 2026                           |    48.3% |    50.2% |  +0.143% |  +0.415% |    82991 |
 
 ---
 
@@ -248,28 +248,20 @@ How many components agree → forward return gradient.
 | VERY_HIGH conviction HR 5d beats Score 60-80 HR 5d | YES |
 | VERY_HIGH conviction avg return beats Score 60-80 avg | YES |
 | Conviction levels monotone (LOW<MOD<HIGH<VH) | YES |
-| Conviction VERY_HIGH permutation p<0.05 | YES |
-| Score >= 60 permutation p<0.05 | YES |
+| Conviction VERY_HIGH permutation p<0.05 | NO |
+| Score >= 60 permutation p<0.05 | NO |
 | Conviction decile spread > Score decile spread | YES |
 
-**RECOMMEND: Replace score-centric UI with conviction-centric UI.**
+**PARTIAL: Conviction levels are competitive with score buckets. Recommend parallel display.**
 
-Conviction levels outperform score buckets on 6/6 criteria.
-The conviction framework has two major advantages over the score bucket approach:
+Conviction levels meet 4/6 superiority criteria. Neither approach
+clearly dominates. Recommendation: display BOTH in the UI — show conviction level as the
+primary label with score bucket as secondary context. Monitor live data for 60+ days to
+determine if conviction superiority becomes consistent.
 
-1. **Interpretability**: VERY_HIGH/HIGH/MODERATE/LOW levels communicate evidence strength
-   directly. Score buckets (60-80) have no intuitive meaning to users.
-
-2. **Statistical superiority**: VERY_HIGH conviction (n=167,688) achieves 55.6%
-   5d HR vs Score 60-80 (n=103,098) at 54.5%. The conviction layer
-   produces a better signal at comparable or better coverage.
-
-**Recommended UI change:**
-- Replace "Confluence Score: 73" with "Conviction: HIGH"
-- Add `supporting_signals` list: "ML bullish (prob=0.68), Pattern bullish, Regime agrees"
-- Add `conflicting_signals` list: "Feature IC bearish"
-- Show `historical_hit_rate` and `historical_expectancy` for this conviction level
-- Keep `confluence_score` available in API for backward compatibility but de-emphasize in UI
+Current status:
+- VERY_HIGH conviction HR 5d: 54.2% (n=156,439)
+- Score 60-80 HR 5d: 53.3% (n=119,222)
 
 ---
 

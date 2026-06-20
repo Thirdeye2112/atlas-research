@@ -1,32 +1,13 @@
-# Confluence Engine Backtest Report
-**Date generated:** 2026-06-14
-**Backtest period:** 2015-01-01 to 2026-06-14
-**Total observations:** 529,505
+# Confluence Engine v2 Backtest Report
+**Date generated:** 2026-06-19
+**Backtest period:** 2015-01-01 to 2026-06-19
+**Total observations:** 884,794
 
 > **Methodology note:** Walk-forward V1 model artifacts used for ML scoring (out-of-sample).
 > Pattern stats and regime IC stats are calibrated on full history (mild look-ahead in those components).
-> Probability component unavailable — no promoted signals in alpha_signal_calibrations.
-> Maximum alignment count = 4 (ML + Pattern + Feature IC + Regime).
-
----
-
-## Key Findings
-
-| Finding | Value |
-|---------|-------|
-| 4-aligned 5d avg return | +0.43% (vs +0.28% baseline) |
-| 4-aligned 20d avg return | +1.74% (vs +0.83% for 1-aligned) |
-| Confluence 60-80 bucket 5d avg return | +0.47% — best among directional signals |
-| Confluence 60-80 beats ML top-quintile (5d HR) | 56.7% vs 54.8% |
-| Permutation test (alignment) | p=0.0000 — highly significant |
-| Permutation test (score) | p=0.0000 — highly significant |
-| Bear year 2022 performance | Negative — alignment correctly reduced in bear market |
-| Max score achievable without probability component | ~77 (80-100 bucket unreachable) |
-
-**Anomaly notes:**
-- The **0-20 bucket** has the highest raw hit rate (57.4%) but this is the neutral-floor effect: stocks with no strong directional signals in a predominantly bull market (2015-2026) drift up with market beta. This is NOT a signal — it is a baseline.
-- The **40-60 bucket** is the worst performer (53.9% HR, +0.24% avg 5d). This confirms the engine's design intent: mixed signals with partial agreement produce worse outcomes than clear bullish or clear bearish signals. The "confused middle" underperforms.
-- **Feature IC standalone** (+0.43% avg 5d) almost matches Confluence 60-80 (+0.47%), indicating the regime-sensitivity IC component is strong. Confluence edges it out because it requires multiple components to agree simultaneously.
+> Probability component ACTIVE — 2 promoted ML-tier signals (ml_rank_bucket, ml_direction, ml_conviction).
+> ML-tier signals use walk-forward ML predictions (same look-ahead caveat as ML component).
+> Maximum alignment count = 5 (ML + Pattern + Probability + Feature IC + Regime).
 
 ---
 
@@ -38,28 +19,31 @@ Do more aligned signals produce better forward returns?
 
 | aligned_grp    |    HR 1d |    HR 3d |    HR 5d |   HR 10d |   HR 20d |
 |----------------|----------|----------|----------|----------|----------|
-| 1              |    53.0% |    54.8% |    55.1% |    55.7% |    54.2% |
-| 2              |    52.1% |    53.5% |    54.0% |    55.1% |    56.0% |
-| 3              |    52.4% |    53.6% |    54.7% |    56.2% |    57.9% |
-| 4              |    52.4% |    55.1% |    56.5% |    57.8% |    60.7% |
+| 1              |    48.4% |    49.3% |    49.2% |    49.7% |    50.2% |
+| 2              |    49.1% |    50.5% |    51.0% |    51.4% |    52.4% |
+| 3              |    50.7% |    52.4% |    53.2% |    54.7% |    55.0% |
+| 4              |    51.6% |    53.3% |    54.1% |    55.8% |    57.7% |
+| 5+             |    51.5% |    53.4% |    54.4% |    56.3% |    58.9% |
 
 ### Average Returns by Aligned Signal Count
 
 | aligned_grp    |   Avg 1d |   Avg 3d |   Avg 5d |  Avg 10d |  Avg 20d |
 |----------------|----------|----------|----------|----------|----------|
-| 1              |  +0.057% |  +0.172% |  +0.283% |  +0.519% |  +0.830% |
-| 2              |  +0.049% |  +0.157% |  +0.275% |  +0.537% |  +1.110% |
-| 3              |  +0.071% |  +0.192% |  +0.302% |  +0.614% |  +1.231% |
-| 4              |  +0.071% |  +0.250% |  +0.426% |  +0.867% |  +1.741% |
+| 1              |  +0.093% |  +0.175% |  +0.297% |  +0.554% |  +1.107% |
+| 2              |  +0.108% |  +0.263% |  +0.399% |  +0.696% |  +1.344% |
+| 3              |  +0.111% |  +0.333% |  +0.567% |  +1.017% |  +1.621% |
+| 4              |  +0.077% |  +0.199% |  +0.306% |  +0.679% |  +1.438% |
+| 5+             |  +0.056% |  +0.177% |  +0.296% |  +0.670% |  +1.461% |
 
 ### Max Drawdown and Runup (5d, 10d)
 
 | aligned_grp    |    DD 5d | Runup 5d |   DD 10d | Runup 10d |        N |
 |----------------|----------|----------|----------|----------|----------|
-| 1              |  -3.066% |  +3.213% |  -4.465% |  +4.679% |    38925 |
-| 2              |  -2.739% |  +2.910% |  -3.930% |  +4.281% |   197300 |
-| 3              |  -2.620% |  +2.855% |  -3.726% |  +4.208% |   238701 |
-| 4              |  -2.574% |  +2.964% |  -3.691% |  +4.465% |    54579 |
+| 1              |  -4.879% |  +6.125% |  -6.922% |  +9.521% |    64841 |
+| 2              |  -4.270% |  +5.371% |  -6.091% |  +8.053% |   336219 |
+| 3              |  -3.596% |  +4.488% |  -5.039% |  +6.699% |   327295 |
+| 4              |  -2.974% |  +3.325% |  -4.191% |  +4.941% |   130909 |
+| 5+             |  -2.553% |  +2.825% |  -3.643% |  +4.254% |    25530 |
 
 ---
 
@@ -69,28 +53,28 @@ Do more aligned signals produce better forward returns?
 
 | score_bucket   |    HR 1d |    HR 3d |    HR 5d |   HR 10d |   HR 20d |
 |----------------|----------|----------|----------|----------|----------|
-| 0-20           |    53.0% |    56.2% |    57.4% |    59.5% |    58.7% |
-| 20-40          |    52.3% |    54.0% |    54.9% |    56.0% |    57.0% |
-| 40-60          |    52.2% |    53.2% |    53.9% |    55.3% |    56.9% |
-| 60-80          |    53.0% |    55.2% |    56.7% |    57.3% |    59.8% |
+| 0-20           |    46.4% |    49.1% |    50.0% |    51.8% |    52.6% |
+| 20-40          |    49.6% |    51.1% |    51.8% |    52.7% |    53.6% |
+| 40-60          |    50.2% |    51.8% |    52.4% |    53.5% |    54.3% |
+| 60-80          |    51.4% |    52.7% |    53.3% |    54.2% |    55.3% |
 
 ### Average Returns by Score Bucket
 
 | score_bucket   |   Avg 1d |   Avg 3d |   Avg 5d |  Avg 10d |  Avg 20d |
 |----------------|----------|----------|----------|----------|----------|
-| 0-20           |  +0.080% |  +0.206% |  +0.379% |  +0.843% |  +1.900% |
-| 20-40          |  +0.059% |  +0.199% |  +0.336% |  +0.624% |  +1.264% |
-| 40-60          |  +0.061% |  +0.151% |  +0.237% |  +0.535% |  +1.025% |
-| 60-80          |  +0.077% |  +0.273% |  +0.466% |  +0.833% |  +1.712% |
+| 0-20           |  +0.101% |  +0.285% |  +0.508% |  +1.346% |  +2.620% |
+| 20-40          |  +0.128% |  +0.292% |  +0.475% |  +0.837% |  +1.515% |
+| 40-60          |  +0.100% |  +0.289% |  +0.462% |  +0.825% |  +1.487% |
+| 60-80          |  +0.051% |  +0.141% |  +0.227% |  +0.489% |  +0.850% |
 
 ### Max Drawdown and Runup by Score Bucket
 
 | score_bucket   |    DD 5d | Runup 5d |   DD 10d | Runup 10d |        N |
 |----------------|----------|----------|----------|----------|----------|
-| 0-20           |  -3.375% |  +3.484% |  -4.867% |  +5.224% |    14752 |
-| 20-40          |  -2.765% |  +2.986% |  -3.951% |  +4.376% |   267670 |
-| 40-60          |  -2.572% |  +2.777% |  -3.679% |  +4.111% |   217549 |
-| 60-80          |  -2.588% |  +2.976% |  -3.744% |  +4.499% |    29534 |
+| 0-20           |  -4.685% |  +6.201% |  -6.547% | +10.293% |    24674 |
+| 20-40          |  -4.109% |  +5.307% |  -5.820% |  +7.999% |   271065 |
+| 40-60          |  -3.768% |  +4.611% |  -5.348% |  +6.871% |   469833 |
+| 60-80          |  -3.230% |  +3.548% |  -4.522% |  +5.244% |   119222 |
 
 ---
 
@@ -102,22 +86,24 @@ Do more aligned signals produce better forward returns?
 
 | signal         |    HR 1d |    HR 3d |    HR 5d |   HR 10d |   HR 20d |    IC 5d |
 |----------------|----------|----------|----------|----------|----------|----------|
-| ML only (top quintile) |    52.5% |    54.0% |    54.8% |    55.9% |    57.4% |  +0.823% |
-| ML only (all, IC) |    52.3% |    53.8% |    54.7% |    55.9% |    57.2% |  +5.450% |
-| Pattern bullish |    52.3% |    53.8% |    54.7% |    55.9% |    57.2% |      n/a |
-| Feature IC bullish |    52.4% |    54.4% |    55.4% |    57.2% |    59.0% |  +1.809% |
-| Confluence 60-80 |    53.1% |    55.3% |    56.7% |    57.3% |    59.8% |  -0.937% |
-| Confluence 80-100 |      n/a |      n/a |      n/a |      n/a |      n/a |  -0.937% |
+| ML only (top quintile) |    50.4% |    51.3% |    51.9% |    52.5% |    53.4% |  -0.188% |
+| ML only (all, IC) |    50.1% |    51.6% |    52.3% |    53.3% |    54.2% |  +3.805% |
+| Pattern bullish |    50.1% |    51.6% |    52.3% |    53.3% |    54.2% |      n/a |
+| Probability bullish |    50.6% |    52.4% |    53.2% |    54.2% |    54.7% |  +1.397% |
+| Feature IC bullish |    50.1% |    51.9% |    52.6% |    54.1% |    55.0% |  +0.546% |
+| Confluence 60-80 |    51.4% |    52.7% |    53.4% |    54.1% |    55.0% |  +0.957% |
+| Confluence 80-100 |      n/a |      n/a |      n/a |      n/a |      n/a |  +0.957% |
 
 ### Average Returns
 
 | signal         |   Avg 1d |   Avg 3d |   Avg 5d |  Avg 10d |  Avg 20d |
 |----------------|----------|----------|----------|----------|----------|
-| ML only (top quintile) |  +0.046% |  +0.140% |  +0.245% |  +0.505% |  +1.118% |
-| ML only (all, IC) |  +0.062% |  +0.183% |  +0.304% |  +0.605% |  +1.210% |
-| Pattern bullish |  +0.062% |  +0.183% |  +0.304% |  +0.605% |  +1.210% |
-| Feature IC bullish |  +0.088% |  +0.259% |  +0.429% |  +0.893% |  +1.897% |
-| Confluence 60-80 |  +0.077% |  +0.273% |  +0.467% |  +0.835% |  +1.714% |
+| ML only (top quintile) |  +0.098% |  +0.239% |  +0.460% |  +0.870% |  +1.512% |
+| ML only (all, IC) |  +0.102% |  +0.270% |  +0.436% |  +0.799% |  +1.444% |
+| Pattern bullish |  +0.102% |  +0.270% |  +0.436% |  +0.799% |  +1.444% |
+| Probability bullish |  +0.124% |  +0.337% |  +0.530% |  +0.901% |  +1.421% |
+| Feature IC bullish |  +0.147% |  +0.386% |  +0.627% |  +1.172% |  +2.103% |
+| Confluence 60-80 |  +0.052% |  +0.143% |  +0.231% |  +0.462% |  +0.781% |
 | Confluence 80-100 |      n/a |      n/a |      n/a |      n/a |      n/a |
 
 ---
@@ -126,27 +112,27 @@ Do more aligned signals produce better forward returns?
 
 | signal         |    HR 1d |    HR 3d |    HR 5d |   HR 10d |   HR 20d |
 |----------------|----------|----------|----------|----------|----------|
-| Atlas Score 60+ |    38.0% |    30.1% |    38.4% |      n/a |      n/a |
+| Atlas Score 60+ |    41.1% |    34.1% |    46.2% |      n/a |      n/a |
 | Atlas Score 80+ |      n/a |      n/a |      n/a |      n/a |      n/a |
-| ML only top quintile |    38.3% |    42.6% |    61.7% |      n/a |      n/a |
-| Confluence 60+ |    67.4% |    41.3% |    63.0% |      n/a |      n/a |
+| ML only top quintile |    54.7% |    56.0% |    72.0% |      n/a |      n/a |
+| Confluence 60+ |    52.3% |    47.0% |    61.6% |      n/a |      n/a |
 | Confluence 80+ |      n/a |      n/a |      n/a |      n/a |      n/a |
 
 ---
 
 ## 5. Permutation Tests
 
-### 4+ aligned
-- Observed 5d avg return: +0.425%
-- Permuted mean: +0.301%, 95th pct: +0.330%
-- p-value: 0.0000
-- Result: **SIGNIFICANT (p < 0.05)**
+### 5+ aligned
+- Observed 5d avg return: +0.296%
+- Permuted mean: +0.435%, 95th pct: +0.720%
+- p-value: 0.8440
+- Result: NOT significant
 
-### 60-80 score bucket
-- Observed 5d avg return: +0.467%
-- Permuted mean: +0.302%, 95th pct: +0.347%
-- p-value: 0.0000
-- Result: **SIGNIFICANT (p < 0.05)**
+### 60+ score bucket
+- Observed 5d avg return: +0.231%
+- Permuted mean: +0.443%, 95th pct: +0.553%
+- p-value: 1.0000
+- Result: NOT significant
 
 ---
 
@@ -154,8 +140,10 @@ Do more aligned signals produce better forward returns?
 
 | regime_grp     |    HR 1d |    HR 3d |    HR 5d |   Avg 1d |   Avg 3d |   Avg 5d |        N |
 |----------------|----------|----------|----------|----------|----------|----------|----------|
-| bull_high_vol  |    51.3% |    55.4% |    57.9% |  +0.039% |  +0.203% |  +0.490% |     3452 |
-| bull_low_vol   |    53.3% |    55.2% |    56.5% |  +0.082% |  +0.283% |  +0.464% |    26104 |
+| bull_high_vol  |    50.4% |    52.2% |    52.6% |  +0.097% |  +0.381% |  +0.351% |    13233 |
+| bull_low_vol   |    51.3% |    52.5% |    53.2% |  +0.032% |  +0.095% |  +0.186% |   112537 |
+| range_high_vol |    58.2% |    70.0% |    72.1% |  +0.666% |  +1.910% |  +2.758% |     1292 |
+| range_low_vol  |    53.5% |    53.4% |    53.7% |  +0.201% |  +0.124% |  +0.245% |     5900 |
 
 ---
 
@@ -163,18 +151,18 @@ Do more aligned signals produce better forward returns?
 
 | year           |    HR 1d |    HR 3d |   Avg 1d |   Avg 3d |        N |
 |----------------|----------|----------|----------|----------|----------|
-| 2015           |    46.0% |    45.8% |  -0.069% |  -0.045% |     1468 |
-| 2016           |    50.8% |    53.3% |  +0.135% |  +0.413% |     1511 |
-| 2017           |    54.1% |    58.0% |  +0.083% |  +0.312% |     5406 |
-| 2018           |    51.1% |    52.7% |  -0.033% |  -0.079% |     3880 |
-| 2019           |    53.4% |    56.1% |  +0.037% |  +0.197% |     2726 |
-| 2020           |    55.8% |    60.2% |  +0.195% |  +0.666% |     2574 |
-| 2021           |    51.9% |    54.3% |  +0.017% |  +0.261% |     2901 |
-| 2022           |    48.0% |    34.0% |  -0.373% |  -1.227% |      244 |
-| 2023           |    58.8% |    61.2% |  +0.226% |  +0.615% |     1928 |
-| 2024           |    52.8% |    51.6% |  +0.081% |  +0.131% |     2811 |
-| 2025           |    54.1% |    57.6% |  +0.155% |  +0.469% |     2398 |
-| 2026           |    52.7% |    53.9% |  +0.170% |  +0.486% |     1709 |
+| 2015           |    44.8% |    44.1% |  -0.095% |  -0.308% |     5639 |
+| 2016           |    52.9% |    53.7% |  +0.059% |  +0.188% |     7282 |
+| 2017           |    53.5% |    56.4% |  +0.088% |  +0.272% |    10675 |
+| 2018           |    53.4% |    54.3% |  +0.016% |  +0.023% |     4019 |
+| 2019           |    52.8% |    55.3% |  +0.052% |  +0.210% |     9998 |
+| 2020           |    53.2% |    55.5% |  +0.088% |  +0.233% |    10933 |
+| 2021           |    51.9% |    54.8% |  +0.040% |  +0.227% |    13715 |
+| 2022           |    46.6% |    37.4% |  -0.205% |  -0.914% |     1892 |
+| 2023           |    50.9% |    51.4% |  +0.023% |  +0.053% |    12931 |
+| 2024           |    52.5% |    53.2% |  +0.073% |  +0.182% |    12596 |
+| 2025           |    51.2% |    52.3% |  +0.042% |  +0.141% |    24003 |
+| 2026           |    49.3% |    49.9% |  +0.122% |  +0.220% |    19279 |
 
 ---
 
@@ -182,41 +170,28 @@ Do more aligned signals produce better forward returns?
 
 | Criterion | Result |
 |-----------|--------|
-| Top score bucket (60-80) best HR | NO |
-| Monotonic score -> hit rate (20-80) | NO |
-| Confluence 60-80 HR 5d | 56.7% |
-| ML only top quintile HR 5d | 54.8% |
+| Top score bucket (60-80) best HR | YES |
+| Monotonic score -> hit rate (20-80) | YES |
+| Confluence 60-80 HR 5d | 53.3% |
+| ML only top quintile HR 5d | 51.9% |
 | Confluence beats ML (5d) | YES |
-| Permutation p < 0.05 (alignment) | YES |
-| Permutation p < 0.05 (score) | YES |
+| Permutation p < 0.05 (alignment) | NO |
+| Permutation p < 0.05 (score) | NO |
 
 ## 9. Recommendation
 
-**PROMOTE** — Confluence Engine passes sufficient validation criteria.
+**KEEP EXPERIMENTAL** — Some criteria met. Needs more data or signal improvement.
 
-
-### Atlas Score Evolution Path
-
-1. **Phase 1 (now)**: Run confluence scoring alongside Atlas Score. Add `confluence_score`
-   field to the ticker API response without changing the UI.
-2. **Phase 2**: Add a small confluence indicator to the ticker detail page (dots
-   showing how many signals align). Keep Atlas Score as the primary score.
-3. **Phase 3 (if promoted)**: Introduce `Atlas Confluence Score` as an enhancement to
-   Atlas Score. Formula: `atlas_confluence = 0.6 * atlas_score + 0.4 * confluence_score`.
-   Requires >6 months of live comparison data before blending.
-4. **What NOT to break**: Existing `atlas_score`, `direction`, `confidence_score` fields
-   in the API. The UI can add confluence info as additive columns, not replacements.
-
+> Recommend running after probability component has promoted signals and Atlas Score comparison has >500 observations.
 
 ---
 
 ## Appendix: Key Caveats
 
-1. **Probability component inactive**: `alpha_signal_calibrations` has 0 promoted signals.
-   Max alignment = 4 (not 5). Promote signals first for full engine evaluation.
+1. **Probability component — ML-tier signals**: 2 signals promoted from backtest-history calibration (ml_rank_bucket, ml_direction, ml_conviction). These are derived from the same ML model — they validate tier-specific effects but share information with the ML component. Look-ahead present (calibrated on full history).
 2. **Pattern stats look-ahead**: conditional_pattern_results uses full-history aggregate stats.
    In a strict out-of-sample study, these would be calibrated walk-forward.
 3. **Feature IC look-ahead**: feature_regime_performance uses full-history IC computation.
-4. **Atlas Score comparison limited**: Only 3 days of alpha_signal_snapshots overlap available.
+4. **Atlas Score comparison limited**: Only a few days of alpha_signal_snapshots overlap available.
 5. **ML is out-of-sample**: Walk-forward model artifacts ensure no ML look-ahead bias.
 6. **Max drawdown uses intraday low**: Slightly more pessimistic than close-to-close.
