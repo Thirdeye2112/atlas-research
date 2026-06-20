@@ -1,0 +1,13 @@
+Traceback (most recent call last):
+  File "C:\Atlas\atlas-research\scripts\pattern_backtest.py", line 123, in <module>
+    main()
+    ~~~~^^
+  File "C:\Atlas\atlas-research\scripts\pattern_backtest.py", line 82, in main
+    pats=P.detect_all(piv,h,l,cl)
+  File "C:\Atlas\atlas-research\src\atlas_research\ta\patterns.py", line 155, in detect_all
+    pats += double_top_bottom(piv, high, low, close)
+            ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Atlas\atlas-research\src\atlas_research\ta\patterns.py", line 106, in double_top_bottom
+    if [a.kind,b.kind,c.kind] == ['L','H','L'] and abs(a.price-c.price)/a.price < eq_tol:
+                                                   ~~~~~~~~~~~~~~~~~~~~^~~~~~~~
+ZeroDivisionError: division by zero
