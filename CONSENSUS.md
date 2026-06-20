@@ -344,3 +344,39 @@ this date. Verified facts that supersede it (full detail:
 - `db/migrations/0018_calendar_patterns.sql` — calendar conditional patterns
 - `db/migrations/0019_sector_rotation_patterns.sql` — sector rotation patterns
 - `config/settings.py` — OMNI_FEATURES added to ALL_FEATURES
+
+---
+
+## 2026-06-19 Update — Pattern/Context Apparatus & the OOS Finding
+
+### What now exists (evidence + context engine)
+- **Pattern Memory** (`pattern_memory`): chart patterns + swing legs + **19 candlestick patterns**
+  (`ta/candlesticks.py`), enriched (SPY trend, RS, SMA stacking, 52wk, gap, calendar, confirm-candle,
+  ATR/vol/RSI/MACD/ADX, after-story). `timeframe='daily'` 2.58M candlestick instances; `timeframe='5m'`
+  3.66M instances (chart patterns + candlesticks, daily-context joined; partial — resumable).
+- **External data** (`corporate_actions` 52K, `news_events` 1.6M) from Alpaca, real, 2012→2026.
+- **`pattern_event_context`** — look-ahead-safe causal layer linking each pattern instance to its
+  surrounding corporate actions and news (6.79M links). `relation` ∈ {before, after,
+  same_day_unverified}; **predictive uses MUST filter to `relation='before'`** (event_time ≤
+  decision bar; daily=16:00 ET close, 5m=09:30 ET open). daily `same_day_unverified`=0 (verified).
+
+### Conviction / Confluence (prior work, status)
+- Conviction + confluence engines and the attribution layer landed (`dbcab53`, `8aacd83`). Conviction
+  HR deltas between report snapshots were found **confounded** by population/probability-tier changes,
+  not isolable as a calibration effect (see MODEL_VALIDITY_FIXES_REPORT).
+
+### THE finding that gates everything — out-of-sample (V1)
+- Walk-forward: pooled per-day rank IC **+0.0131 (t=+4.72**, Bonferroni p=7.5e-6) — V1 beats V3 on 7/8.
+- Embargoed OOS (train ≤2025-06-14, score 2025-06-15→2026-06-14): rank IC **−0.0052 (t=−2.20)**,
+  244 IC days, 292,801 rows, regressor early-stopped at **1 tree**.
+- **Verdict: KEEP V1 BUT MARK DEGRADED.** The in-sample edge did not generalize. The whole
+  pattern/context apparatus enriches a base signal whose forward edge is currently indistinguishable
+  from zero on the one year nothing was tuned against. Resolving *why* (branch `research/oos-diagnosis`)
+  is the highest-leverage open item — above any further enrichment.
+
+### New implementation files (2026-06-19)
+- `src/atlas_research/ta/candlesticks.py` — 19 candlestick detectors.
+- `scripts/build_candle_memory.py` — candlesticks + 5m pass into pattern_memory.
+- `scripts/build_pattern_event_context.py` — the causal "why" join.
+- `scripts/ingest_alpaca_corpactions_news.py` — Alpaca CA + news ingester (branch `data/alpaca-ingest`).
+- `db/migrations/0044` (CA+news), `0045` (pattern_event_context), `0046` (news symbol/time index).

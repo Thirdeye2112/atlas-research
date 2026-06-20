@@ -26,35 +26,35 @@ Recognition + linkage only; pattern_memory is not altered.
 - News: `created_at` within **[-2, +1] days** of the decision bar, capped to the
   nearest links per (pattern, relation).
 
-## Coverage (provisional) — 5,448,168 total links
+## Coverage (provisional) — 6,789,899 total links
 
 | timeframe | pattern instances | % with ≥1 corp action | % with ≥1 PRIOR news (before) | % with any news (incl after) |
 |---|---:|---:|---:|---:|
-| 5m | 2,492,680 | 3.56% | 32.83% | 42.21% |
+| 5m | 3,664,303 | 5.31% | 33.21% | 43.46% |
 | daily | 2,906,433 | 4.92% | 19.53% | 24.59% |
 
 ### Links by kind × relation (before/after reported separately)
 
 | event_kind | relation | links |
 |---|---|---:|
-| corporate_action | after | 46,644 |
-| corporate_action | before | 185,871 |
-| news | after | 1,161,455 |
-| news | before | 3,081,506 |
-| news | same_day_unverified | 972,692 |
+| corporate_action | after | 68,475 |
+| corporate_action | before | 270,265 |
+| news | after | 1,331,219 |
+| news | before | 3,840,731 |
+| news | same_day_unverified | 1,279,209 |
 
 ### Corporate-action links by type
 
 | ca_type | links |
 |---|---:|
-| cash_dividends | 230,212 |
-| reverse_splits | 746 |
+| cash_dividends | 335,929 |
+| reverse_splits | 938 |
 | forward_splits | 598 |
+| stock_mergers | 428 |
 | spin_offs | 268 |
 | name_changes | 265 |
 | rights_distributions | 131 |
 | stock_dividends | 123 |
-| stock_mergers | 112 |
 | stock_and_cash_mergers | 30 |
 | cash_mergers | 20 |
 | unit_splits | 10 |

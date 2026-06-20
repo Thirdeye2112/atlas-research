@@ -116,6 +116,57 @@ Chronological record of what was built each session. Updated at end of every ses
 
 ---
 
+## 2026-06-18 — Intraday 5-minute engine: bulk Alpaca history
+
+- `AlpacaVendor` multi-year IEX 5m ingest; COPY bulk-load + concurrent download workers;
+  `--all/--resume/--bars-only/--min-dvol`.
+- **Commits:** `2c9bffd`, `0618a0a`, `10561d3`.
+
+---
+
+## 2026-06-19 — Candlesticks, 5m pattern pass, external data, causal-context layer
+
+Large build day. Four layers landed — **B** on branch `data/alpaca-ingest`, **C** + **D** on
+`fix/model-validity`. Both branches pushed to origin; neither merged.
+
+**B — Alpaca external data** (`4025484`, report `8c0380d`; migration `0044`)
+- New `scripts/ingest_alpaca_corpactions_news.py`: `corporate_actions` (52,125 rows, all CA types,
+  merger cash zero-bug fixed via `rate if rate is not None else cash_rate`) and `news_events`
+  (1,624,214 rows / 3,343 tickers, fan-out per (article,symbol), HTML not stored). Real data,
+  earliest news 2012-04-17 → 2026-06-19.
+
+**C — 19 candlesticks + 5-min pattern pass** (`9ac8ef8`, perf fix `cdbe4c0`)
+- New `src/atlas_research/ta/candlesticks.py`: the 19 named patterns, trend-disambiguated
+  (hammer vs hanging_man, inverted_hammer vs shooting_star).
+- New `scripts/build_candle_memory.py`: logs into the SAME `pattern_memory` table with the SAME
+  enrichment as the chart patterns. Daily (`timeframe='daily'`): **2,577,719** candlestick
+  instances, 0 errors. 5m (`timeframe='5m'`): chart patterns + candlesticks, daily-context joined,
+  denoised. Perf fix (bounded `sr_window` S/R + CSV ticker sourcing) turned a 2h+ stall into
+  ~74s/ticker; stopped at **102 tickers / 3,664,303 instances** (resumable via `--resume`).
+
+**D — `pattern_event_context`: the look-ahead-safe "why" layer** (`d40ec8e`; migrations `0045`+`0046`)
+- New table links each pattern instance to corporate actions ([-3,+1] NYSE trading days, offsets
+  via SPY session dates) and news ([-2,+1] days, joined on TIMESTAMP). **Look-ahead guard:** an
+  event is a valid cause (`relation='before'`) only if `event_time <= decision_bar` — daily = 16:00 ET
+  close (DST-aware), 5m = 09:30 ET open. Because `pattern_memory` stores only the DATE for 5m,
+  same-session 5m news is tagged `same_day_unverified` (never `before`); daily is cleanly
+  before/after (invariant verified: **daily `same_day_unverified` = 0**). Predictive uses MUST
+  filter to `relation='before'`.
+- Coverage (frozen 5m set): **6,789,899** links. daily 2.91M instances (4.92% with a corp action,
+  19.53% with prior news); 5m 3.66M (5.31% CA, 33.21% prior news). Report:
+  `reports/validity/PATTERN_EVENT_CONTEXT.md`. Known gap: Alpaca news has no earnings-surprise
+  magnitude — the "why" is "event existed", not "beat by X%".
+
+**Highest-leverage open question — §3 generalization gap.** V1 walk-forward IC = +0.0131 (t=+4.72,
+Bonferroni p=7.5e-6) did **not** generalize: the embargoed OOS year (2025-06-15 → 2026-06-14) gave
+rank IC = **−0.0052 (t=−2.20)** and the regressor collapsed to **1 tree**. Verdict: **KEEP V1 BUT
+MARK DEGRADED**. All of B/C/D is context for a base signal whose out-of-sample edge is unconfirmed.
+Next session: branch `research/oos-diagnosis` — sub-period IC stability, OOS-year regime breakdown,
+a second embargoed slice, and the single-tree collapse.
+- **Commits:** `9ac8ef8`, `cdbe4c0`, `d40ec8e`, `4025484`, `8c0380d`, plus this entry's commit.
+
+---
+
 ## Reference
 
 ### Key Metrics (as of 2026-06-12)
