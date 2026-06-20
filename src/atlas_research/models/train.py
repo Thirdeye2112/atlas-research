@@ -18,10 +18,10 @@ can be matched to its exact training window for reproducibility.
 
 CALIBRATION
 -----------
-The classifier output (raw LightGBM sigmoid probability) is already
-reasonably calibrated for most datasets, but we apply Platt scaling
-(LogisticRegression on the OOF predictions) on the validation set
-before writing final probabilities.
+The classifier output (raw LightGBM sigmoid probability) is calibrated with
+Platt scaling (LogisticRegression on the early-stopping holdout — never the
+validation fold, which is scored downstream). Degenerate folds (near-constant
+raw scores) skip calibration entirely and return raw probabilities.
 
 EARLY STOPPING
 --------------
