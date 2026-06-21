@@ -88,7 +88,11 @@ def main():
 
     clean = pd.read_csv(settings.CLEAN_UNIVERSE_CSV)["ticker"].astype(str).str.upper().tolist()
     with connection.get_connection() as c:
-        done = {r[0] for r in c.execute(text("SELECT DISTINCT ticker FROM pattern_memory WHERE timeframe='5m'"))}
+        # base-pattern done-set must EXCLUDE channel rows — the channel backfill
+        # inserted timeframe='5m' rows for every ticker, so a bare timeframe='5m'
+        # check would wrongly mark channel-only tickers as already base-patterned.
+        done = {r[0] for r in c.execute(text(
+            "SELECT DISTINCT ticker FROM pattern_memory WHERE timeframe='5m' AND pattern_type NOT LIKE 'channel%'"))}
     worklist = [tk for tk in clean if tk not in done]
     if args.limit:
         worklist = worklist[:args.limit]
