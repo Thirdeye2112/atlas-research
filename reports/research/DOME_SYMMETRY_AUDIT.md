@@ -113,5 +113,23 @@ Edit **only** `src/atlas_research/ta/patterns.py` (and the one logging line in
 
 ## Recommendation
 The detector is asymmetric and the blind spot is real — any analysis weighting swing-legs is currently
-bull-biased. The fix is a contained mirror in one module plus an additive backfill. **No code was
-changed in this task.** Awaiting go before implementing.
+bull-biased. The fix is a contained mirror in one module plus an additive backfill.
+
+## Implementation status (mirror added — detection only)
+
+Implemented in **`src/atlas_research/ta/patterns.py`** only (no other files changed, no DB writes):
+- `_legs(..., direction)` — shared up/down detector; magnitudes positive; adds `leg_dir`.
+- `swing_legs()` — unchanged up-leg behavior (backward-compatible) + new `leg_dir='up'` key.
+- `swing_legs_down()` — the mirror bowl/valley (HIGH→LOW→bounce), `leg_dir='down'`.
+- `swing_legs_all()` — both, ordered by terminal-extreme bar.
+
+Synthetic validation (L,H,L,H,L series): up-legs and down-legs both detected, all `leg_amp ≥ 0`,
+`early_gain` = early move magnitude per direction, `corr_depth` = the leg-ending move (correction-down /
+bounce-up), look-ahead preserved (`corr_*` from the forward pivot only).
+
+**Still pending your go (NOT done — would write to pattern_memory, which this task forbids):**
+1. One-line integration in `scripts/build_pattern_memory.py` (contested file — for the owner):
+   change `for sl in P.swing_legs(piv,h,l,cl):` → `P.swing_legs_all(...)`, set
+   `direction = "long" if sl["leg_dir"]=="up" else "short"`, and add `leg_dir` to the logged `extra`.
+2. An **additive** down-leg backfill (idempotent; do not rewrite the 172,707 existing up-leg rows).
+3. Decide whether to also run swing_legs on 5m (currently absent there).
