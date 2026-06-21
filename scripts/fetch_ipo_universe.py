@@ -24,11 +24,12 @@ import psycopg2
 import requests
 import yfinance as yf
 import pandas as pd
+from dotenv import load_dotenv
 
-DB_URL = os.environ.get(
-    "DATABASE_URL",
-    "postgresql://postgres:Postnat74%3F@localhost:5432/atlas_research",
-)
+load_dotenv(override=True)
+DB_URL = os.environ.get("DATABASE_URL")
+if not DB_URL:
+    sys.exit("DATABASE_URL not set. Check your .env and that load_dotenv() ran.")
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 

@@ -2,7 +2,7 @@
 # Backtest Script - Pattern Detection & Outcome Analysis
 # Updated: Support for loading OHLCV from raw_bars PostgreSQL table
 
-import argparse, os, sys, logging, json
+import argparse, os, sys, logging, json, re
 from pathlib import Path
 from datetime import datetime
 import numpy as np
@@ -791,8 +791,12 @@ Examples:
         prevent_system_sleep()
 
     # Determine database URL
-    db_url = args.db_url or os.environ.get('DATABASE_URL') or 'postgresql://postgres:Postnat74%3F@localhost:5432/atlas_research'
-    logger.info(f"Database: {db_url.split('@')[0]}@...")
+    db_url = args.db_url or os.environ.get('DATABASE_URL')
+    if not db_url:
+        logger.error("DATABASE_URL not set. Check your .env and that load_dotenv() ran.")
+        sys.exit(1)
+    masked = re.sub(r"://([^:]+):[^@]+@", r"://\1:***@", db_url)
+    logger.info(f"Database: {masked}")
     logger.info(f"Date range: {args.start} to {args.end}  |  Source: {args.source}")
 
     with get_db_connection(db_url) as conn:

@@ -1,5 +1,13 @@
+import os
+import sys
+from dotenv import load_dotenv
+load_dotenv(override=True)
 from sqlalchemy import create_engine, text
-e = create_engine('postgresql://postgres:Postnat74%3F@localhost:5432/atlas_alpha')
+
+url = os.environ.get("DATABASE_URL_ALPHA")
+if not url:
+    sys.exit("DATABASE_URL_ALPHA not set. Check your .env and that load_dotenv() ran.")
+e = create_engine(url)
 with e.connect() as c:
     row = c.execute(text('SELECT id, data FROM ohlcv_cache LIMIT 1')).fetchone()
     data = row[1]

@@ -61,7 +61,7 @@ def main() -> None:
 
     if not args.report_only and not alpha_url:
         print("[ERROR] DATABASE_URL_ALPHA not set (atlas_alpha)", file=sys.stderr)
-        print("  Set: $env:DATABASE_URL_ALPHA=\"postgresql://postgres:Postnat74%3F@localhost:5432/atlas_alpha\"",
+        print("  Set: $env:DATABASE_URL_ALPHA=\"postgresql://<user>:<password>@localhost:5432/atlas_alpha\"",
               file=sys.stderr)
         sys.exit(1)
 
