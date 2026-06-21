@@ -15,7 +15,7 @@ Set-Location C:\Atlas\atlas-research
 .\.venv\Scripts\python.exe --version  # 3.11+
 
 # Always set before running any script
-$env:DATABASE_URL = "postgresql://postgres:Postnat74%3F@localhost:5432/atlas_research"
+$env:DATABASE_URL = "<set in .env, do not hardcode>"
 $env:PYTHONIOENCODING = "utf-8"
 ```
 
