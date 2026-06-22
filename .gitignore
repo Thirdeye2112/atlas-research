@@ -53,3 +53,14 @@ logs/
 *recovery*
 Alpaca*Keys*
 Alpaca*
+
+# Scratch diagnostic probes (not deliverables -- ignored, not deleted).
+# Explicit list, not a scripts/_*.py glob: scripts/_apply_migrations.py,
+# _audit_universe.py, _check_hyp_schema.py, _gather_stats.py,
+# _migrate_exp_scores.py, _migration_lib.py are real tracked scripts that
+# happen to share the leading-underscore convention.
+query_patterns.py
+scripts/_probe_schema.py
+scripts/_ts_diag.py
+scripts/_validate_gaps.py
+scripts/_validate_gaps2.py
