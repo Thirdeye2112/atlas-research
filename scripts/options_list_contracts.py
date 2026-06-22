@@ -58,21 +58,28 @@ def get_trading_client(settings: dict):
     return TradingClient(settings["api_key"], settings["secret_key"], paper=settings["paper"])
 
 
-def fetch_contracts(client, underlying: str, exp_gte: date, exp_lte: date, limit: int) -> list:
+def fetch_contracts(client, underlying: str, exp_gte: date, exp_lte: date, limit: int, status=None) -> list:
     """One underlying's active option contracts in the expiration window.
-    Read-only. Paginates via page_token until exhausted or `limit` reached."""
+    Read-only. Paginates via page_token until exhausted or `limit` reached.
+    status: optional AssetStatus filter (e.g. AssetStatus.ACTIVE), passed
+    through to GetOptionContractsRequest server-side. Omitted (None)
+    preserves this script's original no-status-filter behavior -- used by
+    options_snapshot_universe.py to request status=ACTIVE explicitly."""
     from alpaca.trading.requests import GetOptionContractsRequest
 
     all_contracts = []
     page_token = None
     while True:
-        req = GetOptionContractsRequest(
+        kwargs = dict(
             underlying_symbols=[underlying],
             expiration_date_gte=exp_gte,
             expiration_date_lte=exp_lte,
             limit=min(limit - len(all_contracts), 1000) if limit else 1000,
             page_token=page_token,
         )
+        if status is not None:
+            kwargs["status"] = status
+        req = GetOptionContractsRequest(**kwargs)
         try:
             resp = client.get_option_contracts(req)
         except Exception as exc:

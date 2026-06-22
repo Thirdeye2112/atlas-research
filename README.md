@@ -170,6 +170,24 @@ pytest tests/ -v
 `similaritySummary` is always `null` in Phase 1.
 It will be populated in Phase 3 (similarity engine).
 
+## Options data (Alpaca connector, research/backtesting only)
+
+Options overlay is currently OI/reference-data based. It is not historical
+trade-flow until OPRA/historical options tape is available.
+
+- `scripts/options_check_account.py` -- confirm auth + options entitlement level
+- `scripts/options_list_contracts.py` -- contract reference data + open interest for a few underlyings
+- `scripts/options_market_data_test.py` -- probes/reports OPRA vs indicative feed entitlement
+- `scripts/options_build_backtest_seed.py` -- merges the above into a single seed CSV
+- `scripts/options_snapshot_universe.py` -- daily contract snapshot across an Atlas universe
+- `scripts/options_build_oi_structure_features.py` -- per-ticker OI-structure features from that snapshot
+
+See `docs/options_flow_data_limitations.md` for exactly what is and isn't
+available on this account, and why. Every script in this connector defaults
+to `paper=True`, reads credentials from `.env` only, never prints secrets,
+and never calls an order-placing endpoint (enforced by
+`tests/test_options_connector_safety.py`).
+
 ## What comes next
 
 - **Phase 2**: LightGBM model training + model registry
