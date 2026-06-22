@@ -58,13 +58,19 @@ def get_trading_client(settings: dict):
     return TradingClient(settings["api_key"], settings["secret_key"], paper=settings["paper"])
 
 
-def fetch_contracts(client, underlying: str, exp_gte: date, exp_lte: date, limit: int, status=None) -> list:
+def fetch_contracts(client, underlying: str, exp_gte: date, exp_lte: date, limit: int, status=None) -> tuple[list, dict | None]:
     """One underlying's active option contracts in the expiration window.
     Read-only. Paginates via page_token until exhausted or `limit` reached.
     status: optional AssetStatus filter (e.g. AssetStatus.ACTIVE), passed
     through to GetOptionContractsRequest server-side. Omitted (None)
     preserves this script's original no-status-filter behavior -- used by
-    options_snapshot_universe.py to request status=ACTIVE explicitly."""
+    options_snapshot_universe.py to request status=ACTIVE explicitly.
+
+    Returns (contracts, error). error is None on success, or a dict with
+    'error_type' and 'error_message' on failure (contracts may still hold
+    whatever was fetched before the failing page) -- used by
+    options_snapshot_universe.py to retry transient failures and log
+    permanent ones to failed_tickers.csv."""
     from alpaca.trading.requests import GetOptionContractsRequest
 
     all_contracts = []
@@ -85,17 +91,20 @@ def fetch_contracts(client, underlying: str, exp_gte: date, exp_lte: date, limit
         except Exception as exc:
             msg = str(exc)
             if "401" in msg:
+                error_type = "401_unauthorized"
                 print(f"  ERROR (401 Unauthorized) for {underlying}: credentials rejected.")
             elif "403" in msg:
+                error_type = "403_forbidden_or_entitlement"
                 print(f"  ERROR (403 Forbidden) for {underlying}: not entitled to this data: {msg}")
             else:
+                error_type = f"error_{type(exc).__name__}"
                 print(f"  ERROR for {underlying} ({type(exc).__name__}): {msg}")
-            return all_contracts
+            return all_contracts, {"error_type": error_type, "error_message": msg}
         all_contracts.extend(resp.option_contracts)
         page_token = getattr(resp, "next_page_token", None)
         if not page_token or (limit and len(all_contracts) >= limit):
             break
-    return all_contracts[:limit] if limit else all_contracts
+    return (all_contracts[:limit] if limit else all_contracts), None
 
 
 def normalize_records(contracts: list, underlying: str) -> pd.DataFrame:
@@ -137,7 +146,7 @@ def main():
 
     frames = []
     for u in underlyings:
-        contracts = fetch_contracts(client, u, exp_gte, exp_lte, args.limit)
+        contracts, _error = fetch_contracts(client, u, exp_gte, exp_lte, args.limit)
         df = normalize_records(contracts, u)
         print(f"  {u}: {len(df)} contracts")
         if not df.empty:

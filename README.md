@@ -188,6 +188,32 @@ to `paper=True`, reads credentials from `.env` only, never prints secrets,
 and never calls an order-placing endpoint (enforced by
 `tests/test_options_connector_safety.py`).
 
+### Usage
+
+`options_snapshot_universe.py` is capped to 25 tickers by default -- it
+cannot accidentally process the full ~3,361-ticker `clean_universe.csv`.
+
+Dev/test:
+```bash
+python scripts/options_snapshot_universe.py --symbols AAPL,SPY,NVDA
+python scripts/options_snapshot_universe.py --limit 25
+```
+
+Full universe (explicit opt-in required):
+```bash
+python scripts/options_snapshot_universe.py --all-universe
+```
+
+Feature build:
+```bash
+python scripts/options_build_oi_structure_features.py
+```
+
+Every snapshot run writes `options_contracts_snapshot.csv`,
+`snapshot_audit.json` (coverage/DTE/runtime stats), and
+`failed_tickers.csv` (empty if nothing failed) under
+`data/raw/options_snapshots/date=YYYY-MM-DD/`.
+
 ## What comes next
 
 - **Phase 2**: LightGBM model training + model registry

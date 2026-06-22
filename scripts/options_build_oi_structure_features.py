@@ -103,6 +103,31 @@ def load_underlying_closes(tickers: list[str]) -> pd.DataFrame:
         return pd.DataFrame(columns=cols)
 
 
+def moneyness_pct(strike, underlying_close):
+    """(strike / spot) - 1. Positive = strike above spot, negative = below,
+    zero = at the money. Works on scalars or pandas Series/numpy arrays."""
+    return strike / underlying_close - 1
+
+
+def is_otm_call(strike, underlying_close):
+    """Textbook definition, no near-money band: a call is OTM iff its
+    strike is above spot."""
+    return strike > underlying_close
+
+
+def is_itm_call(strike, underlying_close):
+    return strike < underlying_close
+
+
+def is_otm_put(strike, underlying_close):
+    """A put is OTM iff its strike is below spot (the inverse of a call)."""
+    return strike < underlying_close
+
+
+def is_itm_put(strike, underlying_close):
+    return strike > underlying_close
+
+
 def _safe_div(num, den):
     if den is None or den == 0 or pd.isna(den):
         return float("nan")
@@ -168,8 +193,13 @@ def compute_ticker_features(ticker: str, df: pd.DataFrame, underlying_close, und
         return feat, True
 
     near_money = (strike - underlying_close).abs() / underlying_close <= NEAR_MONEY_BAND_PCT
-    otm_call = is_call & (strike > underlying_close * (1 + NEAR_MONEY_BAND_PCT))
-    otm_put = is_put & (strike < underlying_close * (1 - NEAR_MONEY_BAND_PCT))
+    # "Clearly" OTM = textbook OTM (is_otm_call/is_otm_put) minus the
+    # near-money band, so near_money_*_oi and otm_*_oi never double-count
+    # the same open interest. Equivalent to the original
+    # strike > spot*(1+band) / strike < spot*(1-band) formulas -- this form
+    # makes the relationship to the strict definitions explicit.
+    otm_call = is_call & is_otm_call(strike, underlying_close) & ~near_money
+    otm_put = is_put & is_otm_put(strike, underlying_close) & ~near_money
     feat["near_money_call_oi"] = oi[is_call & near_money].sum(skipna=True)
     feat["near_money_put_oi"] = oi[is_put & near_money].sum(skipna=True)
     feat["otm_call_oi"] = oi[otm_call].sum(skipna=True)
