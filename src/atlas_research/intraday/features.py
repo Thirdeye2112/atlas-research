@@ -102,7 +102,15 @@ def compute_features(df: pd.DataFrame) -> pd.DataFrame:
     df["vwap"]    = df["_cum_tv"] / df["_cum_v"]
     df["dist_vwap_pct"] = (df["close"] - df["vwap"]) / df["vwap"].replace(0, np.nan) * 100
     df["above_vwap"]    = df["close"] > df["vwap"]
-    df["above_vwap_prev"] = df["above_vwap"].shift(1).fillna(False)
+    # NOTE: shift(1, fill_value=False) -- NOT .shift(1).fillna(False). A bare
+    # .shift(1) on a bool-dtype Series upcasts to object dtype to hold the
+    # leading NaN; Python's `~` on that object-dtype series of real bool
+    # objects then does bitwise-int negation (~True=-2, ~False=-1, BOTH
+    # truthy), silently collapsing any "& ~shifted_prev" expression built on
+    # it. fill_value=False sidesteps the upcast entirely (no NaN is ever
+    # introduced), so the column stays genuine bool dtype and `~` does
+    # correct logical negation. See reports/research/COMPUTE_FEATURES_AUDIT.md.
+    df["above_vwap_prev"] = df["above_vwap"].shift(1, fill_value=False)
     df["vwap_cross_up"]   = df["above_vwap"] & ~df["above_vwap_prev"]
     df["vwap_cross_down"] = ~df["above_vwap"] & df["above_vwap_prev"]
 
@@ -119,9 +127,10 @@ def compute_features(df: pd.DataFrame) -> pd.DataFrame:
     df["below_or_low"]  = df["close"] < df["or_low"]
     df["in_or"]         = df["candle_num"] < OR_BARS
     # Breakout: first candle to close above OR_high after OR period
-    df["_above_or_prev"]   = df["above_or_high"].shift(1).fillna(False)
+    # Same shift(1, fill_value=False) fix as above_vwap_prev -- see note there.
+    df["_above_or_prev"]   = df["above_or_high"].shift(1, fill_value=False)
     df["orb_bull_signal"]  = df["above_or_high"] & ~df["_above_or_prev"] & ~df["in_or"]
-    df["_below_or_prev"]   = df["below_or_low"].shift(1).fillna(False)
+    df["_below_or_prev"]   = df["below_or_low"].shift(1, fill_value=False)
     df["orb_bear_signal"]  = df["below_or_low"] & ~df["_below_or_prev"] & ~df["in_or"]
 
     # ── EMAs ─────────────────────────────────────────────────────────────────
