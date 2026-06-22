@@ -1,0 +1,2602 @@
+{
+  "run_id": "20260622T054700Z-5809600e",
+  "ticker": "AAPL",
+  "n_trigger_rows": 181677,
+  "n_baseline_rows": 100863,
+  "n_primary_cells_tested": 48,
+  "n_primary_cells_survive_bh_fdr": 0,
+  "n_daily_cells_tested": 16,
+  "n_daily_cells_survive_bh_fdr": 0,
+  "total_multiple_testing_denominator": 64,
+  "bh_fdr_q": 0.1,
+  "min_cell_n": 30,
+  "expectancy_cells": {
+    "channel_break_down|K3": {
+      "trigger_type": "channel_break_down",
+      "k": 3,
+      "in_sample": {
+        "n": 940,
+        "expectancy_R": -0.02079037440329552,
+        "ci_lo": -0.08478127044715154,
+        "ci_hi": 0.0432005216405605,
+        "win_rate": 0.44361702127659575
+      },
+      "held_out": {
+        "n": 447,
+        "expectancy_R": -0.05171630678123955,
+        "ci_lo": -0.13946326725032276,
+        "ci_hi": 0.03603065368784365,
+        "win_rate": 0.4272930648769575
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.02940164979434677,
+        "ci_lo": 0.017500410698747103,
+        "ci_hi": 0.04130288888994644,
+        "win_rate": 0.4902693974674938
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.04073854034353771,
+        "ci_lo": 0.02285279924561901,
+        "ci_hi": 0.058624281441456406,
+        "win_rate": 0.5002974419988102
+      },
+      "p_value_vs_baseline_held_out": 0.04301642692990182,
+      "edge_over_baseline_held_out": -0.09245484712477725,
+      "bh_fdr_survives": false
+    },
+    "channel_break_down|K6": {
+      "trigger_type": "channel_break_down",
+      "k": 6,
+      "in_sample": {
+        "n": 940,
+        "expectancy_R": -0.019010237266696196,
+        "ci_lo": -0.08773115907146067,
+        "ci_hi": 0.04971068453806829,
+        "win_rate": 0.45851063829787236
+      },
+      "held_out": {
+        "n": 447,
+        "expectancy_R": -0.05330796710659268,
+        "ci_lo": -0.14853297441187124,
+        "ci_hi": 0.04191704019868589,
+        "win_rate": 0.4429530201342282
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.04555292576981736,
+        "ci_lo": 0.03230533078908814,
+        "ci_hi": 0.05880052075054657,
+        "win_rate": 0.4975779722954024
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.05707417721713079,
+        "ci_lo": 0.03697801843943759,
+        "ci_hi": 0.07717033599482398,
+        "win_rate": 0.501189767995241
+      },
+      "p_value_vs_baseline_held_out": 0.02621495782663863,
+      "edge_over_baseline_held_out": -0.11038214432372347,
+      "bh_fdr_survives": false
+    },
+    "channel_break_down|K12": {
+      "trigger_type": "channel_break_down",
+      "k": 12,
+      "in_sample": {
+        "n": 940,
+        "expectancy_R": -0.023028488748877394,
+        "ci_lo": -0.0938621924933203,
+        "ci_hi": 0.04780521499556552,
+        "win_rate": 0.4563829787234043
+      },
+      "held_out": {
+        "n": 447,
+        "expectancy_R": -0.07187008190025274,
+        "ci_lo": -0.17046900291306927,
+        "ci_hi": 0.026728839112563796,
+        "win_rate": 0.4407158836689038
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.03222652758357702,
+        "ci_lo": 0.018485224841641792,
+        "ci_hi": 0.04596783032551224,
+        "win_rate": 0.4907792980368828
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.054035505414308134,
+        "ci_lo": 0.03314542644765149,
+        "ci_hi": 0.07492558438096478,
+        "win_rate": 0.500396589331747
+      },
+      "p_value_vs_baseline_held_out": 0.014346632027252504,
+      "edge_over_baseline_held_out": -0.12590558731456086,
+      "bh_fdr_survives": false
+    },
+    "channel_break_up|K3": {
+      "trigger_type": "channel_break_up",
+      "k": 3,
+      "in_sample": {
+        "n": 1036,
+        "expectancy_R": -0.0399845393802233,
+        "ci_lo": -0.10088642398397962,
+        "ci_hi": 0.020917345223533036,
+        "win_rate": 0.444980694980695
+      },
+      "held_out": {
+        "n": 398,
+        "expectancy_R": -0.06291771363045037,
+        "ci_lo": -0.15846646908273415,
+        "ci_hi": 0.03263104182183339,
+        "win_rate": 0.4371859296482412
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.02940164979434677,
+        "ci_lo": 0.017500410698747103,
+        "ci_hi": 0.04130288888994644,
+        "win_rate": 0.4902693974674938
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.04073854034353771,
+        "ci_lo": 0.02285279924561901,
+        "ci_hi": 0.058624281441456406,
+        "win_rate": 0.5002974419988102
+      },
+      "p_value_vs_baseline_held_out": 0.036617065485425204,
+      "edge_over_baseline_held_out": -0.10365625397398809,
+      "bh_fdr_survives": false
+    },
+    "channel_break_up|K6": {
+      "trigger_type": "channel_break_up",
+      "k": 6,
+      "in_sample": {
+        "n": 1036,
+        "expectancy_R": -0.028296200422237832,
+        "ci_lo": -0.09406074881015292,
+        "ci_hi": 0.037468347965677246,
+        "win_rate": 0.4498069498069498
+      },
+      "held_out": {
+        "n": 398,
+        "expectancy_R": -0.0685391851032272,
+        "ci_lo": -0.1726813283045593,
+        "ci_hi": 0.0356029580981049,
+        "win_rate": 0.4221105527638191
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.04555292576981736,
+        "ci_lo": 0.03230533078908814,
+        "ci_hi": 0.05880052075054657,
+        "win_rate": 0.4975779722954024
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.05707417721713079,
+        "ci_lo": 0.03697801843943759,
+        "ci_hi": 0.07717033599482398,
+        "win_rate": 0.501189767995241
+      },
+      "p_value_vs_baseline_held_out": 0.02027205407167587,
+      "edge_over_baseline_held_out": -0.12561336232035797,
+      "bh_fdr_survives": false
+    },
+    "channel_break_up|K12": {
+      "trigger_type": "channel_break_up",
+      "k": 12,
+      "in_sample": {
+        "n": 1036,
+        "expectancy_R": -0.029110720484244238,
+        "ci_lo": -0.0966582138475745,
+        "ci_hi": 0.038436772879086034,
+        "win_rate": 0.44884169884169883
+      },
+      "held_out": {
+        "n": 398,
+        "expectancy_R": -0.07193136046471393,
+        "ci_lo": -0.18042828215006376,
+        "ci_hi": 0.036565561220635895,
+        "win_rate": 0.4321608040201005
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.03222652758357702,
+        "ci_lo": 0.018485224841641792,
+        "ci_hi": 0.04596783032551224,
+        "win_rate": 0.4907792980368828
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.054035505414308134,
+        "ci_lo": 0.03314542644765149,
+        "ci_hi": 0.07492558438096478,
+        "win_rate": 0.500396589331747
+      },
+      "p_value_vs_baseline_held_out": 0.025446750979067678,
+      "edge_over_baseline_held_out": -0.12596686587902206,
+      "bh_fdr_survives": false
+    },
+    "ema9_cross_down|K3": {
+      "trigger_type": "ema9_cross_down",
+      "k": 3,
+      "in_sample": {
+        "n": 4693,
+        "expectancy_R": 0.017676079783266293,
+        "ci_lo": -0.010366221620605034,
+        "ci_hi": 0.04571838118713762,
+        "win_rate": 0.47219262731728107
+      },
+      "held_out": {
+        "n": 2074,
+        "expectancy_R": 0.03359054699188656,
+        "ci_lo": -0.007553209657314874,
+        "ci_hi": 0.07473430364108799,
+        "win_rate": 0.48071359691417553
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.02940164979434677,
+        "ci_lo": 0.017500410698747103,
+        "ci_hi": 0.04130288888994644,
+        "win_rate": 0.4902693974674938
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.04073854034353771,
+        "ci_lo": 0.02285279924561901,
+        "ci_hi": 0.058624281441456406,
+        "win_rate": 0.5002974419988102
+      },
+      "p_value_vs_baseline_held_out": 0.7548246750109247,
+      "edge_over_baseline_held_out": -0.007147993351651151,
+      "bh_fdr_survives": false
+    },
+    "ema9_cross_down|K6": {
+      "trigger_type": "ema9_cross_down",
+      "k": 6,
+      "in_sample": {
+        "n": 4693,
+        "expectancy_R": 0.029958590042612684,
+        "ci_lo": -0.0008320672494809868,
+        "ci_hi": 0.06074924733470635,
+        "win_rate": 0.47858512678457277
+      },
+      "held_out": {
+        "n": 2074,
+        "expectancy_R": 0.04426961360900954,
+        "ci_lo": -0.0010480443630617176,
+        "ci_hi": 0.08958727158108079,
+        "win_rate": 0.49469623915139826
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.04555292576981736,
+        "ci_lo": 0.03230533078908814,
+        "ci_hi": 0.05880052075054657,
+        "win_rate": 0.4975779722954024
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.05707417721713079,
+        "ci_lo": 0.03697801843943759,
+        "ci_hi": 0.07717033599482398,
+        "win_rate": 0.501189767995241
+      },
+      "p_value_vs_baseline_held_out": 0.612677056189904,
+      "edge_over_baseline_held_out": -0.012804563608121253,
+      "bh_fdr_survives": false
+    },
+    "ema9_cross_down|K12": {
+      "trigger_type": "ema9_cross_down",
+      "k": 12,
+      "in_sample": {
+        "n": 4693,
+        "expectancy_R": 0.03855250525996994,
+        "ci_lo": 0.006648362416786416,
+        "ci_hi": 0.07045664810315347,
+        "win_rate": 0.48071595994033667
+      },
+      "held_out": {
+        "n": 2074,
+        "expectancy_R": 0.04290162923568536,
+        "ci_lo": -0.004462466035091421,
+        "ci_hi": 0.09026572450646214,
+        "win_rate": 0.4884281581485053
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.03222652758357702,
+        "ci_lo": 0.018485224841641792,
+        "ci_hi": 0.04596783032551224,
+        "win_rate": 0.4907792980368828
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.054035505414308134,
+        "ci_lo": 0.03314542644765149,
+        "ci_hi": 0.07492558438096478,
+        "win_rate": 0.500396589331747
+      },
+      "p_value_vs_baseline_held_out": 0.6733492647591397,
+      "edge_over_baseline_held_out": -0.011133876178622777,
+      "bh_fdr_survives": false
+    },
+    "ema9_cross_up|K3": {
+      "trigger_type": "ema9_cross_up",
+      "k": 3,
+      "in_sample": {
+        "n": 4694,
+        "expectancy_R": 0.03665406586516468,
+        "ci_lo": 0.009324732547436983,
+        "ci_hi": 0.06398339918289238,
+        "win_rate": 0.48849595227950576
+      },
+      "held_out": {
+        "n": 2074,
+        "expectancy_R": 0.031874859760277555,
+        "ci_lo": -0.00870829067755978,
+        "ci_hi": 0.07245801019811489,
+        "win_rate": 0.48601735776277727
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.02940164979434677,
+        "ci_lo": 0.017500410698747103,
+        "ci_hi": 0.04130288888994644,
+        "win_rate": 0.4902693974674938
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.04073854034353771,
+        "ci_lo": 0.02285279924561901,
+        "ci_hi": 0.058624281441456406,
+        "win_rate": 0.5002974419988102
+      },
+      "p_value_vs_baseline_held_out": 0.6952623220485705,
+      "edge_over_baseline_held_out": -0.008863680583260154,
+      "bh_fdr_survives": false
+    },
+    "ema9_cross_up|K6": {
+      "trigger_type": "ema9_cross_up",
+      "k": 6,
+      "in_sample": {
+        "n": 4694,
+        "expectancy_R": 0.042563338716060266,
+        "ci_lo": 0.012533790305087337,
+        "ci_hi": 0.0725928871270332,
+        "win_rate": 0.4936088623775032
+      },
+      "held_out": {
+        "n": 2074,
+        "expectancy_R": 0.017252404378162625,
+        "ci_lo": -0.027572112856489903,
+        "ci_hi": 0.06207692161281515,
+        "win_rate": 0.4758919961427194
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.04555292576981736,
+        "ci_lo": 0.03230533078908814,
+        "ci_hi": 0.05880052075054657,
+        "win_rate": 0.4975779722954024
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.05707417721713079,
+        "ci_lo": 0.03697801843943759,
+        "ci_hi": 0.07717033599482398,
+        "win_rate": 0.501189767995241
+      },
+      "p_value_vs_baseline_held_out": 0.11208869447873315,
+      "edge_over_baseline_held_out": -0.039821772838968164,
+      "bh_fdr_survives": false
+    },
+    "ema9_cross_up|K12": {
+      "trigger_type": "ema9_cross_up",
+      "k": 12,
+      "in_sample": {
+        "n": 4694,
+        "expectancy_R": 0.05621462260753633,
+        "ci_lo": 0.025031444630340533,
+        "ci_hi": 0.08739780058473214,
+        "win_rate": 0.4978696207925011
+      },
+      "held_out": {
+        "n": 2074,
+        "expectancy_R": 0.014495945201509184,
+        "ci_lo": -0.032357950884863346,
+        "ci_hi": 0.06134984128788172,
+        "win_rate": 0.47492767598842817
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.03222652758357702,
+        "ci_lo": 0.018485224841641792,
+        "ci_hi": 0.04596783032551224,
+        "win_rate": 0.4907792980368828
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.054035505414308134,
+        "ci_lo": 0.03314542644765149,
+        "ci_hi": 0.07492558438096478,
+        "win_rate": 0.500396589331747
+      },
+      "p_value_vs_baseline_held_out": 0.13087120582179645,
+      "edge_over_baseline_held_out": -0.039539560212798947,
+      "bh_fdr_survives": false
+    },
+    "fvg_fill_bearish|K3": {
+      "trigger_type": "fvg_fill_bearish",
+      "k": 3,
+      "in_sample": {
+        "n": 5894,
+        "expectancy_R": 0.05339226972748851,
+        "ci_lo": 0.02886341526308123,
+        "ci_hi": 0.0779211241918958,
+        "win_rate": 0.493892093654564
+      },
+      "held_out": {
+        "n": 2431,
+        "expectancy_R": 0.054206255081822294,
+        "ci_lo": 0.016465925589442182,
+        "ci_hi": 0.0919465845742024,
+        "win_rate": 0.5063759769642122
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.02940164979434677,
+        "ci_lo": 0.017500410698747103,
+        "ci_hi": 0.04130288888994644,
+        "win_rate": 0.4902693974674938
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.04073854034353771,
+        "ci_lo": 0.02285279924561901,
+        "ci_hi": 0.058624281441456406,
+        "win_rate": 0.5002974419988102
+      },
+      "p_value_vs_baseline_held_out": 0.5273576346301263,
+      "edge_over_baseline_held_out": 0.013467714738284585,
+      "bh_fdr_survives": false
+    },
+    "fvg_fill_bearish|K6": {
+      "trigger_type": "fvg_fill_bearish",
+      "k": 6,
+      "in_sample": {
+        "n": 5894,
+        "expectancy_R": 0.06357572709076421,
+        "ci_lo": 0.03634434049797079,
+        "ci_hi": 0.09080711368355764,
+        "win_rate": 0.497624703087886
+      },
+      "held_out": {
+        "n": 2431,
+        "expectancy_R": 0.057488815835729186,
+        "ci_lo": 0.01560396777176188,
+        "ci_hi": 0.09937366389969648,
+        "win_rate": 0.5002056766762649
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.04555292576981736,
+        "ci_lo": 0.03230533078908814,
+        "ci_hi": 0.05880052075054657,
+        "win_rate": 0.4975779722954024
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.05707417721713079,
+        "ci_lo": 0.03697801843943759,
+        "ci_hi": 0.07717033599482398,
+        "win_rate": 0.501189767995241
+      },
+      "p_value_vs_baseline_held_out": 0.9860428006990818,
+      "edge_over_baseline_held_out": 0.0004146386185983966,
+      "bh_fdr_survives": false
+    },
+    "fvg_fill_bearish|K12": {
+      "trigger_type": "fvg_fill_bearish",
+      "k": 12,
+      "in_sample": {
+        "n": 5894,
+        "expectancy_R": 0.07006906204438298,
+        "ci_lo": 0.04179490131592916,
+        "ci_hi": 0.0983432227728368,
+        "win_rate": 0.5
+      },
+      "held_out": {
+        "n": 2431,
+        "expectancy_R": 0.062354357080648876,
+        "ci_lo": 0.01854802802068125,
+        "ci_hi": 0.1061606861406165,
+        "win_rate": 0.497737556561086
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.03222652758357702,
+        "ci_lo": 0.018485224841641792,
+        "ci_hi": 0.04596783032551224,
+        "win_rate": 0.4907792980368828
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.054035505414308134,
+        "ci_lo": 0.03314542644765149,
+        "ci_hi": 0.07492558438096478,
+        "win_rate": 0.500396589331747
+      },
+      "p_value_vs_baseline_held_out": 0.7369007514262034,
+      "edge_over_baseline_held_out": 0.008318851666340742,
+      "bh_fdr_survives": false
+    },
+    "fvg_fill_bullish|K3": {
+      "trigger_type": "fvg_fill_bullish",
+      "k": 3,
+      "in_sample": {
+        "n": 6630,
+        "expectancy_R": 0.0845760857495904,
+        "ci_lo": 0.06134271471022147,
+        "ci_hi": 0.10780945678895933,
+        "win_rate": 0.515686274509804
+      },
+      "held_out": {
+        "n": 2420,
+        "expectancy_R": 0.03463183077246938,
+        "ci_lo": -0.003994348475645976,
+        "ci_hi": 0.07325801002058474,
+        "win_rate": 0.48760330578512395
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.02940164979434677,
+        "ci_lo": 0.017500410698747103,
+        "ci_hi": 0.04130288888994644,
+        "win_rate": 0.4902693974674938
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.04073854034353771,
+        "ci_lo": 0.02285279924561901,
+        "ci_hi": 0.058624281441456406,
+        "win_rate": 0.5002974419988102
+      },
+      "p_value_vs_baseline_held_out": 0.7785653817450542,
+      "edge_over_baseline_held_out": -0.006106709571068326,
+      "bh_fdr_survives": false
+    },
+    "fvg_fill_bullish|K6": {
+      "trigger_type": "fvg_fill_bullish",
+      "k": 6,
+      "in_sample": {
+        "n": 6630,
+        "expectancy_R": 0.08464875951320865,
+        "ci_lo": 0.0592865502107847,
+        "ci_hi": 0.11001096881563259,
+        "win_rate": 0.5128205128205128
+      },
+      "held_out": {
+        "n": 2420,
+        "expectancy_R": 0.04915884479775566,
+        "ci_lo": 0.006655650948040201,
+        "ci_hi": 0.09166203864747112,
+        "win_rate": 0.48925619834710743
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.04555292576981736,
+        "ci_lo": 0.03230533078908814,
+        "ci_hi": 0.05880052075054657,
+        "win_rate": 0.4975779722954024
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.05707417721713079,
+        "ci_lo": 0.03697801843943759,
+        "ci_hi": 0.07717033599482398,
+        "win_rate": 0.501189767995241
+      },
+      "p_value_vs_baseline_held_out": 0.7414125326046532,
+      "edge_over_baseline_held_out": -0.007915332419375129,
+      "bh_fdr_survives": false
+    },
+    "fvg_fill_bullish|K12": {
+      "trigger_type": "fvg_fill_bullish",
+      "k": 12,
+      "in_sample": {
+        "n": 6630,
+        "expectancy_R": 0.08522956824870771,
+        "ci_lo": 0.059046507876340276,
+        "ci_hi": 0.11141262862107515,
+        "win_rate": 0.5126696832579185
+      },
+      "held_out": {
+        "n": 2420,
+        "expectancy_R": 0.049434192007231155,
+        "ci_lo": 0.005199200049609637,
+        "ci_hi": 0.09366918396485267,
+        "win_rate": 0.4871900826446281
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.03222652758357702,
+        "ci_lo": 0.018485224841641792,
+        "ci_hi": 0.04596783032551224,
+        "win_rate": 0.4907792980368828
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.054035505414308134,
+        "ci_lo": 0.03314542644765149,
+        "ci_hi": 0.07492558438096478,
+        "win_rate": 0.500396589331747
+      },
+      "p_value_vs_baseline_held_out": 0.8537350267458104,
+      "edge_over_baseline_held_out": -0.004601313407076979,
+      "bh_fdr_survives": false
+    },
+    "macd_bear_cross|K3": {
+      "trigger_type": "macd_bear_cross",
+      "k": 3,
+      "in_sample": {
+        "n": 1770,
+        "expectancy_R": 0.020895202733155534,
+        "ci_lo": -0.02426854821877163,
+        "ci_hi": 0.0660589536850827,
+        "win_rate": 0.47909604519774013
+      },
+      "held_out": {
+        "n": 787,
+        "expectancy_R": -0.00039868644529224837,
+        "ci_lo": -0.06463698882805675,
+        "ci_hi": 0.06383961593747227,
+        "win_rate": 0.48030495552731894
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.02940164979434677,
+        "ci_lo": 0.017500410698747103,
+        "ci_hi": 0.04130288888994644,
+        "win_rate": 0.4902693974674938
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.04073854034353771,
+        "ci_lo": 0.02285279924561901,
+        "ci_hi": 0.058624281441456406,
+        "win_rate": 0.5002974419988102
+      },
+      "p_value_vs_baseline_held_out": 0.2266012179160395,
+      "edge_over_baseline_held_out": -0.04113722678882996,
+      "bh_fdr_survives": false
+    },
+    "macd_bear_cross|K6": {
+      "trigger_type": "macd_bear_cross",
+      "k": 6,
+      "in_sample": {
+        "n": 1770,
+        "expectancy_R": 0.029217834187243278,
+        "ci_lo": -0.020614958972785927,
+        "ci_hi": 0.07905062734727249,
+        "win_rate": 0.47853107344632767
+      },
+      "held_out": {
+        "n": 787,
+        "expectancy_R": 0.020789982867803536,
+        "ci_lo": -0.05243505209942978,
+        "ci_hi": 0.09401501783503685,
+        "win_rate": 0.4815756035578145
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.04555292576981736,
+        "ci_lo": 0.03230533078908814,
+        "ci_hi": 0.05880052075054657,
+        "win_rate": 0.4975779722954024
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.05707417721713079,
+        "ci_lo": 0.03697801843943759,
+        "ci_hi": 0.07717033599482398,
+        "win_rate": 0.501189767995241
+      },
+      "p_value_vs_baseline_held_out": 0.3489742605337922,
+      "edge_over_baseline_held_out": -0.03628419434932725,
+      "bh_fdr_survives": false
+    },
+    "macd_bear_cross|K12": {
+      "trigger_type": "macd_bear_cross",
+      "k": 12,
+      "in_sample": {
+        "n": 1770,
+        "expectancy_R": 0.028688168839838005,
+        "ci_lo": -0.022692875405374,
+        "ci_hi": 0.08006921308505001,
+        "win_rate": 0.47966101694915253
+      },
+      "held_out": {
+        "n": 787,
+        "expectancy_R": 0.030477724209458604,
+        "ci_lo": -0.045893648072889176,
+        "ci_hi": 0.10684909649180638,
+        "win_rate": 0.4866581956797967
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.03222652758357702,
+        "ci_lo": 0.018485224841641792,
+        "ci_hi": 0.04596783032551224,
+        "win_rate": 0.4907792980368828
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.054035505414308134,
+        "ci_lo": 0.03314542644765149,
+        "ci_hi": 0.07492558438096478,
+        "win_rate": 0.500396589331747
+      },
+      "p_value_vs_baseline_held_out": 0.5597817815588635,
+      "edge_over_baseline_held_out": -0.02355778120484953,
+      "bh_fdr_survives": false
+    },
+    "macd_bull_cross|K3": {
+      "trigger_type": "macd_bull_cross",
+      "k": 3,
+      "in_sample": {
+        "n": 1770,
+        "expectancy_R": 0.02928611124905523,
+        "ci_lo": -0.015196540444200005,
+        "ci_hi": 0.07376876294231047,
+        "win_rate": 0.4943502824858757
+      },
+      "held_out": {
+        "n": 788,
+        "expectancy_R": 0.021754330276897372,
+        "ci_lo": -0.041883989517123604,
+        "ci_hi": 0.08539265007091834,
+        "win_rate": 0.4847715736040609
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.02940164979434677,
+        "ci_lo": 0.017500410698747103,
+        "ci_hi": 0.04130288888994644,
+        "win_rate": 0.4902693974674938
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.04073854034353771,
+        "ci_lo": 0.02285279924561901,
+        "ci_hi": 0.058624281441456406,
+        "win_rate": 0.5002974419988102
+      },
+      "p_value_vs_baseline_held_out": 0.573512001110255,
+      "edge_over_baseline_held_out": -0.018984210066640337,
+      "bh_fdr_survives": false
+    },
+    "macd_bull_cross|K6": {
+      "trigger_type": "macd_bull_cross",
+      "k": 6,
+      "in_sample": {
+        "n": 1770,
+        "expectancy_R": 0.0316047970741626,
+        "ci_lo": -0.01722895429573735,
+        "ci_hi": 0.08043854844406254,
+        "win_rate": 0.488135593220339
+      },
+      "held_out": {
+        "n": 788,
+        "expectancy_R": 0.015524696679076931,
+        "ci_lo": -0.056264739448901306,
+        "ci_hi": 0.08731413280705516,
+        "win_rate": 0.48984771573604063
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.04555292576981736,
+        "ci_lo": 0.03230533078908814,
+        "ci_hi": 0.05880052075054657,
+        "win_rate": 0.4975779722954024
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.05707417721713079,
+        "ci_lo": 0.03697801843943759,
+        "ci_hi": 0.07717033599482398,
+        "win_rate": 0.501189767995241
+      },
+      "p_value_vs_baseline_held_out": 0.2746604546503455,
+      "edge_over_baseline_held_out": -0.04154948053805386,
+      "bh_fdr_survives": false
+    },
+    "macd_bull_cross|K12": {
+      "trigger_type": "macd_bull_cross",
+      "k": 12,
+      "in_sample": {
+        "n": 1770,
+        "expectancy_R": 0.039416962907606524,
+        "ci_lo": -0.011340592259631042,
+        "ci_hi": 0.09017451807484408,
+        "win_rate": 0.49265536723163844
+      },
+      "held_out": {
+        "n": 788,
+        "expectancy_R": 0.021623276568193624,
+        "ci_lo": -0.05351950115830312,
+        "ci_hi": 0.09676605429469037,
+        "win_rate": 0.4873096446700508
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.03222652758357702,
+        "ci_lo": 0.018485224841641792,
+        "ci_hi": 0.04596783032551224,
+        "win_rate": 0.4907792980368828
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.054035505414308134,
+        "ci_lo": 0.03314542644765149,
+        "ci_hi": 0.07492558438096478,
+        "win_rate": 0.500396589331747
+      },
+      "p_value_vs_baseline_held_out": 0.4153360698789612,
+      "edge_over_baseline_held_out": -0.03241222884611451,
+      "bh_fdr_survives": false
+    },
+    "rsi_reclaim_bear|K3": {
+      "trigger_type": "rsi_reclaim_bear",
+      "k": 3,
+      "in_sample": {
+        "n": 1443,
+        "expectancy_R": 0.004280460951033549,
+        "ci_lo": -0.04688724028911435,
+        "ci_hi": 0.05544816219118145,
+        "win_rate": 0.465003465003465
+      },
+      "held_out": {
+        "n": 594,
+        "expectancy_R": 0.054217761534466634,
+        "ci_lo": -0.024620585513937344,
+        "ci_hi": 0.13305610858287062,
+        "win_rate": 0.494949494949495
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.02940164979434677,
+        "ci_lo": 0.017500410698747103,
+        "ci_hi": 0.04130288888994644,
+        "win_rate": 0.4902693974674938
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.04073854034353771,
+        "ci_lo": 0.02285279924561901,
+        "ci_hi": 0.058624281441456406,
+        "win_rate": 0.5002974419988102
+      },
+      "p_value_vs_baseline_held_out": 0.7438173124401009,
+      "edge_over_baseline_held_out": 0.013479221190928925,
+      "bh_fdr_survives": false
+    },
+    "rsi_reclaim_bear|K6": {
+      "trigger_type": "rsi_reclaim_bear",
+      "k": 6,
+      "in_sample": {
+        "n": 1443,
+        "expectancy_R": 0.013358704453883812,
+        "ci_lo": -0.04217367196600637,
+        "ci_hi": 0.06889108087377399,
+        "win_rate": 0.4726264726264726
+      },
+      "held_out": {
+        "n": 594,
+        "expectancy_R": 0.05707620219733652,
+        "ci_lo": -0.028934109363199755,
+        "ci_hi": 0.1430865137578728,
+        "win_rate": 0.49326599326599324
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.04555292576981736,
+        "ci_lo": 0.03230533078908814,
+        "ci_hi": 0.05880052075054657,
+        "win_rate": 0.4975779722954024
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.05707417721713079,
+        "ci_lo": 0.03697801843943759,
+        "ci_hi": 0.07717033599482398,
+        "win_rate": 0.501189767995241
+      },
+      "p_value_vs_baseline_held_out": 0.9999641471024676,
+      "edge_over_baseline_held_out": 2.0249802057323296e-06,
+      "bh_fdr_survives": false
+    },
+    "rsi_reclaim_bear|K12": {
+      "trigger_type": "rsi_reclaim_bear",
+      "k": 12,
+      "in_sample": {
+        "n": 1443,
+        "expectancy_R": 0.026441659316559316,
+        "ci_lo": -0.03128507364221671,
+        "ci_hi": 0.08416839227533535,
+        "win_rate": 0.4733194733194733
+      },
+      "held_out": {
+        "n": 594,
+        "expectancy_R": 0.06599412470002149,
+        "ci_lo": -0.02381299550048202,
+        "ci_hi": 0.155801244900525,
+        "win_rate": 0.4983164983164983
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.03222652758357702,
+        "ci_lo": 0.018485224841641792,
+        "ci_hi": 0.04596783032551224,
+        "win_rate": 0.4907792980368828
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.054035505414308134,
+        "ci_lo": 0.03314542644765149,
+        "ci_hi": 0.07492558438096478,
+        "win_rate": 0.500396589331747
+      },
+      "p_value_vs_baseline_held_out": 0.7993372915021555,
+      "edge_over_baseline_held_out": 0.011958619285713352,
+      "bh_fdr_survives": false
+    },
+    "rsi_reclaim_bull|K3": {
+      "trigger_type": "rsi_reclaim_bull",
+      "k": 3,
+      "in_sample": {
+        "n": 1337,
+        "expectancy_R": 0.0356715721431306,
+        "ci_lo": -0.016133041124389152,
+        "ci_hi": 0.08747618541065036,
+        "win_rate": 0.49962602842183995
+      },
+      "held_out": {
+        "n": 643,
+        "expectancy_R": 0.029782025663719885,
+        "ci_lo": -0.04354391392307472,
+        "ci_hi": 0.1031079652505145,
+        "win_rate": 0.4712286158631415
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.02940164979434677,
+        "ci_lo": 0.017500410698747103,
+        "ci_hi": 0.04130288888994644,
+        "win_rate": 0.4902693974674938
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.04073854034353771,
+        "ci_lo": 0.02285279924561901,
+        "ci_hi": 0.058624281441456406,
+        "win_rate": 0.5002974419988102
+      },
+      "p_value_vs_baseline_held_out": 0.7760078459109212,
+      "edge_over_baseline_held_out": -0.010956514679817824,
+      "bh_fdr_survives": false
+    },
+    "rsi_reclaim_bull|K6": {
+      "trigger_type": "rsi_reclaim_bull",
+      "k": 6,
+      "in_sample": {
+        "n": 1337,
+        "expectancy_R": 0.06703924413403406,
+        "ci_lo": 0.010342379819851318,
+        "ci_hi": 0.12373610844821681,
+        "win_rate": 0.5078534031413613
+      },
+      "held_out": {
+        "n": 643,
+        "expectancy_R": 0.007339479851396094,
+        "ci_lo": -0.07183586589716685,
+        "ci_hi": 0.08651482559995903,
+        "win_rate": 0.47433903576982894
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.04555292576981736,
+        "ci_lo": 0.03230533078908814,
+        "ci_hi": 0.05880052075054657,
+        "win_rate": 0.4975779722954024
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.05707417721713079,
+        "ci_lo": 0.03697801843943759,
+        "ci_hi": 0.07717033599482398,
+        "win_rate": 0.501189767995241
+      },
+      "p_value_vs_baseline_held_out": 0.2327318314540021,
+      "edge_over_baseline_held_out": -0.049734697365734694,
+      "bh_fdr_survives": false
+    },
+    "rsi_reclaim_bull|K12": {
+      "trigger_type": "rsi_reclaim_bull",
+      "k": 12,
+      "in_sample": {
+        "n": 1337,
+        "expectancy_R": 0.062114739241687,
+        "ci_lo": 0.003576950054810381,
+        "ci_hi": 0.12065252842856361,
+        "win_rate": 0.49962602842183995
+      },
+      "held_out": {
+        "n": 643,
+        "expectancy_R": 0.022150715936134626,
+        "ci_lo": -0.06088815224657748,
+        "ci_hi": 0.10518958411884674,
+        "win_rate": 0.4774494556765163
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.03222652758357702,
+        "ci_lo": 0.018485224841641792,
+        "ci_hi": 0.04596783032551224,
+        "win_rate": 0.4907792980368828
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.054035505414308134,
+        "ci_lo": 0.03314542644765149,
+        "ci_hi": 0.07492558438096478,
+        "win_rate": 0.500396589331747
+      },
+      "p_value_vs_baseline_held_out": 0.4654826421917342,
+      "edge_over_baseline_held_out": -0.03188478947817351,
+      "bh_fdr_survives": false
+    },
+    "swing_pivot_high_confirmed|K3": {
+      "trigger_type": "swing_pivot_high_confirmed",
+      "k": 3,
+      "in_sample": {
+        "n": 2262,
+        "expectancy_R": 0.06519891494243539,
+        "ci_lo": 0.026457545910409157,
+        "ci_hi": 0.10394028397446162,
+        "win_rate": 0.5079575596816976
+      },
+      "held_out": {
+        "n": 902,
+        "expectancy_R": 0.12360456440737769,
+        "ci_lo": 0.06516093942821993,
+        "ci_hi": 0.18204818938653544,
+        "win_rate": 0.5432372505543237
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.02940164979434677,
+        "ci_lo": 0.017500410698747103,
+        "ci_hi": 0.04130288888994644,
+        "win_rate": 0.4902693974674938
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.04073854034353771,
+        "ci_lo": 0.02285279924561901,
+        "ci_hi": 0.058624281441456406,
+        "win_rate": 0.5002974419988102
+      },
+      "p_value_vs_baseline_held_out": 0.007874886951268145,
+      "edge_over_baseline_held_out": 0.08286602406383997,
+      "bh_fdr_survives": false
+    },
+    "swing_pivot_high_confirmed|K6": {
+      "trigger_type": "swing_pivot_high_confirmed",
+      "k": 6,
+      "in_sample": {
+        "n": 2262,
+        "expectancy_R": 0.06500848688355808,
+        "ci_lo": 0.022197643522728988,
+        "ci_hi": 0.10781933024438717,
+        "win_rate": 0.5004420866489832
+      },
+      "held_out": {
+        "n": 902,
+        "expectancy_R": 0.14847900289112137,
+        "ci_lo": 0.08290511956645884,
+        "ci_hi": 0.2140528862157839,
+        "win_rate": 0.5587583148558758
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.04555292576981736,
+        "ci_lo": 0.03230533078908814,
+        "ci_hi": 0.05880052075054657,
+        "win_rate": 0.4975779722954024
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.05707417721713079,
+        "ci_lo": 0.03697801843943759,
+        "ci_hi": 0.07717033599482398,
+        "win_rate": 0.501189767995241
+      },
+      "p_value_vs_baseline_held_out": 0.008996980942833632,
+      "edge_over_baseline_held_out": 0.09140482567399058,
+      "bh_fdr_survives": false
+    },
+    "swing_pivot_high_confirmed|K12": {
+      "trigger_type": "swing_pivot_high_confirmed",
+      "k": 12,
+      "in_sample": {
+        "n": 2262,
+        "expectancy_R": 0.08077715842615807,
+        "ci_lo": 0.03621463902786996,
+        "ci_hi": 0.12533967782444616,
+        "win_rate": 0.5114942528735632
+      },
+      "held_out": {
+        "n": 902,
+        "expectancy_R": 0.1456960919655542,
+        "ci_lo": 0.07662158722280886,
+        "ci_hi": 0.2147705967082995,
+        "win_rate": 0.5487804878048781
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.03222652758357702,
+        "ci_lo": 0.018485224841641792,
+        "ci_hi": 0.04596783032551224,
+        "win_rate": 0.4907792980368828
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.054035505414308134,
+        "ci_lo": 0.03314542644765149,
+        "ci_hi": 0.07492558438096478,
+        "win_rate": 0.500396589331747
+      },
+      "p_value_vs_baseline_held_out": 0.012791400880633574,
+      "edge_over_baseline_held_out": 0.09166058655124606,
+      "bh_fdr_survives": false
+    },
+    "swing_pivot_low_confirmed|K3": {
+      "trigger_type": "swing_pivot_low_confirmed",
+      "k": 3,
+      "in_sample": {
+        "n": 2131,
+        "expectancy_R": 0.11608849614001818,
+        "ci_lo": 0.07760166799973309,
+        "ci_hi": 0.15457532428030327,
+        "win_rate": 0.5405912717034256
+      },
+      "held_out": {
+        "n": 916,
+        "expectancy_R": 0.0928475450688924,
+        "ci_lo": 0.03529771408176981,
+        "ci_hi": 0.150397376056015,
+        "win_rate": 0.5360262008733624
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.02940164979434677,
+        "ci_lo": 0.017500410698747103,
+        "ci_hi": 0.04130288888994644,
+        "win_rate": 0.4902693974674938
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.04073854034353771,
+        "ci_lo": 0.02285279924561901,
+        "ci_hi": 0.058624281441456406,
+        "win_rate": 0.5002974419988102
+      },
+      "p_value_vs_baseline_held_out": 0.0901248591696544,
+      "edge_over_baseline_held_out": 0.052109004725354686,
+      "bh_fdr_survives": false
+    },
+    "swing_pivot_low_confirmed|K6": {
+      "trigger_type": "swing_pivot_low_confirmed",
+      "k": 6,
+      "in_sample": {
+        "n": 2131,
+        "expectancy_R": 0.11904868118037551,
+        "ci_lo": 0.07605454723658986,
+        "ci_hi": 0.16204281512416116,
+        "win_rate": 0.5349601126231815
+      },
+      "held_out": {
+        "n": 916,
+        "expectancy_R": 0.08895877400198399,
+        "ci_lo": 0.02420700348367462,
+        "ci_hi": 0.15371054452029337,
+        "win_rate": 0.5207423580786026
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.04555292576981736,
+        "ci_lo": 0.03230533078908814,
+        "ci_hi": 0.05880052075054657,
+        "win_rate": 0.4975779722954024
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.05707417721713079,
+        "ci_lo": 0.03697801843943759,
+        "ci_hi": 0.07717033599482398,
+        "win_rate": 0.501189767995241
+      },
+      "p_value_vs_baseline_held_out": 0.3566553840248696,
+      "edge_over_baseline_held_out": 0.0318845967848532,
+      "bh_fdr_survives": false
+    },
+    "swing_pivot_low_confirmed|K12": {
+      "trigger_type": "swing_pivot_low_confirmed",
+      "k": 12,
+      "in_sample": {
+        "n": 2131,
+        "expectancy_R": 0.1140535518090809,
+        "ci_lo": 0.06916465344321558,
+        "ci_hi": 0.15894245017494624,
+        "win_rate": 0.5354293758798686
+      },
+      "held_out": {
+        "n": 916,
+        "expectancy_R": 0.10274735996679152,
+        "ci_lo": 0.03443539552558339,
+        "ci_hi": 0.17105932440799965,
+        "win_rate": 0.5251091703056768
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.03222652758357702,
+        "ci_lo": 0.018485224841641792,
+        "ci_hi": 0.04596783032551224,
+        "win_rate": 0.4907792980368828
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.054035505414308134,
+        "ci_lo": 0.03314542644765149,
+        "ci_hi": 0.07492558438096478,
+        "win_rate": 0.500396589331747
+      },
+      "p_value_vs_baseline_held_out": 0.18137343872132594,
+      "edge_over_baseline_held_out": 0.048711854552483384,
+      "bh_fdr_survives": false
+    },
+    "volume_spike_green|K3": {
+      "trigger_type": "volume_spike_green",
+      "k": 3,
+      "in_sample": {
+        "n": 2026,
+        "expectancy_R": 0.017842791964027698,
+        "ci_lo": -0.026161112670372393,
+        "ci_hi": 0.061846696598427786,
+        "win_rate": 0.4738400789733465
+      },
+      "held_out": {
+        "n": 694,
+        "expectancy_R": 0.10754865556732861,
+        "ci_lo": 0.028630077909565482,
+        "ci_hi": 0.18646723322509173,
+        "win_rate": 0.49855907780979825
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.02940164979434677,
+        "ci_lo": 0.017500410698747103,
+        "ci_hi": 0.04130288888994644,
+        "win_rate": 0.4902693974674938
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.04073854034353771,
+        "ci_lo": 0.02285279924561901,
+        "ci_hi": 0.058624281441456406,
+        "win_rate": 0.5002974419988102
+      },
+      "p_value_vs_baseline_held_out": 0.10561117126007136,
+      "edge_over_baseline_held_out": 0.0668101152237909,
+      "bh_fdr_survives": false
+    },
+    "volume_spike_green|K6": {
+      "trigger_type": "volume_spike_green",
+      "k": 6,
+      "in_sample": {
+        "n": 2026,
+        "expectancy_R": 0.03360392703093711,
+        "ci_lo": -0.01393929310907506,
+        "ci_hi": 0.08114714717094929,
+        "win_rate": 0.48519249753208293
+      },
+      "held_out": {
+        "n": 694,
+        "expectancy_R": 0.11441270201906695,
+        "ci_lo": 0.028718153386711784,
+        "ci_hi": 0.2001072506514221,
+        "win_rate": 0.5
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.04555292576981736,
+        "ci_lo": 0.03230533078908814,
+        "ci_hi": 0.05880052075054657,
+        "win_rate": 0.4975779722954024
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.05707417721713079,
+        "ci_lo": 0.03697801843943759,
+        "ci_hi": 0.07717033599482398,
+        "win_rate": 0.501189767995241
+      },
+      "p_value_vs_baseline_held_out": 0.20167140447760845,
+      "edge_over_baseline_held_out": 0.05733852480193616,
+      "bh_fdr_survives": false
+    },
+    "volume_spike_green|K12": {
+      "trigger_type": "volume_spike_green",
+      "k": 12,
+      "in_sample": {
+        "n": 2026,
+        "expectancy_R": 0.04030274704536068,
+        "ci_lo": -0.008394054186521255,
+        "ci_hi": 0.08899954827724262,
+        "win_rate": 0.4827245804540967
+      },
+      "held_out": {
+        "n": 694,
+        "expectancy_R": 0.11191740272604911,
+        "ci_lo": 0.02444043537508306,
+        "ci_hi": 0.19939437007701516,
+        "win_rate": 0.49711815561959655
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.03222652758357702,
+        "ci_lo": 0.018485224841641792,
+        "ci_hi": 0.04596783032551224,
+        "win_rate": 0.4907792980368828
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.054035505414308134,
+        "ci_lo": 0.03314542644765149,
+        "ci_hi": 0.07492558438096478,
+        "win_rate": 0.500396589331747
+      },
+      "p_value_vs_baseline_held_out": 0.20715544390270924,
+      "edge_over_baseline_held_out": 0.057881897311740975,
+      "bh_fdr_survives": false
+    },
+    "volume_spike_red|K3": {
+      "trigger_type": "volume_spike_red",
+      "k": 3,
+      "in_sample": {
+        "n": 1852,
+        "expectancy_R": 0.02250529227949637,
+        "ci_lo": -0.02446100197431417,
+        "ci_hi": 0.06947158653330691,
+        "win_rate": 0.4703023758099352
+      },
+      "held_out": {
+        "n": 670,
+        "expectancy_R": 0.12843814281018923,
+        "ci_lo": 0.05000276549045592,
+        "ci_hi": 0.20687352012992255,
+        "win_rate": 0.5298507462686567
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.02940164979434677,
+        "ci_lo": 0.017500410698747103,
+        "ci_hi": 0.04130288888994644,
+        "win_rate": 0.4902693974674938
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.04073854034353771,
+        "ci_lo": 0.02285279924561901,
+        "ci_hi": 0.058624281441456406,
+        "win_rate": 0.5002974419988102
+      },
+      "p_value_vs_baseline_held_out": 0.03262615676394498,
+      "edge_over_baseline_held_out": 0.08769960246665151,
+      "bh_fdr_survives": false
+    },
+    "volume_spike_red|K6": {
+      "trigger_type": "volume_spike_red",
+      "k": 6,
+      "in_sample": {
+        "n": 1852,
+        "expectancy_R": 0.026788183105431313,
+        "ci_lo": -0.02345680452570795,
+        "ci_hi": 0.07703317073657058,
+        "win_rate": 0.4708423326133909
+      },
+      "held_out": {
+        "n": 670,
+        "expectancy_R": 0.11754650510874447,
+        "ci_lo": 0.03275675732164453,
+        "ci_hi": 0.2023362528958444,
+        "win_rate": 0.5149253731343284
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.04555292576981736,
+        "ci_lo": 0.03230533078908814,
+        "ci_hi": 0.05880052075054657,
+        "win_rate": 0.4975779722954024
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.05707417721713079,
+        "ci_lo": 0.03697801843943759,
+        "ci_hi": 0.07717033599482398,
+        "win_rate": 0.501189767995241
+      },
+      "p_value_vs_baseline_held_out": 0.17376783135027418,
+      "edge_over_baseline_held_out": 0.06047232789161368,
+      "bh_fdr_survives": false
+    },
+    "volume_spike_red|K12": {
+      "trigger_type": "volume_spike_red",
+      "k": 12,
+      "in_sample": {
+        "n": 1852,
+        "expectancy_R": 0.03179068056878607,
+        "ci_lo": -0.019775733259079532,
+        "ci_hi": 0.08335709439665168,
+        "win_rate": 0.4724622030237581
+      },
+      "held_out": {
+        "n": 670,
+        "expectancy_R": 0.12593292430534345,
+        "ci_lo": 0.03961369293752785,
+        "ci_hi": 0.21225215567315903,
+        "win_rate": 0.5164179104477612
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.03222652758357702,
+        "ci_lo": 0.018485224841641792,
+        "ci_hi": 0.04596783032551224,
+        "win_rate": 0.4907792980368828
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.054035505414308134,
+        "ci_lo": 0.03314542644765149,
+        "ci_hi": 0.07492558438096478,
+        "win_rate": 0.500396589331747
+      },
+      "p_value_vs_baseline_held_out": 0.11257441766884835,
+      "edge_over_baseline_held_out": 0.07189741889103532,
+      "bh_fdr_survives": false
+    },
+    "vwap_loss|K3": {
+      "trigger_type": "vwap_loss",
+      "k": 3,
+      "in_sample": {
+        "n": 2196,
+        "expectancy_R": 0.024048514874277657,
+        "ci_lo": -0.015675744988646885,
+        "ci_hi": 0.06377277473720219,
+        "win_rate": 0.47950819672131145
+      },
+      "held_out": {
+        "n": 925,
+        "expectancy_R": -0.002001315894706023,
+        "ci_lo": -0.06236287835045663,
+        "ci_hi": 0.05836024656104459,
+        "win_rate": 0.46702702702702703
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.02940164979434677,
+        "ci_lo": 0.017500410698747103,
+        "ci_hi": 0.04130288888994644,
+        "win_rate": 0.4902693974674938
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.04073854034353771,
+        "ci_lo": 0.02285279924561901,
+        "ci_hi": 0.058624281441456406,
+        "win_rate": 0.5002974419988102
+      },
+      "p_value_vs_baseline_held_out": 0.18331393183205025,
+      "edge_over_baseline_held_out": -0.04273985623824373,
+      "bh_fdr_survives": false
+    },
+    "vwap_loss|K6": {
+      "trigger_type": "vwap_loss",
+      "k": 6,
+      "in_sample": {
+        "n": 2196,
+        "expectancy_R": 0.027872235859342516,
+        "ci_lo": -0.015509923825827651,
+        "ci_hi": 0.07125439554451268,
+        "win_rate": 0.4890710382513661
+      },
+      "held_out": {
+        "n": 925,
+        "expectancy_R": 0.004495229030677953,
+        "ci_lo": -0.06292218918010109,
+        "ci_hi": 0.07191264724145699,
+        "win_rate": 0.4745945945945946
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.04555292576981736,
+        "ci_lo": 0.03230533078908814,
+        "ci_hi": 0.05880052075054657,
+        "win_rate": 0.4975779722954024
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.05707417721713079,
+        "ci_lo": 0.03697801843943759,
+        "ci_hi": 0.07717033599482398,
+        "win_rate": 0.501189767995241
+      },
+      "p_value_vs_baseline_held_out": 0.14294558472782337,
+      "edge_over_baseline_held_out": -0.05257894818645284,
+      "bh_fdr_survives": false
+    },
+    "vwap_loss|K12": {
+      "trigger_type": "vwap_loss",
+      "k": 12,
+      "in_sample": {
+        "n": 2196,
+        "expectancy_R": 0.016941327272816976,
+        "ci_lo": -0.027911389034224056,
+        "ci_hi": 0.06179404357985801,
+        "win_rate": 0.48178506375227687
+      },
+      "held_out": {
+        "n": 925,
+        "expectancy_R": 0.03939633405297917,
+        "ci_lo": -0.031309629771026734,
+        "ci_hi": 0.11010229787698507,
+        "win_rate": 0.4843243243243243
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.03222652758357702,
+        "ci_lo": 0.018485224841641792,
+        "ci_hi": 0.04596783032551224,
+        "win_rate": 0.4907792980368828
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.054035505414308134,
+        "ci_lo": 0.03314542644765149,
+        "ci_hi": 0.07492558438096478,
+        "win_rate": 0.500396589331747
+      },
+      "p_value_vs_baseline_held_out": 0.6971475277963199,
+      "edge_over_baseline_held_out": -0.014639171361328966,
+      "bh_fdr_survives": false
+    },
+    "vwap_reclaim|K3": {
+      "trigger_type": "vwap_reclaim",
+      "k": 3,
+      "in_sample": {
+        "n": 2196,
+        "expectancy_R": 0.029606658216789726,
+        "ci_lo": -0.009424191647115908,
+        "ci_hi": 0.06863750808069535,
+        "win_rate": 0.4895264116575592
+      },
+      "held_out": {
+        "n": 925,
+        "expectancy_R": 0.04279376411753267,
+        "ci_lo": -0.017518482835109574,
+        "ci_hi": 0.10310601107017492,
+        "win_rate": 0.4908108108108108
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.02940164979434677,
+        "ci_lo": 0.017500410698747103,
+        "ci_hi": 0.04130288888994644,
+        "win_rate": 0.4902693974674938
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.04073854034353771,
+        "ci_lo": 0.02285279924561901,
+        "ci_hi": 0.058624281441456406,
+        "win_rate": 0.5002974419988102
+      },
+      "p_value_vs_baseline_held_out": 0.9489436343252433,
+      "edge_over_baseline_held_out": 0.0020552237739949603,
+      "bh_fdr_survives": false
+    },
+    "vwap_reclaim|K6": {
+      "trigger_type": "vwap_reclaim",
+      "k": 6,
+      "in_sample": {
+        "n": 2196,
+        "expectancy_R": 0.03638826221022048,
+        "ci_lo": -0.006361815672026774,
+        "ci_hi": 0.07913834009246773,
+        "win_rate": 0.49453551912568305
+      },
+      "held_out": {
+        "n": 925,
+        "expectancy_R": 0.047268771670557964,
+        "ci_lo": -0.020165289175475547,
+        "ci_hi": 0.11470283251659147,
+        "win_rate": 0.4897297297297297
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.04555292576981736,
+        "ci_lo": 0.03230533078908814,
+        "ci_hi": 0.05880052075054657,
+        "win_rate": 0.4975779722954024
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.05707417721713079,
+        "ci_lo": 0.03697801843943759,
+        "ci_hi": 0.07717033599482398,
+        "win_rate": 0.501189767995241
+      },
+      "p_value_vs_baseline_held_out": 0.7847549134284677,
+      "edge_over_baseline_held_out": -0.009805405546572825,
+      "bh_fdr_survives": false
+    },
+    "vwap_reclaim|K12": {
+      "trigger_type": "vwap_reclaim",
+      "k": 12,
+      "in_sample": {
+        "n": 2196,
+        "expectancy_R": 0.04357796354722747,
+        "ci_lo": -0.0008363840739456507,
+        "ci_hi": 0.08799231116840059,
+        "win_rate": 0.49863387978142076
+      },
+      "held_out": {
+        "n": 925,
+        "expectancy_R": 0.0578271724456552,
+        "ci_lo": -0.01274668762835865,
+        "ci_hi": 0.12840103251966906,
+        "win_rate": 0.4908108108108108
+      },
+      "baseline_in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.03222652758357702,
+        "ci_lo": 0.018485224841641792,
+        "ci_hi": 0.04596783032551224,
+        "win_rate": 0.4907792980368828
+      },
+      "baseline_held_out": {
+        "n": 10086,
+        "expectancy_R": 0.054035505414308134,
+        "ci_lo": 0.03314542644765149,
+        "ci_hi": 0.07492558438096478,
+        "win_rate": 0.500396589331747
+      },
+      "p_value_vs_baseline_held_out": 0.91957208255614,
+      "edge_over_baseline_held_out": 0.0037916670313470693,
+      "bh_fdr_survives": false
+    }
+  },
+  "daily_agreement_cells": {
+    "channel_break_down": {
+      "trigger_type": "channel_break_down",
+      "in_sample": {
+        "agrees": {
+          "n": 257,
+          "expectancy_R": -0.042951911095693046,
+          "ci_lo": -0.18041200850163633,
+          "ci_hi": 0.09450818631025024,
+          "win_rate": 0.43190661478599224
+        },
+        "disagrees": {
+          "n": 360,
+          "expectancy_R": -0.02304371196425508,
+          "ci_lo": -0.13213025929152625,
+          "ci_hi": 0.08604283536301607,
+          "win_rate": 0.4666666666666667
+        },
+        "baseline": {
+          "n": 23534,
+          "expectancy_R": 0.04555292576981736,
+          "ci_lo": 0.03230533078908814,
+          "ci_hi": 0.05880052075054657,
+          "win_rate": 0.4975779722954024
+        },
+        "p_agree_vs_disagree": 0.8240375543197043
+      },
+      "held_out": {
+        "agrees": {
+          "n": 131,
+          "expectancy_R": -0.11499412122977515,
+          "ci_lo": -0.2820066585811867,
+          "ci_hi": 0.05201841612163638,
+          "win_rate": 0.40458015267175573
+        },
+        "disagrees": {
+          "n": 225,
+          "expectancy_R": -0.07222643000152494,
+          "ci_lo": -0.20962472461433318,
+          "ci_hi": 0.06517186461128331,
+          "win_rate": 0.43555555555555553
+        },
+        "baseline": {
+          "n": 10086,
+          "expectancy_R": 0.05707417721713079,
+          "ci_lo": 0.03697801843943759,
+          "ci_hi": 0.07717033599482398,
+          "win_rate": 0.501189767995241
+        },
+        "p_agree_vs_disagree": 0.6983136825027683
+      },
+      "bh_fdr_survives_agreement_diff": false
+    },
+    "channel_break_up": {
+      "trigger_type": "channel_break_up",
+      "in_sample": {
+        "agrees": {
+          "n": 376,
+          "expectancy_R": -0.03223589229804376,
+          "ci_lo": -0.1401024812888359,
+          "ci_hi": 0.07563069669274838,
+          "win_rate": 0.4521276595744681
+        },
+        "disagrees": {
+          "n": 312,
+          "expectancy_R": -0.130691184899099,
+          "ci_lo": -0.2476402147803566,
+          "ci_hi": -0.013742155017841401,
+          "win_rate": 0.41346153846153844
+        },
+        "baseline": {
+          "n": 23534,
+          "expectancy_R": 0.04555292576981736,
+          "ci_lo": 0.03230533078908814,
+          "ci_hi": 0.05880052075054657,
+          "win_rate": 0.4975779722954024
+        },
+        "p_agree_vs_disagree": 0.22516320888492913
+      },
+      "held_out": {
+        "agrees": {
+          "n": 181,
+          "expectancy_R": -0.02455081362948052,
+          "ci_lo": -0.18330761202383428,
+          "ci_hi": 0.13420598476487322,
+          "win_rate": 0.44751381215469616
+        },
+        "disagrees": {
+          "n": 124,
+          "expectancy_R": -0.13070062718197487,
+          "ci_lo": -0.3037618148418685,
+          "ci_hi": 0.04236056047791875,
+          "win_rate": 0.3870967741935484
+        },
+        "baseline": {
+          "n": 10086,
+          "expectancy_R": 0.05707417721713079,
+          "ci_lo": 0.03697801843943759,
+          "ci_hi": 0.07717033599482398,
+          "win_rate": 0.501189767995241
+        },
+        "p_agree_vs_disagree": 0.3756686584532396
+      },
+      "bh_fdr_survives_agreement_diff": false
+    },
+    "ema9_cross_down": {
+      "trigger_type": "ema9_cross_down",
+      "in_sample": {
+        "agrees": {
+          "n": 1353,
+          "expectancy_R": 0.019471023347855745,
+          "ci_lo": -0.038278517851111304,
+          "ci_hi": 0.07722056454682279,
+          "win_rate": 0.4722838137472284
+        },
+        "disagrees": {
+          "n": 1741,
+          "expectancy_R": 0.06059958946683839,
+          "ci_lo": 0.010296497495569282,
+          "ci_hi": 0.1109026814381075,
+          "win_rate": 0.4928202182653647
+        },
+        "baseline": {
+          "n": 23534,
+          "expectancy_R": 0.04555292576981736,
+          "ci_lo": 0.03230533078908814,
+          "ci_hi": 0.05880052075054657,
+          "win_rate": 0.4975779722954024
+        },
+        "p_agree_vs_disagree": 0.29253873094596505
+      },
+      "held_out": {
+        "agrees": {
+          "n": 562,
+          "expectancy_R": 0.03168981662789602,
+          "ci_lo": -0.0546322431822361,
+          "ci_hi": 0.11801187643802814,
+          "win_rate": 0.4875444839857651
+        },
+        "disagrees": {
+          "n": 1070,
+          "expectancy_R": 0.02837876217691024,
+          "ci_lo": -0.03453400007254577,
+          "ci_hi": 0.09129152442636625,
+          "win_rate": 0.48785046728971965
+        },
+        "baseline": {
+          "n": 10086,
+          "expectancy_R": 0.05707417721713079,
+          "ci_lo": 0.03697801843943759,
+          "ci_hi": 0.07717033599482398,
+          "win_rate": 0.501189767995241
+        },
+        "p_agree_vs_disagree": 0.951553570966521
+      },
+      "bh_fdr_survives_agreement_diff": false
+    },
+    "ema9_cross_up": {
+      "trigger_type": "ema9_cross_up",
+      "in_sample": {
+        "agrees": {
+          "n": 1741,
+          "expectancy_R": 0.02548656595003399,
+          "ci_lo": -0.024022117312237183,
+          "ci_hi": 0.07499524921230516,
+          "win_rate": 0.48535324526134405
+        },
+        "disagrees": {
+          "n": 1355,
+          "expectancy_R": 0.052388793156823286,
+          "ci_lo": -0.0030272236885712026,
+          "ci_hi": 0.10780481000221778,
+          "win_rate": 0.4996309963099631
+        },
+        "baseline": {
+          "n": 23534,
+          "expectancy_R": 0.04555292576981736,
+          "ci_lo": 0.03230533078908814,
+          "ci_hi": 0.05880052075054657,
+          "win_rate": 0.4975779722954024
+        },
+        "p_agree_vs_disagree": 0.4779717354109101
+      },
+      "held_out": {
+        "agrees": {
+          "n": 1071,
+          "expectancy_R": 0.00780211435551292,
+          "ci_lo": -0.05413817036878871,
+          "ci_hi": 0.06974239907981454,
+          "win_rate": 0.47058823529411764
+        },
+        "disagrees": {
+          "n": 562,
+          "expectancy_R": 0.08265034797670516,
+          "ci_lo": -0.003925172706342087,
+          "ci_hi": 0.16922586865975242,
+          "win_rate": 0.5106761565836299
+        },
+        "baseline": {
+          "n": 10086,
+          "expectancy_R": 0.05707417721713079,
+          "ci_lo": 0.03697801843943759,
+          "ci_hi": 0.07717033599482398,
+          "win_rate": 0.501189767995241
+        },
+        "p_agree_vs_disagree": 0.16816736976909508
+      },
+      "bh_fdr_survives_agreement_diff": false
+    },
+    "fvg_fill_bearish": {
+      "trigger_type": "fvg_fill_bearish",
+      "in_sample": {
+        "agrees": {
+          "n": 1678,
+          "expectancy_R": 0.06895176293837937,
+          "ci_lo": 0.01727720532652942,
+          "ci_hi": 0.12062632055022933,
+          "win_rate": 0.4958283671036949
+        },
+        "disagrees": {
+          "n": 2236,
+          "expectancy_R": 0.05358112792388687,
+          "ci_lo": 0.009383016200148746,
+          "ci_hi": 0.097779239647625,
+          "win_rate": 0.4932915921288014
+        },
+        "baseline": {
+          "n": 23534,
+          "expectancy_R": 0.04555292576981736,
+          "ci_lo": 0.03230533078908814,
+          "ci_hi": 0.05880052075054657,
+          "win_rate": 0.4975779722954024
+        },
+        "p_agree_vs_disagree": 0.6577304789786296
+      },
+      "held_out": {
+        "agrees": {
+          "n": 622,
+          "expectancy_R": -0.023851061692663555,
+          "ci_lo": -0.10437407062035522,
+          "ci_hi": 0.05667194723502811,
+          "win_rate": 0.4662379421221865
+        },
+        "disagrees": {
+          "n": 1252,
+          "expectancy_R": 0.08688863999819033,
+          "ci_lo": 0.028229001600345124,
+          "ci_hi": 0.1455482783960355,
+          "win_rate": 0.5095846645367412
+        },
+        "baseline": {
+          "n": 10086,
+          "expectancy_R": 0.05707417721713079,
+          "ci_lo": 0.03697801843943759,
+          "ci_hi": 0.07717033599482398,
+          "win_rate": 0.501189767995241
+        },
+        "p_agree_vs_disagree": 0.029354431934157654
+      },
+      "bh_fdr_survives_agreement_diff": false
+    },
+    "fvg_fill_bullish": {
+      "trigger_type": "fvg_fill_bullish",
+      "in_sample": {
+        "agrees": {
+          "n": 2540,
+          "expectancy_R": 0.08584389716752457,
+          "ci_lo": 0.04423234826458213,
+          "ci_hi": 0.127455446070467,
+          "win_rate": 0.511023622047244
+        },
+        "disagrees": {
+          "n": 1846,
+          "expectancy_R": 0.05784113438134664,
+          "ci_lo": 0.009807667938277836,
+          "ci_hi": 0.10587460082441544,
+          "win_rate": 0.4956663055254605
+        },
+        "baseline": {
+          "n": 23534,
+          "expectancy_R": 0.04555292576981736,
+          "ci_lo": 0.03230533078908814,
+          "ci_hi": 0.05880052075054657,
+          "win_rate": 0.4975779722954024
+        },
+        "p_agree_vs_disagree": 0.38778401101432136
+      },
+      "held_out": {
+        "agrees": {
+          "n": 1295,
+          "expectancy_R": 0.05199112004417684,
+          "ci_lo": -0.005541660038101193,
+          "ci_hi": 0.10952390012645487,
+          "win_rate": 0.4911196911196911
+        },
+        "disagrees": {
+          "n": 624,
+          "expectancy_R": 0.10049246591706418,
+          "ci_lo": 0.014966206821386482,
+          "ci_hi": 0.18601872501274186,
+          "win_rate": 0.5080128205128205
+        },
+        "baseline": {
+          "n": 10086,
+          "expectancy_R": 0.05707417721713079,
+          "ci_lo": 0.03697801843943759,
+          "ci_hi": 0.07717033599482398,
+          "win_rate": 0.501189767995241
+        },
+        "p_agree_vs_disagree": 0.35639641958052426
+      },
+      "bh_fdr_survives_agreement_diff": false
+    },
+    "macd_bear_cross": {
+      "trigger_type": "macd_bear_cross",
+      "in_sample": {
+        "agrees": {
+          "n": 481,
+          "expectancy_R": 0.060576773452502244,
+          "ci_lo": -0.036100111853656636,
+          "ci_hi": 0.15725365875866112,
+          "win_rate": 0.4885654885654886
+        },
+        "disagrees": {
+          "n": 658,
+          "expectancy_R": 0.06119274934020875,
+          "ci_lo": -0.02113812413265565,
+          "ci_hi": 0.14352362281307315,
+          "win_rate": 0.48936170212765956
+        },
+        "baseline": {
+          "n": 23534,
+          "expectancy_R": 0.04555292576981736,
+          "ci_lo": 0.03230533078908814,
+          "ci_hi": 0.05880052075054657,
+          "win_rate": 0.4975779722954024
+        },
+        "p_agree_vs_disagree": 0.9924141154387467
+      },
+      "held_out": {
+        "agrees": {
+          "n": 207,
+          "expectancy_R": 0.027195579353865795,
+          "ci_lo": -0.10948622643790465,
+          "ci_hi": 0.16387738514563624,
+          "win_rate": 0.5072463768115942
+        },
+        "disagrees": {
+          "n": 415,
+          "expectancy_R": -0.016483873589591178,
+          "ci_lo": -0.11921764180626836,
+          "ci_hi": 0.086249894627086,
+          "win_rate": 0.4530120481927711
+        },
+        "baseline": {
+          "n": 10086,
+          "expectancy_R": 0.05707417721713079,
+          "ci_lo": 0.03697801843943759,
+          "ci_hi": 0.07717033599482398,
+          "win_rate": 0.501189767995241
+        },
+        "p_agree_vs_disagree": 0.6165858181831994
+      },
+      "bh_fdr_survives_agreement_diff": false
+    },
+    "macd_bull_cross": {
+      "trigger_type": "macd_bull_cross",
+      "in_sample": {
+        "agrees": {
+          "n": 657,
+          "expectancy_R": -0.042313408970576546,
+          "ci_lo": -0.12087096405514561,
+          "ci_hi": 0.036244146113992515,
+          "win_rate": 0.4596651445966514
+        },
+        "disagrees": {
+          "n": 483,
+          "expectancy_R": 0.10805513385611289,
+          "ci_lo": 0.016096234797607092,
+          "ci_hi": 0.20001403291461867,
+          "win_rate": 0.5217391304347826
+        },
+        "baseline": {
+          "n": 23534,
+          "expectancy_R": 0.04555292576981736,
+          "ci_lo": 0.03230533078908814,
+          "ci_hi": 0.05880052075054657,
+          "win_rate": 0.4975779722954024
+        },
+        "p_agree_vs_disagree": 0.014816784990082876
+      },
+      "held_out": {
+        "agrees": {
+          "n": 415,
+          "expectancy_R": 0.027110684654066686,
+          "ci_lo": -0.07289321222894349,
+          "ci_hi": 0.12711458153707686,
+          "win_rate": 0.491566265060241
+        },
+        "disagrees": {
+          "n": 209,
+          "expectancy_R": 0.14161609245043308,
+          "ci_lo": 0.0028670930792832616,
+          "ci_hi": 0.28036509182158287,
+          "win_rate": 0.5550239234449761
+        },
+        "baseline": {
+          "n": 10086,
+          "expectancy_R": 0.05707417721713079,
+          "ci_lo": 0.03697801843943759,
+          "ci_hi": 0.07717033599482398,
+          "win_rate": 0.501189767995241
+        },
+        "p_agree_vs_disagree": 0.18944881277555892
+      },
+      "bh_fdr_survives_agreement_diff": false
+    },
+    "rsi_reclaim_bear": {
+      "trigger_type": "rsi_reclaim_bear",
+      "in_sample": {
+        "agrees": {
+          "n": 392,
+          "expectancy_R": 0.04621745218632288,
+          "ci_lo": -0.06062063802828953,
+          "ci_hi": 0.15305554240093527,
+          "win_rate": 0.4872448979591837
+        },
+        "disagrees": {
+          "n": 519,
+          "expectancy_R": 0.044195439743937484,
+          "ci_lo": -0.04934930563271485,
+          "ci_hi": 0.13774018512058983,
+          "win_rate": 0.4816955684007707
+        },
+        "baseline": {
+          "n": 23534,
+          "expectancy_R": 0.04555292576981736,
+          "ci_lo": 0.03230533078908814,
+          "ci_hi": 0.05880052075054657,
+          "win_rate": 0.4975779722954024
+        },
+        "p_agree_vs_disagree": 0.9777349076447583
+      },
+      "held_out": {
+        "agrees": {
+          "n": 168,
+          "expectancy_R": 0.08020020043190142,
+          "ci_lo": -0.08371661493846606,
+          "ci_hi": 0.2441170158022689,
+          "win_rate": 0.49404761904761907
+        },
+        "disagrees": {
+          "n": 312,
+          "expectancy_R": -0.014556651061737225,
+          "ci_lo": -0.13166546438951088,
+          "ci_hi": 0.10255216226603642,
+          "win_rate": 0.46153846153846156
+        },
+        "baseline": {
+          "n": 10086,
+          "expectancy_R": 0.05707417721713079,
+          "ci_lo": 0.03697801843943759,
+          "ci_hi": 0.07717033599482398,
+          "win_rate": 0.501189767995241
+        },
+        "p_agree_vs_disagree": 0.3565699394216253
+      },
+      "bh_fdr_survives_agreement_diff": false
+    },
+    "rsi_reclaim_bull": {
+      "trigger_type": "rsi_reclaim_bull",
+      "in_sample": {
+        "agrees": {
+          "n": 509,
+          "expectancy_R": 0.06932216749284538,
+          "ci_lo": -0.02294848674551836,
+          "ci_hi": 0.16159282173120912,
+          "win_rate": 0.5108055009823183
+        },
+        "disagrees": {
+          "n": 369,
+          "expectancy_R": 0.03026687754889824,
+          "ci_lo": -0.07144828084795993,
+          "ci_hi": 0.13198203594575642,
+          "win_rate": 0.5040650406504065
+        },
+        "baseline": {
+          "n": 23534,
+          "expectancy_R": 0.04555292576981736,
+          "ci_lo": 0.03230533078908814,
+          "ci_hi": 0.05880052075054657,
+          "win_rate": 0.4975779722954024
+        },
+        "p_agree_vs_disagree": 0.5772542621329926
+      },
+      "held_out": {
+        "agrees": {
+          "n": 338,
+          "expectancy_R": 0.026728792356046135,
+          "ci_lo": -0.0829966878976646,
+          "ci_hi": 0.13645427260975687,
+          "win_rate": 0.48520710059171596
+        },
+        "disagrees": {
+          "n": 150,
+          "expectancy_R": 0.09064056074854486,
+          "ci_lo": -0.07316273148188805,
+          "ci_hi": 0.25444385297897776,
+          "win_rate": 0.5133333333333333
+        },
+        "baseline": {
+          "n": 10086,
+          "expectancy_R": 0.05707417721713079,
+          "ci_lo": 0.03697801843943759,
+          "ci_hi": 0.07717033599482398,
+          "win_rate": 0.501189767995241
+        },
+        "p_agree_vs_disagree": 0.5251907265673441
+      },
+      "bh_fdr_survives_agreement_diff": false
+    },
+    "swing_pivot_high_confirmed": {
+      "trigger_type": "swing_pivot_high_confirmed",
+      "in_sample": {
+        "agrees": {
+          "n": 654,
+          "expectancy_R": 0.06680907691644995,
+          "ci_lo": -0.013268029205964302,
+          "ci_hi": 0.1468861830388642,
+          "win_rate": 0.4969418960244648
+        },
+        "disagrees": {
+          "n": 836,
+          "expectancy_R": 0.042362735435949005,
+          "ci_lo": -0.0279255040146549,
+          "ci_hi": 0.1126509748865529,
+          "win_rate": 0.4916267942583732
+        },
+        "baseline": {
+          "n": 23534,
+          "expectancy_R": 0.04555292576981736,
+          "ci_lo": 0.03230533078908814,
+          "ci_hi": 0.05880052075054657,
+          "win_rate": 0.4975779722954024
+        },
+        "p_agree_vs_disagree": 0.6529297913183647
+      },
+      "held_out": {
+        "agrees": {
+          "n": 251,
+          "expectancy_R": 0.1348871320946165,
+          "ci_lo": 0.0185894926612737,
+          "ci_hi": 0.2511847715279593,
+          "win_rate": 0.5617529880478087
+        },
+        "disagrees": {
+          "n": 474,
+          "expectancy_R": 0.15040565921998186,
+          "ci_lo": 0.05913149300252879,
+          "ci_hi": 0.24167982543743494,
+          "win_rate": 0.5611814345991561
+        },
+        "baseline": {
+          "n": 10086,
+          "expectancy_R": 0.05707417721713079,
+          "ci_lo": 0.03697801843943759,
+          "ci_hi": 0.07717033599482398,
+          "win_rate": 0.501189767995241
+        },
+        "p_agree_vs_disagree": 0.8369935087340572
+      },
+      "bh_fdr_survives_agreement_diff": false
+    },
+    "swing_pivot_low_confirmed": {
+      "trigger_type": "swing_pivot_low_confirmed",
+      "in_sample": {
+        "agrees": {
+          "n": 808,
+          "expectancy_R": 0.11254541282276678,
+          "ci_lo": 0.04249726171104891,
+          "ci_hi": 0.18259356393448467,
+          "win_rate": 0.5383663366336634
+        },
+        "disagrees": {
+          "n": 603,
+          "expectancy_R": 0.12089312274400485,
+          "ci_lo": 0.04057198810654619,
+          "ci_hi": 0.2012142573814635,
+          "win_rate": 0.5373134328358209
+        },
+        "baseline": {
+          "n": 23534,
+          "expectancy_R": 0.04555292576981736,
+          "ci_lo": 0.03230533078908814,
+          "ci_hi": 0.05880052075054657,
+          "win_rate": 0.4975779722954024
+        },
+        "p_agree_vs_disagree": 0.8779873373458196
+      },
+      "held_out": {
+        "agrees": {
+          "n": 468,
+          "expectancy_R": 0.08601751981745959,
+          "ci_lo": -0.004217556792834226,
+          "ci_hi": 0.1762525964277534,
+          "win_rate": 0.5256410256410257
+        },
+        "disagrees": {
+          "n": 239,
+          "expectancy_R": 0.1621377290932329,
+          "ci_lo": 0.033830003042007034,
+          "ci_hi": 0.29044545514445874,
+          "win_rate": 0.5439330543933054
+        },
+        "baseline": {
+          "n": 10086,
+          "expectancy_R": 0.05707417721713079,
+          "ci_lo": 0.03697801843943759,
+          "ci_hi": 0.07717033599482398,
+          "win_rate": 0.501189767995241
+        },
+        "p_agree_vs_disagree": 0.3415357775006136
+      },
+      "bh_fdr_survives_agreement_diff": false
+    },
+    "volume_spike_green": {
+      "trigger_type": "volume_spike_green",
+      "in_sample": {
+        "agrees": {
+          "n": 789,
+          "expectancy_R": 0.05868852372520646,
+          "ci_lo": -0.017824131624740405,
+          "ci_hi": 0.13520117907515333,
+          "win_rate": 0.5006337135614702
+        },
+        "disagrees": {
+          "n": 568,
+          "expectancy_R": 0.11050133739800971,
+          "ci_lo": 0.020124351594067544,
+          "ci_hi": 0.20087832320195187,
+          "win_rate": 0.5176056338028169
+        },
+        "baseline": {
+          "n": 23534,
+          "expectancy_R": 0.04555292576981736,
+          "ci_lo": 0.03230533078908814,
+          "ci_hi": 0.05880052075054657,
+          "win_rate": 0.4975779722954024
+        },
+        "p_agree_vs_disagree": 0.3911127048445202
+      },
+      "held_out": {
+        "agrees": {
+          "n": 387,
+          "expectancy_R": 0.040234479273544226,
+          "ci_lo": -0.07503803150554952,
+          "ci_hi": 0.155506990052638,
+          "win_rate": 0.46511627906976744
+        },
+        "disagrees": {
+          "n": 180,
+          "expectancy_R": 0.21058320592319102,
+          "ci_lo": 0.04810923052664123,
+          "ci_hi": 0.3730571813197408,
+          "win_rate": 0.5555555555555556
+        },
+        "baseline": {
+          "n": 10086,
+          "expectancy_R": 0.05707417721713079,
+          "ci_lo": 0.03697801843943759,
+          "ci_hi": 0.07717033599482398,
+          "win_rate": 0.501189767995241
+        },
+        "p_agree_vs_disagree": 0.09373458138609214
+      },
+      "bh_fdr_survives_agreement_diff": false
+    },
+    "volume_spike_red": {
+      "trigger_type": "volume_spike_red",
+      "in_sample": {
+        "agrees": {
+          "n": 523,
+          "expectancy_R": -0.004926244439010069,
+          "ci_lo": -0.09950789981946864,
+          "ci_hi": 0.0896554109414485,
+          "win_rate": 0.4608030592734226
+        },
+        "disagrees": {
+          "n": 717,
+          "expectancy_R": 0.11309219536497896,
+          "ci_lo": 0.03197218882579343,
+          "ci_hi": 0.1942122019041645,
+          "win_rate": 0.5034867503486751
+        },
+        "baseline": {
+          "n": 23534,
+          "expectancy_R": 0.04555292576981736,
+          "ci_lo": 0.03230533078908814,
+          "ci_hi": 0.05880052075054657,
+          "win_rate": 0.4975779722954024
+        },
+        "p_agree_vs_disagree": 0.06339500507936702
+      },
+      "held_out": {
+        "agrees": {
+          "n": 156,
+          "expectancy_R": 0.09361518878801679,
+          "ci_lo": -0.077255859662729,
+          "ci_hi": 0.2644862372387626,
+          "win_rate": 0.5128205128205128
+        },
+        "disagrees": {
+          "n": 356,
+          "expectancy_R": 0.16646539060260698,
+          "ci_lo": 0.04735919425295941,
+          "ci_hi": 0.28557158695225454,
+          "win_rate": 0.5308988764044944
+        },
+        "baseline": {
+          "n": 10086,
+          "expectancy_R": 0.05707417721713079,
+          "ci_lo": 0.03697801843943759,
+          "ci_hi": 0.07717033599482398,
+          "win_rate": 0.501189767995241
+        },
+        "p_agree_vs_disagree": 0.4930099665872685
+      },
+      "bh_fdr_survives_agreement_diff": false
+    },
+    "vwap_loss": {
+      "trigger_type": "vwap_loss",
+      "in_sample": {
+        "agrees": {
+          "n": 636,
+          "expectancy_R": 0.011314889683431261,
+          "ci_lo": -0.06975188832928848,
+          "ci_hi": 0.09238166769615101,
+          "win_rate": 0.47641509433962265
+        },
+        "disagrees": {
+          "n": 825,
+          "expectancy_R": 0.08876699346352215,
+          "ci_lo": 0.018520840318952903,
+          "ci_hi": 0.1590131466080914,
+          "win_rate": 0.5212121212121212
+        },
+        "baseline": {
+          "n": 23534,
+          "expectancy_R": 0.04555292576981736,
+          "ci_lo": 0.03230533078908814,
+          "ci_hi": 0.05880052075054657,
+          "win_rate": 0.4975779722954024
+        },
+        "p_agree_vs_disagree": 0.1570072060841774
+      },
+      "held_out": {
+        "agrees": {
+          "n": 247,
+          "expectancy_R": -0.05050737246427588,
+          "ci_lo": -0.1748423488396855,
+          "ci_hi": 0.07382760391113374,
+          "win_rate": 0.43724696356275305
+        },
+        "disagrees": {
+          "n": 491,
+          "expectancy_R": -0.0102932258945216,
+          "ci_lo": -0.10539038900210553,
+          "ci_hi": 0.08480393721306233,
+          "win_rate": 0.46435845213849286
+        },
+        "baseline": {
+          "n": 10086,
+          "expectancy_R": 0.05707417721713079,
+          "ci_lo": 0.03697801843943759,
+          "ci_hi": 0.07717033599482398,
+          "win_rate": 0.501189767995241
+        },
+        "p_agree_vs_disagree": 0.6145892579254513
+      },
+      "bh_fdr_survives_agreement_diff": false
+    },
+    "vwap_reclaim": {
+      "trigger_type": "vwap_reclaim",
+      "in_sample": {
+        "agrees": {
+          "n": 824,
+          "expectancy_R": 0.024100854851420175,
+          "ci_lo": -0.047084854436506604,
+          "ci_hi": 0.09528656413934695,
+          "win_rate": 0.4817961165048544
+        },
+        "disagrees": {
+          "n": 635,
+          "expectancy_R": 0.010048895091961621,
+          "ci_lo": -0.06744623045182832,
+          "ci_hi": 0.08754402063575156,
+          "win_rate": 0.48976377952755906
+        },
+        "baseline": {
+          "n": 23534,
+          "expectancy_R": 0.04555292576981736,
+          "ci_lo": 0.03230533078908814,
+          "ci_hi": 0.05880052075054657,
+          "win_rate": 0.4975779722954024
+        },
+        "p_agree_vs_disagree": 0.7935255297634867
+      },
+      "held_out": {
+        "agrees": {
+          "n": 492,
+          "expectancy_R": 0.010291241901452886,
+          "ci_lo": -0.08270064018091591,
+          "ci_hi": 0.1032831239838217,
+          "win_rate": 0.4695121951219512
+        },
+        "disagrees": {
+          "n": 246,
+          "expectancy_R": 0.09896353549237283,
+          "ci_lo": -0.031048210713981395,
+          "ci_hi": 0.22897528169872705,
+          "win_rate": 0.516260162601626
+        },
+        "baseline": {
+          "n": 10086,
+          "expectancy_R": 0.05707417721713079,
+          "ci_lo": 0.03697801843943759,
+          "ci_hi": 0.07717033599482398,
+          "win_rate": 0.501189767995241
+        },
+        "p_agree_vs_disagree": 0.27691027972045124
+      },
+      "bh_fdr_survives_agreement_diff": false
+    }
+  },
+  "random_baseline_summary": {
+    "3": {
+      "in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.02940164979434677,
+        "ci_lo": 0.017500410698747103,
+        "ci_hi": 0.04130288888994644,
+        "win_rate": 0.4902693974674938
+      },
+      "held_out": {
+        "n": 10086,
+        "expectancy_R": 0.04073854034353771,
+        "ci_lo": 0.02285279924561901,
+        "ci_hi": 0.058624281441456406,
+        "win_rate": 0.5002974419988102
+      }
+    },
+    "6": {
+      "in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.04555292576981736,
+        "ci_lo": 0.03230533078908814,
+        "ci_hi": 0.05880052075054657,
+        "win_rate": 0.4975779722954024
+      },
+      "held_out": {
+        "n": 10086,
+        "expectancy_R": 0.05707417721713079,
+        "ci_lo": 0.03697801843943759,
+        "ci_hi": 0.07717033599482398,
+        "win_rate": 0.501189767995241
+      }
+    },
+    "12": {
+      "in_sample": {
+        "n": 23534,
+        "expectancy_R": 0.03222652758357702,
+        "ci_lo": 0.018485224841641792,
+        "ci_hi": 0.04596783032551224,
+        "win_rate": 0.4907792980368828
+      },
+      "held_out": {
+        "n": 10086,
+        "expectancy_R": 0.054035505414308134,
+        "ci_lo": 0.03314542644765149,
+        "ci_hi": 0.07492558438096478,
+        "win_rate": 0.500396589331747
+      }
+    }
+  },
+  "momentum_baseline_summary": {
+    "3": {
+      "n": 66321,
+      "expectancy_R": 0.03506086621365302,
+      "ci_lo": 0.027905059375646753,
+      "ci_hi": 0.04221667305165929,
+      "win_rate": 0.49338821790986265
+    },
+    "6": {
+      "n": 66321,
+      "expectancy_R": 0.044029283031213395,
+      "ci_lo": 0.0361067999878453,
+      "ci_hi": 0.05195176607458149,
+      "win_rate": 0.49494127048747755
+    },
+    "12": {
+      "n": 66321,
+      "expectancy_R": 0.04769376677063716,
+      "ci_lo": 0.03944953311760894,
+      "ci_hi": 0.055938000423665375,
+      "win_rate": 0.49501666138930356
+    }
+  }
+}
