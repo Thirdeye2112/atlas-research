@@ -26,8 +26,8 @@ from sqlalchemy import create_engine, text
 
 engine = create_engine(os.environ["DATABASE_URL"])
 
-CHANNEL_URL = "https://www.youtube.com/@OscarCarboni/videos"
-CHANNEL_ID = "UCOscarCarboni"  # fallback
+CHANNEL_URL = "https://www.youtube.com/channel/UCez8uA1o_fDYsrSf4auWSjg/videos"
+CHANNEL_ID = "UCez8uA1o_fDYsrSf4auWSjg"  # fallback
 
 
 def get_channel_videos(max_videos: int = 50) -> list[dict]:
