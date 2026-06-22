@@ -86,6 +86,36 @@ Every bar (not just confirmed pivots) screened in real time for the same shape c
 
 **Pooled across tickers, none of this replicates.** The one nominally low p-value (`bottom_like`, K=6, in-sample, p=0.0055) is in the WRONG direction (negative mean forward return for a filter meant to flag bottoms) and does not replicate held-out (p=0.62, flips positive) -- the textbook in-sample-only artifact this research arc keeps surfacing. Per-ticker (not shown in the pooled table; see `dome_leg_signature_summary.json` raw rows via `research_dome_leg_realtime`), the exploratory pass found AAPL trending positive regardless of filter direction, NKE trending negative regardless of filter direction, and INTC mixed -- i.e. ticker-level drift dominates a pure shape filter with no confirmation lag, exactly why Part B's confirmed-pivot framing works where Part C's real-time framing does not.
 
+## Part D. Replication on an independent 10-stock universe
+
+Parts A-C above are all AAPL/NKE/INTC, the same 3 tickers used throughout this research arc -- a
+legitimate question is whether the findings are specific to those 3 or general. Ran the identical
+pipeline (same thresholds, same walk-forward split, separate `run_id`) on 10 different tickers,
+picked for sector/cap/volatility diversity and NOT for any property of this study (5m bar coverage
+was the only selection filter, same as the original 3): **TSLA, META, AMD, XOM, WFC, KO, PFE, UBER,
+CSX, DKNG** -- auto/EV, social/tech, semis, energy, banking, consumer staples, pharma, mobility,
+rail, and a higher-vol mid-cap. 76,017 legs (4x the original sample).
+
+| | 3-stock pool (AAPL/NKE/INTC) | 10-stock pool |
+|---|---|---|
+| up-leg start lower_wick% / peak upper_wick% | 35.62 / 35.09 | 35.60 / 34.74 |
+| down-leg start upper_wick% / peak lower_wick% | 35.49 / 35.62 | 35.06 / 35.43 |
+| is_green% at top / at bottom | 53.2% / 44.4% | 52.7% / 44.4% |
+| r(early_gain, leg_amp) up-leg, held-out (non-taut.) | 0.736 | 0.704 |
+| r(early_gain, leg_amp) down-leg, held-out (non-taut.) | 0.749 | 0.711 |
+| r(early_slope, corr_depth) up-leg, held-out | 0.336 | 0.271 |
+| r(early_slope, corr_depth) down-leg, held-out | 0.233 | 0.284 |
+| real-time filter vs. baseline, any cell significant? | no | no |
+
+**Parts A and B replicate almost exactly on a completely independent, 4x-larger, sector-diverse sample** -- every wick/close-position/color figure is within ~1 percentage point of the original, and
+every early-signature correlation is within ~0.03-0.07 of the original, in the same direction, at
+the same order of magnitude, both in-sample and held-out. This is not a 3-stock idiosyncrasy: the
+dome/bowl symmetry and the early-signature-predicts-eventual-size relationship hold across at least
+13 stocks spanning megacaps to a mid-cap, across 8+ sectors. Part C's null also replicates --
+no real-time filter cell reaches significance vs. baseline in the 10-stock pool either (closest:
+`top_like` K=6 in-sample, p=0.13, not significant and itself unstable across portions), reinforcing
+rather than weakening the Part C conclusion.
+
 ## Scoping notes
 
 - **Significant pivots**, not raw fractal pivots: `structure.swing_pivots(width=3)` finds every micro zigzag; legs are only built from pivot-to-pivot moves >= 2.5x ATR14, to study real trend changes rather than noise (consistent across amp_mult=2.0/2.5/3.0 and width=3/5 in the exploratory pass).
@@ -96,7 +126,7 @@ Every bar (not just confirmed pivots) screened in real time for the same shape c
 
 ## Verdict
 
-**Plain answer: the dome/bowl symmetry is real, the early-signature-predicts-eventual-size finding is the strongest and most stable result in this entire research arc, and the real-time angle is a clean, honest null — for the same reason every other forward-prediction test in this arc has been null.**
+**Plain answer: the dome/bowl symmetry is real, the early-signature-predicts-eventual-size finding is the strongest and most stable result in this entire research arc, and the real-time angle is a clean, honest null — for the same reason every other forward-prediction test in this arc has been null. Part D adds that none of this is a 3-stock idiosyncrasy: it replicates almost exactly on 10 independent, sector-diverse tickers.**
 
 - **The dome-symmetry audit's prediction is confirmed.** Once you build the down-leg (bowl) the same way as the up-leg (dome), the candle geometry is an exact mirror: up-leg starts and down-leg peaks are both "bottom-type" bars (dominant lower wick ~35-36%, close high in the bar ~58%, more often red); up-leg peaks and down-leg starts are both "top-type" (dominant upper wick ~35%, close low ~42%, more often green). The bowl is exactly as detectable as the dome — the original detector's blind spot was a real gap, not a non-issue, and this measurement is independent evidence the proposed mirror fix in `research/dome-symmetry` is worth merging.
 
@@ -106,9 +136,12 @@ Every bar (not just confirmed pivots) screened in real time for the same shape c
 
 - **Practical implication:** the actionable piece here isn't "detect the shape in real time and trade it" (null, per Part C) — it's "once a swing point is confirmed by the existing, standard lag, the next few bars are unusually informative about how big the move will get" (real, per Part B). That is a meaningfully different and more modest claim than a real-time entry signal, but it is the one piece of this whole research arc with a large, replicating, non-overfit effect size.
 
+- **Generality (Part D):** none of this depends on the specific choice of AAPL/NKE/INTC. The same pipeline on 10 different, sector-diverse tickers (TSLA/META/AMD/XOM/WFC/KO/PFE/UBER/CSX/DKNG) reproduces every Part A/B figure within a few percentage points or hundredths of a correlation coefficient, and reproduces Part C's null too. This is now a 13-stock finding, not a 3-stock one.
+
 ## Reproducibility
 
-- Full aggregates: `reports/research/dome_leg_signature_summary.json` (run `20260621T225140Z-93e39c70`)
-- Run log: `reports/research/dome_leg_signature_run_log.jsonl`
-- Raw rows: `research_dome_leg_signature`, `research_dome_leg_realtime` tables, `WHERE run_id = '20260621T225140Z-93e39c70'`
+- Parts A-C (AAPL/NKE/INTC): `reports/research/dome_leg_signature_summary.json`, run `20260621T225140Z-93e39c70`
+- Part D (10-stock replication, TSLA/META/AMD/XOM/WFC/KO/PFE/UBER/CSX/DKNG): `reports/research/dome_leg_signature_summary_10stocks.json`, run `20260622T004346Z-75e29887`
+- Run log (both runs): `reports/research/dome_leg_signature_run_log.jsonl`
+- Raw rows: `research_dome_leg_signature`, `research_dome_leg_realtime` tables, `WHERE run_id IN ('20260621T225140Z-93e39c70', '20260622T004346Z-75e29887')`
 - Example charts: `reports/research/charts/` (prefixed `dl_`)
