@@ -30,9 +30,17 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 
-# Data (large files stay out of git)
-data/
+# Data (large files stay out of git by default)
+data/transcripts/
+# exports/ are generated daily feature matrices — not committed
+exports/
+# Block all parquet except the curated sample set in data/samples/
+data/**/*.parquet
+exports/**/*.parquet
 *.parquet
+# Sample data (10-ticker 5m subset) — small enough for regular git, no LFS
+!data/samples/
+!data/samples/**
 *.csv.gz
 
 # Model artifacts (binary, re-trainable)
