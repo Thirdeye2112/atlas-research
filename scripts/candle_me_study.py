@@ -1,22 +1,24 @@
 """
 5-Minute Candle Mutual Exclusivity Study
 =========================================
-Reads local parquet files, labels Rise/Drop events, extracts TA features on
-the 2 candles BEFORE each event, computes mutual-exclusivity scores, validates
-statistically, and auto-pushes results to GitHub.
+Schema (confirmed from Alpaca IEX parquets):
+  ticker | ts (datetime64[us, UTC-08:00]) | timeframe | open | high | low | close | volume | source
+
+Reads local parquet files (one or more per ticker), deduplicates on (ticker,ts),
+labels Rise/Drop events, extracts TA features on the 2 candles BEFORE each event,
+computes mutual-exclusivity scores, validates statistically, and auto-pushes
+results to GitHub.
 
 Usage:
     python scripts/candle_me_study.py [--data-dir PATH] [--tickers AAPL MSFT ...]
-                                      [--sample N] [--dry-run]
-
-First run (schema detection):
-    python scripts/candle_me_study.py --schema-check
+                                      [--sample N] [--dry-run] [--schema-check]
 """
 
 from __future__ import annotations
 import os, sys, argparse, json, base64, time, warnings
 from pathlib import Path
 from datetime import datetime, timezone
+from collections import defaultdict
 
 import numpy as np
 import pandas as pd
@@ -25,392 +27,314 @@ from scipy import stats
 warnings.filterwarnings("ignore")
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CONFIG  — edit these to match your local setup
+# CONFIG
 # ─────────────────────────────────────────────────────────────────────────────
-DATA_DIR     = Path(os.environ.get("CANDLE_DATA_DIR", r"C:\Atlas\data\5m"))
-GITHUB_REPO  = "Thirdeye2112/atlas-research"
+DATA_DIR      = Path(os.environ.get("CANDLE_DATA_DIR", r"C:\Atlas\data\5m"))
+GITHUB_REPO   = "Thirdeye2112/atlas-research"
 GITHUB_BRANCH = "main"
-RESULTS_DIR  = Path(__file__).parent.parent / "reports"
 
-# Event thresholds
-RISE_PCT_THRESHOLD = 0.40   # candle body % ≥ this → Rise event
-DROP_PCT_THRESHOLD = 0.40   # candle body % ≥ this → Drop event (absolute)
-# Alternative: set USE_PERCENTILE=True to use per-ticker percentile labeling
+# Event labelling — percentile per ticker
 USE_PERCENTILE     = True
-PERCENTILE_CUTOFF  = 10     # top/bottom 10% of 5m candle returns
+PERCENTILE_CUTOFF  = 10    # top / bottom 10 % of candle returns → Rise / Drop
 
-# Session buckets (Eastern time strings "HH:MM")
+# Fallback fixed thresholds (used when USE_PERCENTILE=False)
+RISE_PCT_THRESHOLD = 0.40
+DROP_PCT_THRESHOLD = 0.40
+
 SESSION_BUCKETS = {
-    "open_30m":   ("09:30", "10:00"),
-    "mid_early":  ("10:00", "11:30"),
-    "lunch":      ("11:30", "14:00"),
-    "power_hour": ("15:00", "16:00"),
+    "open_30m":   (570, 600),   # 09:30 – 10:00  (minutes since midnight)
+    "mid_early":  (600, 690),   # 10:00 – 11:30
+    "lunch":      (690, 840),   # 11:30 – 14:00
+    "power_hour": (900, 960),   # 15:00 – 16:00
 }
 
-# Column name map — adjust if your parquets use different names
-# Keys are canonical names used by this script; values are your actual column names
-COLUMN_MAP = {
-    "ticker":    "ticker",       # or None if filename is the ticker
-    "datetime":  "datetime",     # timestamp column
-    "open":      "open",
-    "high":      "high",
-    "low":       "low",
-    "close":     "close",
-    "volume":    "volume",
-}
-# If each file IS one ticker and has no ticker column, set:
-# COLUMN_MAP["ticker"] = None   and ticker will be inferred from filename
-
 # ─────────────────────────────────────────────────────────────────────────────
-# GitHub push helper
+# GitHub helper
 # ─────────────────────────────────────────────────────────────────────────────
 
-def github_push_file(path_in_repo: str, content: str | bytes, commit_msg: str) -> bool:
-    """Push a single file to GitHub via REST API. Returns True on success."""
+def github_push_file(path_in_repo: str, content: str | bytes, msg: str) -> bool:
     try:
         import urllib.request
         token = os.environ.get("GITHUB_TOKEN", "")
         if not token:
             print("  WARN: GITHUB_TOKEN not set — skipping push")
             return False
-
-        api_base = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path_in_repo}"
-        headers  = {
+        api = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path_in_repo}"
+        hdrs = {
             "Authorization": f"token {token}",
             "Accept":        "application/vnd.github.v3+json",
             "Content-Type":  "application/json",
             "User-Agent":    "atlas-research-bot",
         }
-
-        # Check if file already exists (need SHA for update)
         sha = None
         try:
-            req = urllib.request.Request(api_base, headers=headers)
-            with urllib.request.urlopen(req) as resp:
-                existing = json.loads(resp.read())
-                sha = existing.get("sha")
+            req = urllib.request.Request(api, headers=hdrs)
+            with urllib.request.urlopen(req) as r:
+                sha = json.loads(r.read()).get("sha")
         except Exception:
             pass
-
         if isinstance(content, str):
             content = content.encode("utf-8")
-
-        payload = {
-            "message": commit_msg,
-            "content": base64.b64encode(content).decode("ascii"),
-            "branch":  GITHUB_BRANCH,
-        }
+        payload: dict = {"message": msg,
+                         "content": base64.b64encode(content).decode("ascii"),
+                         "branch":  GITHUB_BRANCH}
         if sha:
             payload["sha"] = sha
-
-        data = json.dumps(payload).encode("utf-8")
-        req  = urllib.request.Request(api_base, data=data, headers=headers, method="PUT")
-        with urllib.request.urlopen(req) as resp:
-            status = resp.status
-        print(f"  GitHub push → {path_in_repo}  [{status}]")
+        req = urllib.request.Request(api, data=json.dumps(payload).encode(),
+                                     headers=hdrs, method="PUT")
+        with urllib.request.urlopen(req) as r:
+            status = r.status
+        print(f"  GitHub → {path_in_repo}  [{status}]")
         return status in (200, 201)
     except Exception as e:
         print(f"  GitHub push FAILED: {e}")
         return False
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Parquet loading
+# Parquet loading — groups multiple files per ticker, deduplicates
 # ─────────────────────────────────────────────────────────────────────────────
 
-def detect_schema(data_dir: Path) -> dict:
-    """Read first parquet, print columns, suggest mapping."""
-    files = sorted(data_dir.glob("*.parquet"))
-    if not files:
-        files = sorted(data_dir.rglob("*.parquet"))
-    if not files:
-        print(f"No parquet files found under {data_dir}")
-        sys.exit(1)
-
-    sample = files[0]
-    df = pd.read_parquet(sample, engine="pyarrow")
-    print(f"\n=== Schema detected from: {sample.name} ===")
-    print(f"Rows in sample file : {len(df):,}")
-    print(f"Columns ({len(df.columns)}): {list(df.columns)}")
-    print(f"\nFirst 3 rows:")
-    print(df.head(3).to_string())
-    print(f"\nDate range: {df.iloc[0,0]} → {df.iloc[-1,0]}")
-    return {"file": str(sample), "columns": list(df.columns), "nrows": len(df)}
+def discover_files(data_dir: Path) -> dict[str, list[Path]]:
+    """Return {ticker: [file, ...]} — groups files by ticker prefix in filename."""
+    all_files = sorted(data_dir.glob("*.parquet")) or sorted(data_dir.rglob("*.parquet"))
+    groups: dict[str, list[Path]] = defaultdict(list)
+    for f in all_files:
+        # Stem like AAPL_1782578339692 → ticker = AAPL
+        ticker = f.stem.split("_")[0].upper()
+        groups[ticker].append(f)
+    return dict(groups)
 
 
-def load_parquet(fpath: Path, col_map: dict) -> pd.DataFrame:
-    """Load one parquet, rename columns to canonical names, return sorted df."""
-    df = pd.read_parquet(fpath, engine="pyarrow")
+def load_ticker(files: list[Path]) -> pd.DataFrame:
+    """Load, concatenate, and deduplicate all files for one ticker."""
+    frames = []
+    for f in files:
+        df = pd.read_parquet(f, engine="pyarrow",
+                             columns=["ticker", "ts", "open", "high", "low", "close", "volume"])
+        frames.append(df)
+    df = pd.concat(frames, ignore_index=True)
 
-    # Reverse map: actual_name → canonical_name
-    rename = {}
-    for canonical, actual in col_map.items():
-        if actual and actual in df.columns and actual != canonical:
-            rename[actual] = canonical
-    if rename:
-        df = df.rename(columns=rename)
+    # Normalise timestamp to tz-naive UTC for consistency
+    df["ts"] = pd.to_datetime(df["ts"], utc=True).dt.tz_localize(None)
 
-    # Infer ticker from filename if no ticker column
-    if "ticker" not in df.columns:
-        ticker_name = fpath.stem.split("_")[0].upper()
-        df["ticker"] = ticker_name
+    # Deduplicate (handles duplicate files)
+    df = df.drop_duplicates(subset=["ticker", "ts"])
+    df = df.sort_values("ts").reset_index(drop=True)
 
-    # Parse datetime
-    dt_col = "datetime"
-    if dt_col not in df.columns:
-        # Try common alternatives
-        for alt in ["timestamp", "date", "time", "ts", "Date", "Datetime"]:
-            if alt in df.columns:
-                df = df.rename(columns={alt: "datetime"})
-                break
-
-    df["datetime"] = pd.to_datetime(df["datetime"])
-    df = df.sort_values("datetime").reset_index(drop=True)
-
-    # Ensure OHLCV columns are numeric
+    # Ensure numeric OHLCV
     for c in ["open", "high", "low", "close", "volume"]:
-        if c in df.columns:
-            df[c] = pd.to_numeric(df[c], errors="coerce")
+        df[c] = pd.to_numeric(df[c], errors="coerce")
 
     return df
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Feature computation
+# Feature computation  (operates on one ticker's sorted df)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def add_ema(series: pd.Series, period: int) -> pd.Series:
-    return series.ewm(span=period, adjust=False).mean()
+def add_ema(s: pd.Series, p: int) -> pd.Series:
+    return s.ewm(span=p, adjust=False).mean()
 
-def add_rsi(close: pd.Series, period: int = 14) -> pd.Series:
-    delta = close.diff()
-    gain  = delta.clip(lower=0).ewm(com=period-1, adjust=False).mean()
-    loss  = (-delta.clip(upper=0)).ewm(com=period-1, adjust=False).mean()
-    rs    = gain / loss.replace(0, np.nan)
-    return 100 - (100 / (1 + rs))
+def add_rsi(close: pd.Series, p: int = 14) -> pd.Series:
+    d = close.diff()
+    g = d.clip(lower=0).ewm(com=p-1, adjust=False).mean()
+    l = (-d.clip(upper=0)).ewm(com=p-1, adjust=False).mean()
+    return 100 - 100 / (1 + g / l.replace(0, np.nan))
 
-def add_bb(close: pd.Series, period: int = 20) -> tuple[pd.Series, pd.Series, pd.Series]:
-    ma  = close.rolling(period).mean()
-    std = close.rolling(period).std()
-    return ma + 2*std, ma, ma - 2*std
-
-def add_vwap(df: pd.DataFrame) -> pd.Series:
-    """Session VWAP — resets each day."""
+def add_vwap_session(df: pd.DataFrame) -> pd.Series:
+    """Session VWAP — resets each calendar date."""
     df = df.copy()
-    df["_date"] = df["datetime"].dt.date
-    df["_tp"]   = (df["high"] + df["low"] + df["close"]) / 3
-    df["_cum_tp_vol"] = df.groupby("_date").apply(
-        lambda g: (g["_tp"] * g["volume"]).cumsum()
-    ).reset_index(level=0, drop=True)
-    df["_cum_vol"] = df.groupby("_date")["volume"].cumsum()
-    return df["_cum_tp_vol"] / df["_cum_vol"].replace(0, np.nan)
+    df["_d"]   = df["ts"].dt.date
+    df["_tp"]  = (df["high"] + df["low"] + df["close"]) / 3
+    cum_tpv = df.groupby("_d").apply(lambda g: (g["_tp"] * g["volume"]).cumsum()).reset_index(level=0, drop=True)
+    cum_v   = df.groupby("_d")["volume"].cumsum()
+    return cum_tpv / cum_v.replace(0, np.nan)
 
 def compute_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Add all TA features needed for the study."""
     o, h, l, c, v = df["open"], df["high"], df["low"], df["close"], df["volume"]
 
-    # --- Candle anatomy ---
-    df["body_pct"]       = (c - o).abs() / c * 100
-    df["body_dir"]       = np.sign(c - o)                    # +1 bull, -1 bear
-    df["upper_wick"]     = h - np.maximum(o, c)
-    df["lower_wick"]     = np.minimum(o, c) - l
-    df["range"]          = h - l
-    df["upper_wick_pct"] = df["upper_wick"] / df["range"].replace(0, np.nan) * 100
-    df["lower_wick_pct"] = df["lower_wick"] / df["range"].replace(0, np.nan) * 100
-    df["body_to_range"]  = df["body_pct"] / (df["range"] / c * 100).replace(0, np.nan)
-    df["inside_bar"]     = (h < h.shift(1)) & (l > l.shift(1))
-    df["outside_bar"]    = (h > h.shift(1)) & (l < l.shift(1))
+    # ── Candle anatomy ────────────────────────────────────────────────────
+    df["body_pct"]        = (c - o).abs() / o.replace(0,np.nan) * 100
+    df["body_dir"]        = np.sign(c - o).astype(float)          # +1 bull / -1 bear
+    df["range"]           = h - l
+    df["upper_wick"]      = h - np.maximum(o, c)
+    df["lower_wick"]      = np.minimum(o, c) - l
+    rng = df["range"].replace(0, np.nan)
+    df["upper_wick_pct"]  = df["upper_wick"] / rng * 100
+    df["lower_wick_pct"]  = df["lower_wick"] / rng * 100
+    df["body_to_range"]   = df["body_pct"] / (rng / c.replace(0,np.nan) * 100)
+    df["inside_bar"]      = ((h < h.shift(1)) & (l > l.shift(1))).astype(float)
+    df["outside_bar"]     = ((h > h.shift(1)) & (l < l.shift(1))).astype(float)
+    df["upper_dom"]       = (df["upper_wick"] > df["lower_wick"] * 1.5).astype(float)
+    df["lower_dom"]       = (df["lower_wick"] > df["upper_wick"] * 1.5).astype(float)
+    df["hammer"]          = ((df["lower_wick_pct"] > 60) & (df["body_to_range"] < 0.35)).astype(float)
+    df["shooting_star"]   = ((df["upper_wick_pct"] > 60) & (df["body_to_range"] < 0.35)).astype(float)
 
-    # Wick dominance: which wick is larger?
-    df["upper_dom"]      = df["upper_wick"] > df["lower_wick"] * 1.5
-    df["lower_dom"]      = df["lower_wick"] > df["upper_wick"] * 1.5
-
-    # Consecutive candle direction streak
-    streak = []
-    s = 0
-    for d in df["body_dir"]:
-        if d == s:
-            s += int(d)
+    # Consecutive direction streak (resets across sessions)
+    dirs = df["body_dir"].values
+    streak = np.zeros(len(dirs))
+    s = 0.0
+    for i, d in enumerate(dirs):
+        if d == np.sign(s) and d != 0:
+            s += d
         else:
-            s = int(d)
-        streak.append(s)
+            s = d
+        streak[i] = s
     df["consec_dir"] = streak
 
-    # --- Volume ---
-    df["vol_ma20"]        = v.rolling(20).mean()
-    df["vol_ratio_20"]    = v / df["vol_ma20"].replace(0, np.nan)
-    df["vol_ratio_5"]     = v / v.rolling(5).mean().replace(0, np.nan)
-    df["vol_expanding"]   = (v > v.shift(1)).astype(int)
-    df["vol_climax"]      = (df["vol_ratio_20"] > 3.0).astype(int)
+    # ── Volume ────────────────────────────────────────────────────────────
+    vol_ma20          = v.rolling(20, min_periods=1).mean()
+    vol_ma5           = v.rolling(5,  min_periods=1).mean()
+    df["vol_ratio_20"] = v / vol_ma20.replace(0, np.nan)
+    df["vol_ratio_5"]  = v / vol_ma5.replace(0, np.nan)
+    df["vol_expanding"]= (v > v.shift(1)).astype(float)
+    df["vol_climax"]   = (df["vol_ratio_20"] > 3.0).astype(float)
+    df["vol_dry"]      = (df["vol_ratio_20"] < 0.4).astype(float)
 
-    # --- EMAs ---
-    df["ema9"]            = add_ema(c, 9)
-    df["ema20"]           = add_ema(c, 20)
-    df["ema50"]           = add_ema(c, 50)
-    df["above_ema9"]      = (c > df["ema9"]).astype(int)
-    df["above_ema20"]     = (c > df["ema20"]).astype(int)
-    df["above_ema50"]     = (c > df["ema50"]).astype(int)
-    df["above_all_emas"]  = ((c > df["ema9"]) & (c > df["ema20"]) & (c > df["ema50"])).astype(int)
-    df["below_all_emas"]  = ((c < df["ema9"]) & (c < df["ema20"]) & (c < df["ema50"])).astype(int)
-    df["ema9_vs_ema20"]   = (df["ema9"] > df["ema20"]).astype(int)   # golden cross state
+    # ── EMAs ─────────────────────────────────────────────────────────────
+    df["ema9"]          = add_ema(c, 9)
+    df["ema20"]         = add_ema(c, 20)
+    df["ema50"]         = add_ema(c, 50)
+    df["above_ema9"]    = (c > df["ema9"]).astype(float)
+    df["above_ema20"]   = (c > df["ema20"]).astype(float)
+    df["above_ema50"]   = (c > df["ema50"]).astype(float)
+    df["above_all_emas"]= ((c > df["ema9"]) & (c > df["ema20"]) & (c > df["ema50"])).astype(float)
+    df["below_all_emas"]= ((c < df["ema9"]) & (c < df["ema20"]) & (c < df["ema50"])).astype(float)
+    df["ema9_bull_stack"]= (df["ema9"] > df["ema20"]).astype(float)
+    df["dist_ema9_pct"] = (c - df["ema9"])  / df["ema9"].replace(0,np.nan) * 100
+    df["dist_ema20_pct"]= (c - df["ema20"]) / df["ema20"].replace(0,np.nan) * 100
 
-    # Distance from ema9/20 as %
-    df["dist_ema9_pct"]   = (c - df["ema9"])  / df["ema9"].replace(0, np.nan) * 100
-    df["dist_ema20_pct"]  = (c - df["ema20"]) / df["ema20"].replace(0, np.nan) * 100
+    # ── RSI ───────────────────────────────────────────────────────────────
+    df["rsi"]           = add_rsi(c, 14)
+    df["rsi_slope"]     = df["rsi"].diff(2)
+    df["rsi_above50"]   = (df["rsi"] > 50).astype(float)
+    df["rsi_above70"]   = (df["rsi"] > 70).astype(float)
+    df["rsi_below30"]   = (df["rsi"] < 30).astype(float)
+    df["rsi_reclaim50"] = ((df["rsi"] > 50) & (df["rsi"].shift(1) < 50)).astype(float)
+    df["rsi_lose50"]    = ((df["rsi"] < 50) & (df["rsi"].shift(1) > 50)).astype(float)
 
-    # --- RSI ---
-    df["rsi"]             = add_rsi(c, 14)
-    df["rsi_slope"]       = df["rsi"].diff(2)                 # 2-bar RSI slope
-    df["rsi_above50"]     = (df["rsi"] > 50).astype(int)
-    df["rsi_above70"]     = (df["rsi"] > 70).astype(int)
-    df["rsi_below30"]     = (df["rsi"] < 30).astype(int)
-    # RSI reclaim: was below 50, now above
-    df["rsi_reclaim50"]   = ((df["rsi"] > 50) & (df["rsi"].shift(1) < 50)).astype(int)
-    df["rsi_lose50"]      = ((df["rsi"] < 50) & (df["rsi"].shift(1) > 50)).astype(int)
+    # ── Bollinger Bands ───────────────────────────────────────────────────
+    bb_mid = c.rolling(20).mean()
+    bb_std = c.rolling(20).std()
+    bb_up  = bb_mid + 2 * bb_std
+    bb_lo  = bb_mid - 2 * bb_std
+    bb_rng = (bb_up - bb_lo).replace(0, np.nan)
+    df["bb_pct"]         = (c - bb_lo) / bb_rng          # 0-1
+    df["bb_width"]       = bb_rng / bb_mid.replace(0,np.nan) * 100
+    df["bb_squeeze"]     = (df["bb_width"] < df["bb_width"].rolling(20).quantile(0.20)).astype(float)
+    df["above_bb_upper"] = (c > bb_up).astype(float)
+    df["below_bb_lower"] = (c < bb_lo).astype(float)
 
-    # --- Bollinger Bands ---
-    bb_up, bb_mid, bb_lo  = add_bb(c, 20)
-    df["bb_pct"]          = (c - bb_lo) / (bb_up - bb_lo).replace(0, np.nan)  # 0–1
-    df["bb_width"]        = (bb_up - bb_lo) / bb_mid.replace(0, np.nan) * 100
-    df["bb_squeeze"]      = (df["bb_width"] < df["bb_width"].rolling(20).quantile(0.20)).astype(int)
-    df["above_bb_upper"]  = (c > bb_up).astype(int)
-    df["below_bb_lower"]  = (c < bb_lo).astype(int)
-
-    # --- VWAP ---
+    # ── VWAP ─────────────────────────────────────────────────────────────
     try:
-        df["vwap"]        = add_vwap(df)
-        df["above_vwap"]  = (c > df["vwap"]).astype(int)
-        df["vwap_dist_pct"] = (c - df["vwap"]) / df["vwap"].replace(0, np.nan) * 100
+        df["vwap"]       = add_vwap_session(df)
+        df["above_vwap"] = (c > df["vwap"]).astype(float)
+        df["vwap_dist_pct"] = (c - df["vwap"]) / df["vwap"].replace(0,np.nan) * 100
     except Exception:
-        df["vwap"]        = np.nan
-        df["above_vwap"]  = np.nan
-        df["vwap_dist_pct"] = np.nan
+        df["vwap"] = df["above_vwap"] = df["vwap_dist_pct"] = np.nan
 
-    # --- ATR (14-bar) ---
-    tr = pd.concat([
-        h - l,
-        (h - c.shift(1)).abs(),
-        (l - c.shift(1)).abs(),
-    ], axis=1).max(axis=1)
-    df["atr"]             = tr.ewm(com=13, adjust=False).mean()
-    df["atr_pct"]         = df["atr"] / c * 100
-    df["atr_expansion"]   = df["atr"] / df["atr"].rolling(5).mean().replace(0, np.nan)  # > 1 = expanding
+    # ── ATR ───────────────────────────────────────────────────────────────
+    tr = pd.concat([(h-l), (h-c.shift(1)).abs(), (l-c.shift(1)).abs()], axis=1).max(axis=1)
+    df["atr"]            = tr.ewm(com=13, adjust=False).mean()
+    df["atr_pct"]        = df["atr"] / c.replace(0,np.nan) * 100
+    df["atr_expansion"]  = df["atr"] / df["atr"].rolling(5).mean().replace(0,np.nan)
 
-    # --- MACD ---
-    ema12 = add_ema(c, 12)
-    ema26 = add_ema(c, 26)
-    macd  = ema12 - ema26
-    sig   = add_ema(macd, 9)
+    # ── MACD ─────────────────────────────────────────────────────────────
+    macd = add_ema(c,12) - add_ema(c,26)
+    sig  = add_ema(macd, 9)
     df["macd_hist"]       = macd - sig
-    df["macd_above_sig"]  = (macd > sig).astype(int)
-    df["macd_hist_rising"] = (df["macd_hist"] > df["macd_hist"].shift(1)).astype(int)
+    df["macd_above_sig"]  = (macd > sig).astype(float)
+    df["macd_hist_rising"]= (df["macd_hist"] > df["macd_hist"].shift(1)).astype(float)
+    df["macd_bull_cross"] = ((macd > sig) & (macd.shift(1) <= sig.shift(1))).astype(float)
+    df["macd_bear_cross"] = ((macd < sig) & (macd.shift(1) >= sig.shift(1))).astype(float)
 
-    # --- Session info ---
-    df["hour"]            = df["datetime"].dt.hour
-    df["minute"]          = df["datetime"].dt.minute
-    df["hhmm"]            = df["hour"] * 100 + df["minute"]
+    # ── Session / time ────────────────────────────────────────────────────
+    mins = df["ts"].dt.hour * 60 + df["ts"].dt.minute
+    df["session_mins"]    = mins
     df["session_bucket"]  = "other"
-    for bucket, (start, end) in SESSION_BUCKETS.items():
-        sh, sm = int(start[:2]), int(start[3:])
-        eh, em = int(end[:2]),   int(end[3:])
-        mask = (
-            (df["hour"] * 60 + df["minute"] >= sh * 60 + sm) &
-            (df["hour"] * 60 + df["minute"] <  eh * 60 + em)
-        )
-        df.loc[mask, "session_bucket"] = bucket
-    df["is_power_hour"]   = (df["session_bucket"] == "power_hour").astype(int)
-    df["is_open_30m"]     = (df["session_bucket"] == "open_30m").astype(int)
-    df["day_of_week"]     = df["datetime"].dt.dayofweek   # 0=Mon, 4=Fri
+    for name, (s, e) in SESSION_BUCKETS.items():
+        df.loc[(mins >= s) & (mins < e), "session_bucket"] = name
+    df["is_power_hour"]   = (df["session_bucket"] == "power_hour").astype(float)
+    df["is_open_30m"]     = (df["session_bucket"] == "open_30m").astype(float)
+    df["day_of_week"]     = df["ts"].dt.dayofweek.astype(float)  # 0=Mon,4=Fri
 
-    # --- Gap from prior close ---
-    # A new session starts when date changes
-    df["_date"]           = df["datetime"].dt.date
-    df["date_changed"]    = df["_date"] != df["_date"].shift(1)
-    df["gap_pct"]         = np.where(
-        df["date_changed"],
-        (o - c.shift(1)) / c.shift(1).replace(0, np.nan) * 100,
-        np.nan
-    )
+    # Opening gap (first bar of each session)
+    df["_date"]           = df["ts"].dt.date
+    new_session           = df["_date"] != df["_date"].shift(1)
+    df["gap_pct"]         = np.where(new_session,
+                                (o - c.shift(1)) / c.shift(1).replace(0,np.nan) * 100,
+                                np.nan)
 
-    # --- C-2 → C-1 transition features (shift-based) ---
-    df["prev1_body_pct"]   = df["body_pct"].shift(1)
-    df["prev1_body_dir"]   = df["body_dir"].shift(1)
-    df["prev1_vol_ratio"]  = df["vol_ratio_20"].shift(1)
-    df["prev1_rsi"]        = df["rsi"].shift(1)
-    df["prev1_bb_pct"]     = df["bb_pct"].shift(1)
-    df["prev2_body_pct"]   = df["body_pct"].shift(2)
-    df["prev2_body_dir"]   = df["body_dir"].shift(2)
-    df["prev2_vol_ratio"]  = df["vol_ratio_20"].shift(2)
-    df["prev2_rsi"]        = df["rsi"].shift(2)
+    # ── C-2 → C-1 look-back features ─────────────────────────────────────
+    df["prev1_body_pct"]  = df["body_pct"].shift(1)
+    df["prev1_body_dir"]  = df["body_dir"].shift(1)
+    df["prev1_vol_ratio"] = df["vol_ratio_20"].shift(1)
+    df["prev1_rsi"]       = df["rsi"].shift(1)
+    df["prev1_bb_pct"]    = df["bb_pct"].shift(1)
+    df["prev1_upper_wick"]= df["upper_wick_pct"].shift(1)
+    df["prev1_lower_wick"]= df["lower_wick_pct"].shift(1)
+    df["prev2_body_pct"]  = df["body_pct"].shift(2)
+    df["prev2_body_dir"]  = df["body_dir"].shift(2)
+    df["prev2_vol_ratio"] = df["vol_ratio_20"].shift(2)
+    df["prev2_rsi"]       = df["rsi"].shift(2)
 
-    # Range expanding / contracting into the event
-    df["range_expanding_into"] = (df["range"] < df["range"].shift(1)).astype(int)  # prior bar bigger
-    df["vol_accel_into"]       = (df["vol_ratio_20"] > df["prev1_vol_ratio"]).astype(int)
+    # Multi-bar transitions
+    df["prior2_aligned_bull"] = ((df["prev1_body_dir"] > 0) & (df["prev2_body_dir"] > 0)).astype(float)
+    df["prior2_aligned_bear"] = ((df["prev1_body_dir"] < 0) & (df["prev2_body_dir"] < 0)).astype(float)
+    df["vol_accel_into"]      = (df["vol_ratio_20"] > df["prev1_vol_ratio"]).astype(float)
+    df["range_expanding_into"]= (df["range"] > df["range"].shift(1)).astype(float)
 
-    # Momentum alignment: both C-2 and C-1 same direction
-    df["prior2_aligned_bull"]  = ((df["prev1_body_dir"] > 0) & (df["prev2_body_dir"] > 0)).astype(int)
-    df["prior2_aligned_bear"]  = ((df["prev1_body_dir"] < 0) & (df["prev2_body_dir"] < 0)).astype(int)
+    # C-2 inside → C-1 break = compression + expansion setup
+    df["compression_breakout"]= (df["inside_bar"].shift(1) > 0).astype(float)
 
-    # C-2 inside → C-1 breakout (compression → expansion)
-    inside_2bars_ago = df["inside_bar"].shift(1)
-    not_inside_prev  = ~df["inside_bar"].shift(0).astype(bool)  # C-1 not inside
-    df["compression_breakout"] = (inside_2bars_ago.astype(bool) & not_inside_prev).astype(int)
+    # Candle return for event labelling
+    df["candle_ret"]      = (c - o) / o.replace(0, np.nan) * 100
 
     return df
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Event labeling
+# Event labelling
 # ─────────────────────────────────────────────────────────────────────────────
 
 def label_events(df: pd.DataFrame) -> pd.DataFrame:
-    """Add 'event' column: 'rise', 'drop', or None."""
-    # raw candle return (open→close)
-    candle_return = (df["close"] - df["open"]) / df["open"] * 100
-
+    cr = df["candle_ret"]
     if USE_PERCENTILE:
-        # Per-ticker percentile (computed on full history)
-        rise_thresh = np.nanpercentile(candle_return, 100 - PERCENTILE_CUTOFF)
-        drop_thresh = np.nanpercentile(candle_return, PERCENTILE_CUTOFF)
+        r_thresh = np.nanpercentile(cr, 100 - PERCENTILE_CUTOFF)
+        d_thresh = np.nanpercentile(cr, PERCENTILE_CUTOFF)
     else:
-        rise_thresh =  RISE_PCT_THRESHOLD
-        drop_thresh = -DROP_PCT_THRESHOLD
+        r_thresh =  RISE_PCT_THRESHOLD
+        d_thresh = -DROP_PCT_THRESHOLD
 
     df = df.copy()
-    df["candle_ret"] = candle_return
     df["event"]      = None
-    df.loc[candle_return >= rise_thresh, "event"] = "rise"
-    df.loc[candle_return <= drop_thresh, "event"] = "drop"
+    df.loc[cr >= r_thresh, "event"] = "rise"
+    df.loc[cr <= d_thresh, "event"] = "drop"
 
-    # Label next-2-bar continuation / reversal
-    for shift in [1, 2]:
-        df[f"next{shift}_ret"] = candle_return.shift(-shift)
+    # Forward-bar context (what happened next)
+    for s in [1, 2]:
+        df[f"next{s}_ret"] = df["candle_ret"].shift(-s)
 
-    return df
+    return df, float(r_thresh), float(d_thresh)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Mutual exclusivity engine
+# ME engine
 # ─────────────────────────────────────────────────────────────────────────────
 
 BINARY_FEATURES = [
-    "body_dir",         # +1 bull / -1 bear (will be binarised as >0)
-    "inside_bar", "outside_bar",
-    "upper_dom", "lower_dom",
-    "vol_expanding", "vol_climax",
-    "above_ema9", "above_ema20", "above_ema50",
-    "above_all_emas", "below_all_emas", "ema9_vs_ema20",
-    "rsi_above50", "rsi_above70", "rsi_below30",
-    "rsi_reclaim50", "rsi_lose50",
+    "body_dir", "inside_bar", "outside_bar", "upper_dom", "lower_dom",
+    "hammer", "shooting_star",
+    "vol_expanding", "vol_climax", "vol_dry",
+    "above_ema9", "above_ema20", "above_ema50", "above_all_emas", "below_all_emas",
+    "ema9_bull_stack",
+    "rsi_above50", "rsi_above70", "rsi_below30", "rsi_reclaim50", "rsi_lose50",
     "bb_squeeze", "above_bb_upper", "below_bb_lower",
     "above_vwap",
-    "macd_above_sig", "macd_hist_rising",
+    "macd_above_sig", "macd_hist_rising", "macd_bull_cross", "macd_bear_cross",
     "is_power_hour", "is_open_30m",
     "prior2_aligned_bull", "prior2_aligned_bear",
-    "compression_breakout",
-    "vol_accel_into",
-    "range_expanding_into",
-    # Prev-bar direction
-    "prev1_body_dir",   # binarised as >0
-    "prev2_body_dir",
+    "compression_breakout", "vol_accel_into", "range_expanding_into",
+    "prev1_body_dir", "prev2_body_dir",
 ]
 
 CONTINUOUS_FEATURES = [
@@ -422,303 +346,216 @@ CONTINUOUS_FEATURES = [
     "vwap_dist_pct",
     "atr_pct", "atr_expansion",
     "macd_hist",
-    "prev1_body_pct", "prev1_rsi", "prev1_vol_ratio",
-    "prev2_body_pct", "prev2_rsi",
     "consec_dir",
+    "prev1_body_pct", "prev1_rsi", "prev1_vol_ratio",
+    "prev1_upper_wick", "prev1_lower_wick", "prev1_bb_pct",
+    "prev2_body_pct", "prev2_rsi",
     "gap_pct",
 ]
 
 
 def compute_me_scores(events_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    For each feature, compute:
-      rise_lift  = P(feature_active | rise)  / P(feature_active | baseline)
-      drop_lift  = P(feature_active | drop)  / P(feature_active | baseline)
-      me_score   = rise_lift / drop_lift   (>> 1 = rise-only, << 1 = drop-only)
-      p_value    = statistical test
-      effect_size
-    """
     rise = events_df[events_df["event"] == "rise"]
     drop = events_df[events_df["event"] == "drop"]
-    base = events_df  # all candles (including non-events) for base rates
 
     records = []
 
-    # --- Binary features ---
+    # Binary
     for feat in BINARY_FEATURES:
         if feat not in events_df.columns:
             continue
+        def act(df_):
+            col = pd.to_numeric(df_[feat], errors="coerce")
+            n   = col.notna().sum()
+            pos = (col > 0).sum()
+            return int(pos), int(n)
 
-        # Binarise: anything > 0 → True
-        def active(df_):
-            col = df_[feat]
-            return (col > 0).sum(), len(col.dropna())
+        rn, rt = act(rise)
+        dn, dt = act(drop)
+        bn, bt = act(events_df)
+        if bt == 0: continue
 
-        rise_n, rise_tot = active(rise)
-        drop_n, drop_tot = active(drop)
-        base_n, base_tot = active(base)
+        br = bn / bt
+        rr = rn / rt if rt else np.nan
+        dr = dn / dt if dt else np.nan
+        rl = rr / br  if br > 0 else np.nan
+        dl = dr / br  if br > 0 else np.nan
+        me = rl / dl  if dl and dl > 0 else np.nan
 
-        if base_tot == 0:
-            continue
-
-        base_rate  = base_n / base_tot
-        rise_rate  = rise_n / rise_tot if rise_tot > 0 else np.nan
-        drop_rate  = drop_n / drop_tot if drop_tot > 0 else np.nan
-        rise_lift  = rise_rate / base_rate if base_rate > 0 else np.nan
-        drop_lift  = drop_rate / base_rate if base_rate > 0 else np.nan
-        me_score   = rise_lift / drop_lift  if (drop_lift and drop_lift > 0) else np.nan
-
-        # Chi-square: rise vs drop contingency
         try:
-            ct = np.array([
-                [rise_n,        rise_tot - rise_n],
-                [drop_n,        drop_tot - drop_n],
-            ])
-            chi2, p_val, _, _ = stats.chi2_contingency(ct, correction=False)
-            cramers_v = np.sqrt(chi2 / (ct.sum() * (min(ct.shape) - 1)))
+            ct = np.array([[rn, rt-rn], [dn, dt-dn]])
+            chi2, p, _, _ = stats.chi2_contingency(ct, correction=False)
+            cv = np.sqrt(chi2 / (ct.sum() * max(1, min(ct.shape)-1)))
         except Exception:
-            p_val, cramers_v = np.nan, np.nan
+            p, cv = np.nan, np.nan
 
-        records.append({
-            "feature":      feat,
-            "type":         "binary",
-            "rise_rate":    round(rise_rate * 100, 2) if not np.isnan(rise_rate) else None,
-            "drop_rate":    round(drop_rate * 100, 2) if not np.isnan(drop_rate) else None,
-            "base_rate":    round(base_rate * 100, 2),
-            "rise_lift":    round(rise_lift,  3) if not np.isnan(rise_lift)  else None,
-            "drop_lift":    round(drop_lift,  3) if not np.isnan(drop_lift)  else None,
-            "me_score":     round(me_score,   3) if not np.isnan(me_score)   else None,
-            "p_value":      round(p_val,      6) if not np.isnan(p_val)      else None,
-            "effect_size":  round(cramers_v,  4) if not np.isnan(cramers_v)  else None,
-            "n_rise":       int(rise_tot),
-            "n_drop":       int(drop_tot),
-        })
+        records.append(dict(feature=feat, type="binary",
+                            rise_rate=_r(rr*100), drop_rate=_r(dr*100), base_rate=_r(br*100),
+                            rise_lift=_r(rl), drop_lift=_r(dl), me_score=_r(me),
+                            p_value=_r(p,6), effect_size=_r(cv,4), n_rise=rt, n_drop=dt,
+                            direction="rise" if (me or 1)>1 else "drop"))
 
-    # --- Continuous features ---
+    # Continuous — use Cliff's delta mapped to ME scale
+    # Avoids division-by-zero when base mean is near 0 (e.g. macd_hist, rsi_slope)
+    # Cliff delta +1 → ME=∞ (perfect rise), 0 → ME=1 (neutral), -1 → ME=0 (perfect drop)
     for feat in CONTINUOUS_FEATURES:
         if feat not in events_df.columns:
             continue
-
-        r_vals = rise[feat].dropna().values
-        d_vals = drop[feat].dropna().values
-
-        if len(r_vals) < 5 or len(d_vals) < 5:
+        rv = rise[feat].dropna().values
+        dv = drop[feat].dropna().values
+        if len(rv) < 10 or len(dv) < 10:
             continue
 
-        # Mann-Whitney U
         try:
-            u_stat, p_val = stats.mannwhitneyu(r_vals, d_vals, alternative="two-sided")
-            n1, n2        = len(r_vals), len(d_vals)
-            cliffs_delta  = (2 * u_stat / (n1 * n2)) - 1   # range [-1, 1]
+            u, p = stats.mannwhitneyu(rv, dv, alternative="two-sided")
+            cd   = (2 * u / (len(rv) * len(dv))) - 1
         except Exception:
-            p_val, cliffs_delta = np.nan, np.nan
+            p, cd = np.nan, np.nan
 
-        rise_mean = float(np.nanmean(r_vals))
-        drop_mean = float(np.nanmean(d_vals))
-        base_mean = float(events_df[feat].dropna().mean())
+        rm = float(np.nanmean(rv))
+        dm = float(np.nanmean(dv))
+        eps = 1e-6
+        if not np.isnan(cd):
+            me = (1 + cd + eps) / (1 - cd + eps)
+        else:
+            me = np.nan
 
-        # "lift" analogue for continuous: mean ratio vs base
-        rise_lift = rise_mean / base_mean if base_mean != 0 else np.nan
-        drop_lift = drop_mean / base_mean if base_mean != 0 else np.nan
-        me_score  = rise_lift / drop_lift  if (drop_lift and drop_lift != 0) else np.nan
+        records.append(dict(feature=feat, type="continuous",
+                            rise_mean=_r(rm,4), drop_mean=_r(dm,4),
+                            cliff_delta=_r(cd,4) if not np.isnan(cd) else None,
+                            rise_lift=None, drop_lift=None, me_score=_r(me),
+                            p_value=_r(p,6), effect_size=_r(abs(cd),4) if not np.isnan(cd) else None,
+                            n_rise=len(rv), n_drop=len(dv),
+                            direction="rise_higher" if rm>dm else "drop_higher"))
 
-        records.append({
-            "feature":      feat,
-            "type":         "continuous",
-            "rise_mean":    round(rise_mean, 4),
-            "drop_mean":    round(drop_mean, 4),
-            "base_mean":    round(base_mean, 4),
-            "rise_lift":    round(rise_lift,  3) if not np.isnan(rise_lift)  else None,
-            "drop_lift":    round(drop_lift,  3) if not np.isnan(drop_lift)  else None,
-            "me_score":     round(me_score,   3) if not np.isnan(me_score)   else None,
-            "p_value":      round(p_val,      6) if not np.isnan(p_val)      else None,
-            "effect_size":  round(abs(cliffs_delta), 4) if not np.isnan(cliffs_delta) else None,
-            "direction":    "rise_higher" if rise_mean > drop_mean else "drop_higher",
-            "n_rise":       int(len(r_vals)),
-            "n_drop":       int(len(d_vals)),
-        })
+    if not records:
+        return pd.DataFrame()
 
-    result = pd.DataFrame(records)
-    if len(result) == 0:
-        return result
+    df = pd.DataFrame(records)
 
-    # --- FDR correction (Benjamini-Hochberg) ---
-    pvals = result["p_value"].fillna(1.0).values
-    n     = len(pvals)
-    order = np.argsort(pvals)
-    bh_thresh = np.array([(i + 1) / n * 0.05 for i in range(n)])
-    passed    = pvals[order] <= bh_thresh
-    # All below last passing rank pass
-    if passed.any():
-        last = np.where(passed)[0].max()
-        fdr_mask = np.zeros(n, dtype=bool)
-        fdr_mask[order[:last + 1]] = True
-    else:
-        fdr_mask = np.zeros(n, dtype=bool)
+    # BH FDR correction
+    pv   = df["p_value"].fillna(1.0).values
+    n    = len(pv)
+    ord_ = np.argsort(pv)
+    bh   = np.array([(i+1)/n*0.05 for i in range(n)])
+    pass_ = pv[ord_] <= bh
+    fdr  = np.zeros(n, dtype=bool)
+    if pass_.any():
+        fdr[ord_[:np.where(pass_)[0].max()+1]] = True
+    df["fdr_pass"] = fdr
 
-    result["fdr_pass"] = fdr_mask
-    result = result.sort_values("me_score", ascending=False)
-    return result
+    return df.sort_values("me_score", ascending=False).reset_index(drop=True)
+
+
+def _r(v, d=3):
+    if v is None: return None
+    try:
+        f = float(v)
+        return None if np.isnan(f) else round(f, d)
+    except Exception:
+        return None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Time-of-day stratification
+# Session stratification
 # ─────────────────────────────────────────────────────────────────────────────
 
-def stratify_by_session(events_df: pd.DataFrame, top_features: list[str]) -> pd.DataFrame:
-    """Run ME analysis per session bucket for top features."""
-    buckets = events_df["session_bucket"].unique()
+def stratify_by_session(events_df: pd.DataFrame, top_feats: list[str]) -> pd.DataFrame:
     rows = []
-    for bucket in buckets:
-        sub = events_df[events_df["session_bucket"] == bucket]
+    for bucket in events_df["session_bucket"].unique():
+        sub  = events_df[events_df["session_bucket"] == bucket]
         rise = sub[sub["event"] == "rise"]
         drop = sub[sub["event"] == "drop"]
         if len(rise) < 20 or len(drop) < 20:
             continue
-        for feat in top_features:
+        for feat in top_feats:
             if feat not in sub.columns:
                 continue
-            r_vals = rise[feat].dropna().values
-            d_vals = drop[feat].dropna().values
-            if len(r_vals) < 5 or len(d_vals) < 5:
+            rv = rise[feat].dropna().values
+            dv = drop[feat].dropna().values
+            if len(rv) < 5 or len(dv) < 5:
                 continue
             try:
-                _, p = stats.mannwhitneyu(r_vals, d_vals, alternative="two-sided")
-                cliffs = (2 * stats.mannwhitneyu(r_vals, d_vals)[0] / (len(r_vals) * len(d_vals))) - 1
+                u, p = stats.mannwhitneyu(rv, dv, alternative="two-sided")
+                cd   = (2*u/(len(rv)*len(dv))) - 1
             except Exception:
-                p, cliffs = np.nan, np.nan
-            rows.append({
-                "session": bucket,
-                "feature": feat,
-                "rise_mean": float(np.nanmean(r_vals)),
-                "drop_mean": float(np.nanmean(d_vals)),
-                "effect_size": round(abs(cliffs), 4) if not np.isnan(cliffs) else None,
-                "p_value": round(p, 6) if not np.isnan(p) else None,
-                "n_rise": len(r_vals),
-                "n_drop": len(d_vals),
-            })
+                p, cd = np.nan, np.nan
+            rows.append(dict(session=bucket, feature=feat,
+                             rise_mean=_r(float(np.nanmean(rv)),4),
+                             drop_mean=_r(float(np.nanmean(dv)),4),
+                             effect_size=_r(abs(cd),4) if not np.isnan(cd) else None,
+                             p_value=_r(p,6), n_rise=len(rv), n_drop=len(dv)))
     return pd.DataFrame(rows)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Report generation
+# Report builder
 # ─────────────────────────────────────────────────────────────────────────────
 
-def build_report(me_df: pd.DataFrame, session_df: pd.DataFrame,
-                 meta: dict) -> str:
+def build_report(me_df: pd.DataFrame, sess_df: pd.DataFrame, meta: dict) -> str:
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    n_tickers   = meta.get("n_tickers", "?")
-    n_candles   = meta.get("n_candles", "?")
-    n_rise      = meta.get("n_rise", "?")
-    n_drop      = meta.get("n_drop", "?")
-    date_range  = meta.get("date_range", "?")
-
-    # Top rise-predictors (ME > 2.0, FDR pass)
-    rise_preds = me_df[
-        (me_df["me_score"] >= 2.0) & me_df["fdr_pass"]
-    ].head(15)
-
-    # Top drop-predictors (ME < 0.5, FDR pass)
-    drop_preds = me_df[
-        (me_df["me_score"] <= 0.5) & me_df["fdr_pass"]
-    ].sort_values("me_score").head(15)
-
-    # Neutral / noise (0.8 < ME < 1.2)
-    neutral = me_df[
-        (me_df["me_score"] > 0.8) & (me_df["me_score"] < 1.2)
-    ].head(10)
 
     def tbl(df_, cols):
-        if df_.empty:
-            return "_No features passed filters._\n"
-        header = "| " + " | ".join(cols) + " |"
-        sep    = "|" + "|".join(["---"] * len(cols)) + "|"
-        rows   = []
+        if df_.empty: return "_None passed filters._\n"
+        hdr = "| " + " | ".join(cols) + " |"
+        sep = "|" + "|".join(["---"]*len(cols)) + "|"
+        rows_ = []
         for _, r in df_.iterrows():
-            vals = []
+            cells = []
             for c in cols:
                 v = r.get(c)
-                if isinstance(v, float):
-                    vals.append(f"{v:.3f}" if not np.isnan(v) else "—")
-                elif v is None:
-                    vals.append("—")
-                else:
-                    vals.append(str(v))
-            rows.append("| " + " | ".join(vals) + " |")
-        return "\n".join([header, sep] + rows) + "\n"
+                if isinstance(v, float) and not np.isnan(v): cells.append(f"{v:.4f}")
+                elif v is None or (isinstance(v, float) and np.isnan(v)): cells.append("—")
+                else: cells.append(str(v))
+            rows_.append("| " + " | ".join(cells) + " |")
+        return "\n".join([hdr, sep] + rows_) + "\n"
 
-    rise_cols = ["feature", "type", "rise_lift", "drop_lift", "me_score", "effect_size", "p_value", "fdr_pass"]
-    drop_cols = rise_cols
+    rc = ["feature","type","rise_lift","drop_lift","me_score","effect_size","p_value","fdr_pass"]
 
-    session_tbl = ""
-    if not session_df.empty:
-        top_feats = rise_preds["feature"].tolist()[:5] + drop_preds["feature"].tolist()[:5]
-        sub = session_df[session_df["feature"].isin(top_feats)]
-        session_tbl = tbl(sub, ["session", "feature", "rise_mean", "drop_mean", "effect_size", "p_value", "n_rise", "n_drop"])
+    rise_preds = me_df[(me_df["me_score"] >= 2.0) & me_df["fdr_pass"]].head(20)
+    drop_preds = me_df[(me_df["me_score"] <= 0.5) & me_df["fdr_pass"]].sort_values("me_score").head(20)
+    neutral    = me_df[(me_df["me_score"]> 0.8) & (me_df["me_score"]<1.25)].head(10)
 
-    lines = [
+    top10 = (rise_preds["feature"].tolist()[:5] + drop_preds["feature"].tolist()[:5])
+    sess_sub = sess_df[sess_df["feature"].isin(top10)] if not sess_df.empty else pd.DataFrame()
+
+    return "\n".join([
         "# 5-Minute Candle Mutual Exclusivity Report",
         f"",
         f"**Generated:** {ts}  ",
-        f"**Tickers analysed:** {n_tickers:,}  " if isinstance(n_tickers, int) else f"**Tickers analysed:** {n_tickers}  ",
-        f"**Total 5m candles:** {n_candles:,}  " if isinstance(n_candles, int) else f"**Total 5m candles:** {n_candles}  ",
-        f"**Date range:** {date_range}  ",
-        f"**Rise events:** {n_rise:,}  " if isinstance(n_rise, int) else f"**Rise events:** {n_rise}  ",
-        f"**Drop events:** {n_drop:,}  " if isinstance(n_drop, int) else f"**Drop events:** {n_drop}  ",
-        f"**Labelling method:** {'Top/bottom ' + str(PERCENTILE_CUTOFF) + '% candle return per ticker' if USE_PERCENTILE else f'Fixed ±{RISE_PCT_THRESHOLD}% body threshold'}  ",
+        f"**Tickers:** {meta.get('n_tickers',0):,}  |  "
+        f"**Candles:** {meta.get('n_candles',0):,}  |  "
+        f"**Date range:** {meta.get('date_range','?')}",
+        f"**Rise events:** {meta.get('n_rise',0):,}  |  "
+        f"**Drop events:** {meta.get('n_drop',0):,}  |  "
+        f"**Labelling:** top/bottom {PERCENTILE_CUTOFF}% candle return per ticker",
         f"",
-        f"---",
+        "---",
+        "## Method",
+        "- Features extracted from **C-2** and **C-1** (2 bars before the event candle C-0)",
+        "- **ME score** = rise_lift ÷ drop_lift",
+        "  - ME ≥ 2 → fires ≥2× more before rises → **Rise signal**",
+        "  - ME ≤ 0.5 → fires ≥2× more before drops → **Drop signal**",
+        "- Stats: χ² (binary) / Mann-Whitney U (continuous) + BH FDR α=0.05",
+        "- Effect size: Cramér's V (binary) / Cliff's δ (continuous)",
+        "---",
+        "## 1. Rise Predictors (ME ≥ 2.0, FDR pass)",
+        tbl(rise_preds, rc),
+        "---",
+        "## 2. Drop Predictors (ME ≤ 0.5, FDR pass)",
+        tbl(drop_preds, rc),
+        "---",
+        "## 3. Neutral Features (0.8 < ME < 1.25)",
+        tbl(neutral, ["feature","type","me_score","p_value"]),
+        "---",
+        "## 4. Session-of-Day Stratification (top 10 features)",
+        tbl(sess_sub, ["session","feature","rise_mean","drop_mean","effect_size","p_value","n_rise","n_drop"]),
+        "---",
+        "_Full table: `reports/candle_me_full.csv`  |  "
+        "Session table: `reports/candle_me_session.csv`_",
         f"",
-        f"## Method",
-        f"",
-        f"For each 5m candle labelled as Rise or Drop:",
-        f"- Features extracted from **C-2** and **C-1** (2 candles before the event)",
-        f"- Mutual exclusivity score = rise_lift ÷ drop_lift",
-        f"  - **ME > 2.0** → feature fires ≥2× more before rises than drops → **Rise signal**",
-        f"  - **ME < 0.5** → feature fires ≥2× more before drops than rises → **Drop signal**",
-        f"  - **ME ≈ 1.0** → feature is neutral / noise",
-        f"- Statistical validation: chi-square (binary) / Mann-Whitney U (continuous)",
-        f"- Multiple comparison correction: Benjamini-Hochberg FDR (α=0.05)",
-        f"- Effect size: Cramér's V (binary) / Cliff's delta (continuous)",
-        f"",
-        f"---",
-        f"",
-        f"## 1. Rise Predictors (ME ≥ 2.0, FDR-corrected)",
-        f"",
-        f"_Features present before RISES significantly more than before DROPS._",
-        f"",
-        tbl(rise_preds, rise_cols),
-        f"---",
-        f"",
-        f"## 2. Drop Predictors (ME ≤ 0.5, FDR-corrected)",
-        f"",
-        f"_Features present before DROPS significantly more than before RISES._",
-        f"",
-        tbl(drop_preds, drop_cols),
-        f"---",
-        f"",
-        f"## 3. Neutral / Noise Features",
-        f"",
-        f"_These features do not discriminate between rises and drops._",
-        f"",
-        tbl(neutral, ["feature", "type", "me_score", "p_value"]),
-        f"---",
-        f"",
-        f"## 4. Time-of-Day Stratification (top 10 features)",
-        f"",
-        f"_Does the same feature work differently in different session windows?_",
-        f"",
-        session_tbl,
-        f"---",
-        f"",
-        f"## 5. Full Feature Table",
-        f"",
-        f"See `reports/candle_me_full.csv` for all features with complete statistics.",
-        f"",
-        f"---",
-        f"_Generated by `scripts/candle_me_study.py`_",
-    ]
-    return "\n".join(lines)
+        "_Generated by `scripts/candle_me_study.py`_",
+    ])
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -726,184 +563,138 @@ def build_report(me_df: pd.DataFrame, session_df: pd.DataFrame,
 # ─────────────────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--data-dir",     default=str(DATA_DIR))
-    parser.add_argument("--tickers",      nargs="+", default=None,
-                        help="Process only these tickers (stem of parquet filename)")
-    parser.add_argument("--sample",       type=int,  default=None,
-                        help="Randomly sample N parquet files (for quick test)")
-    parser.add_argument("--schema-check", action="store_true",
-                        help="Print schema info from first file and exit")
-    parser.add_argument("--dry-run",      action="store_true",
-                        help="Run analysis but do not push to GitHub")
-    parser.add_argument("--no-push",      action="store_true",
-                        help="Same as --dry-run")
-    args = parser.parse_args()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--data-dir",     default=str(DATA_DIR))
+    ap.add_argument("--tickers",      nargs="+", default=None)
+    ap.add_argument("--sample",       type=int,  default=None,
+                    help="Process only N randomly-chosen tickers (quick test)")
+    ap.add_argument("--schema-check", action="store_true")
+    ap.add_argument("--dry-run",      action="store_true")
+    args = ap.parse_args()
 
     data_dir = Path(args.data_dir)
     if not data_dir.exists():
-        print(f"ERROR: Data directory not found: {data_dir}")
-        print(f"Set CANDLE_DATA_DIR env var or pass --data-dir PATH")
+        print(f"ERROR: directory not found: {data_dir}")
+        print("Set CANDLE_DATA_DIR env var or pass --data-dir PATH")
         sys.exit(1)
 
-    # Schema check mode
+    # Schema check
     if args.schema_check:
-        detect_schema(data_dir)
-        print("\nIf column names differ from expected, edit COLUMN_MAP at top of script.")
+        files = sorted(data_dir.glob("*.parquet")) or sorted(data_dir.rglob("*.parquet"))
+        if not files:
+            print("No parquet files found.")
+            sys.exit(1)
+        df = pd.read_parquet(files[0], engine="pyarrow")
+        print(f"\n=== {files[0].name} ===  shape={df.shape}")
+        print(df.dtypes.to_string())
+        print(df.head(3).to_string())
         sys.exit(0)
 
-    # Discover parquet files
-    files = sorted(data_dir.glob("*.parquet")) or sorted(data_dir.rglob("*.parquet"))
-    if not files:
-        print(f"No parquet files found under {data_dir}")
-        sys.exit(1)
-
-    # Filter / sample
+    groups = discover_files(data_dir)
     if args.tickers:
-        tickers_upper = set(t.upper() for t in args.tickers)
-        files = [f for f in files if f.stem.upper() in tickers_upper]
+        groups = {k: v for k, v in groups.items() if k in {t.upper() for t in args.tickers}}
     if args.sample:
-        import random
-        random.shuffle(files)
-        files = files[:args.sample]
+        import random; keys = list(groups); random.shuffle(keys)
+        groups = {k: groups[k] for k in keys[:args.sample]}
 
-    print(f"=== 5-Minute Candle Mutual Exclusivity Study ===")
-    print(f"Data dir : {data_dir}")
-    print(f"Files    : {len(files):,}")
-    print(f"Labelling: {'percentile top/bottom ' + str(PERCENTILE_CUTOFF) + '%' if USE_PERCENTILE else 'fixed threshold'}")
+    tickers = sorted(groups)
+    print(f"=== 5-Minute Candle ME Study ===")
+    print(f"Dir     : {data_dir}")
+    print(f"Tickers : {len(tickers):,}")
+    print(f"Label   : top/bottom {PERCENTILE_CUTOFF}% candle return")
     print()
 
-    # ── Load and process all files ─────────────────────────────────────────
-    all_events: list[pd.DataFrame] = []
-    n_candles_total = 0
-    date_min, date_max = None, None
-    errors = []
+    all_events, n_candles, date_min, date_max, errors = [], 0, None, None, []
 
-    for i, fpath in enumerate(files, 1):
-        ticker = fpath.stem.split("_")[0].upper()
+    for i, ticker in enumerate(tickers, 1):
         try:
-            df = load_parquet(fpath, COLUMN_MAP)
-            if len(df) < 50:
+            df = load_ticker(groups[ticker])
+            if len(df) < 100:
                 continue
             df = compute_features(df)
-            df = label_events(df)
+            df, r_thr, d_thr = label_events(df)
+            n_candles += len(df)
+            dm, dx = df["ts"].min(), df["ts"].max()
+            if date_min is None or dm < date_min: date_min = dm
+            if date_max is None or dx > date_max: date_max = dx
+            all_events.append(df[df["event"].notna()].copy())
 
-            n_candles_total += len(df)
-            d_min = df["datetime"].min()
-            d_max = df["datetime"].max()
-            if date_min is None or d_min < date_min: date_min = d_min
-            if date_max is None or d_max > date_max: date_max = d_max
-
-            # Keep only event rows for ME computation (with their C-2/C-1 features)
-            evt = df[df["event"].notna()].copy()
-            all_events.append(evt)
-
-            if i % 100 == 0 or i == len(files):
-                n_rise = sum((e["event"] == "rise").sum() for e in all_events)
-                n_drop = sum((e["event"] == "drop").sum() for e in all_events)
-                print(f"  [{i}/{len(files)}] {ticker:8s}  "
-                      f"candles={len(df):,}  events(R/D)={n_rise:,}/{n_drop:,}")
-
+            if i % 200 == 0 or i == len(tickers):
+                nr = sum((e["event"]=="rise").sum() for e in all_events)
+                nd = sum((e["event"]=="drop").sum() for e in all_events)
+                print(f"  [{i}/{len(tickers)}] {ticker:8s} "
+                      f"candles={len(df):,}  R={nr:,} D={nd:,}"
+                      f"  thresholds=[{d_thr:.2f}%,{r_thr:.2f}%]")
         except Exception as e:
             errors.append(f"{ticker}: {e}")
-            if i <= 5:
-                print(f"  WARN [{ticker}]: {e}")
+            if len(errors) <= 5:
+                print(f"  WARN {ticker}: {e}")
 
     if not all_events:
-        print("No events extracted. Check COLUMN_MAP and data format.")
+        print("No events extracted. Verify --data-dir and parquet schema.")
         sys.exit(1)
 
     events_df = pd.concat(all_events, ignore_index=True)
-    n_rise = (events_df["event"] == "rise").sum()
-    n_drop = (events_df["event"] == "drop").sum()
-    n_tickers = len(files) - len(errors)
+    n_rise = int((events_df["event"]=="rise").sum())
+    n_drop = int((events_df["event"]=="drop").sum())
+    n_tickers = len(tickers) - len(errors)
 
-    print(f"\n=== Data Summary ===")
-    print(f"  Tickers processed : {n_tickers:,}")
-    print(f"  Total 5m candles  : {n_candles_total:,}")
-    print(f"  Date range        : {date_min} → {date_max}")
-    print(f"  Rise events       : {n_rise:,}")
-    print(f"  Drop events       : {n_drop:,}")
-    print(f"  Errors            : {len(errors)}")
-    if errors[:5]:
-        for e in errors[:5]: print(f"    {e}")
-    print()
+    print(f"\n=== Summary ===")
+    print(f"  Tickers  : {n_tickers:,}   Candles: {n_candles:,}")
+    print(f"  Range    : {date_min} → {date_max}")
+    print(f"  Rise     : {n_rise:,}   Drop: {n_drop:,}")
+    print(f"  Errors   : {len(errors)}")
 
-    # ── Compute ME scores ──────────────────────────────────────────────────
-    print("Computing mutual exclusivity scores...")
+    print("\nComputing ME scores ...")
     me_df = compute_me_scores(events_df)
-    print(f"  Features tested  : {len(me_df)}")
-    print(f"  FDR-pass         : {me_df['fdr_pass'].sum()}")
-    print(f"  Rise predictors  : {(me_df['me_score'] >= 2.0).sum()}")
-    print(f"  Drop predictors  : {(me_df['me_score'] <= 0.5).sum()}")
+    print(f"  Features  : {len(me_df)}")
+    print(f"  FDR pass  : {me_df['fdr_pass'].sum()}")
+    n_rise_sigs = int((me_df["me_score"] >= 2.0).sum())
+    n_drop_sigs = int((me_df["me_score"] <= 0.5).sum())
+    print(f"  Rise sigs : {n_rise_sigs}   Drop sigs: {n_drop_sigs}")
 
-    # ── Session stratification ─────────────────────────────────────────────
-    top_feats = (
-        me_df[me_df["me_score"] >= 2.0]["feature"].head(5).tolist() +
-        me_df[me_df["me_score"] <= 0.5]["feature"].head(5).tolist()
-    )
-    print("\nStratifying by session bucket...")
-    session_df = stratify_by_session(events_df, top_feats)
+    top_feats = (me_df[me_df["me_score"]>=2.0]["feature"].head(5).tolist() +
+                 me_df[me_df["me_score"]<=0.5]["feature"].head(5).tolist())
+    sess_df = stratify_by_session(events_df, top_feats)
 
-    # ── Build report ───────────────────────────────────────────────────────
-    meta = {
-        "n_tickers":  n_tickers,
-        "n_candles":  n_candles_total,
-        "n_rise":     int(n_rise),
-        "n_drop":     int(n_drop),
-        "date_range": f"{date_min} → {date_max}",
-    }
-    report_md  = build_report(me_df, session_df, meta)
-    full_csv   = me_df.to_csv(index=False)
-    session_csv = session_df.to_csv(index=False) if not session_df.empty else "session,feature\n"
+    meta = dict(n_tickers=n_tickers, n_candles=n_candles, n_rise=n_rise,
+                n_drop=n_drop, date_range=f"{date_min} → {date_max}")
+    report_md = build_report(me_df, sess_df, meta)
 
-    # Show top findings in console
+    # Console preview
     print("\n=== TOP RISE PREDICTORS (ME ≥ 2.0) ===")
-    top_rise = me_df[me_df["me_score"] >= 2.0].head(10)
-    if not top_rise.empty:
-        print(top_rise[["feature", "me_score", "rise_lift", "drop_lift", "effect_size", "p_value"]].to_string(index=False))
+    top_r = me_df[me_df["me_score"]>=2.0].head(10)
+    if not top_r.empty:
+        cols = [c for c in ["feature","me_score","rise_lift","drop_lift","effect_size","p_value"] if c in top_r.columns]
+        print(top_r[cols].to_string(index=False))
     else:
-        print("  None passed ME ≥ 2.0 threshold.")
+        print("  None")
 
     print("\n=== TOP DROP PREDICTORS (ME ≤ 0.5) ===")
-    top_drop = me_df[me_df["me_score"] <= 0.5].sort_values("me_score").head(10)
-    if not top_drop.empty:
-        print(top_drop[["feature", "me_score", "rise_lift", "drop_lift", "effect_size", "p_value"]].to_string(index=False))
+    top_d = me_df[me_df["me_score"]<=0.5].sort_values("me_score").head(10)
+    if not top_d.empty:
+        cols = [c for c in ["feature","me_score","rise_lift","drop_lift","effect_size","p_value"] if c in top_d.columns]
+        print(top_d[cols].to_string(index=False))
     else:
-        print("  None passed ME ≤ 0.5 threshold.")
+        print("  None")
 
-    # ── Push to GitHub ─────────────────────────────────────────────────────
-    dry_run = args.dry_run or args.no_push
-    ts_tag  = datetime.now().strftime("%Y%m%d_%H%M")
-
-    if not dry_run:
-        print("\n=== Pushing results to GitHub ===")
-        github_push_file(
-            "reports/CANDLE_ME_REPORT.md",
-            report_md,
-            f"[candle-me] {ts_tag} mutual exclusivity study ({n_tickers} tickers, {n_candles_total:,} candles)"
-        )
-        github_push_file(
-            "reports/candle_me_full.csv",
-            full_csv,
-            f"[candle-me] {ts_tag} full feature table"
-        )
-        github_push_file(
-            "reports/candle_me_session.csv",
-            session_csv,
-            f"[candle-me] {ts_tag} session stratification"
-        )
-        print("Done — check Thirdeye2112/atlas-research/reports/")
+    ts_tag = datetime.now().strftime("%Y%m%d_%H%M")
+    if not args.dry_run:
+        print("\n=== Pushing to GitHub ===")
+        commit = f"[candle-me] {ts_tag} {n_tickers} tickers {n_candles:,} candles"
+        github_push_file("reports/CANDLE_ME_REPORT.md",    report_md,               commit)
+        github_push_file("reports/candle_me_full.csv",     me_df.to_csv(index=False), commit)
+        github_push_file("reports/candle_me_session.csv",
+                         sess_df.to_csv(index=False) if not sess_df.empty else "session,feature\n",
+                         commit)
     else:
-        # Save locally
-        out = Path(args.data_dir).parent / "results"
+        out = Path(args.data_dir).parent / "candle_me_results"
         out.mkdir(exist_ok=True)
         (out / "CANDLE_ME_REPORT.md").write_text(report_md)
-        (out / "candle_me_full.csv").write_text(full_csv)
-        (out / "candle_me_session.csv").write_text(session_csv)
-        print(f"\n[dry-run] Results saved to {out}")
+        (out / "candle_me_full.csv").write_text(me_df.to_csv(index=False))
+        print(f"\n[dry-run] Saved to {out}")
 
-    print("\nAll done.")
+    print("\nDone.")
 
 if __name__ == "__main__":
     main()
