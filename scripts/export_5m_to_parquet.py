@@ -82,10 +82,12 @@ def main():
             ), {"tf": args.timeframe}).mappings().all()]
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    print(f"\nExporting {len(tickers)} ticker(s) → {OUT_DIR}")
+    print(f"\nExporting {len(tickers)} ticker(s) -> {OUT_DIR}")
 
     for i, ticker in enumerate(tickers, 1):
         out_path = OUT_DIR / f"{ticker}.parquet"
+        if out_path.exists():
+            continue
         with engine.connect() as conn:
             df = pd.read_sql(
                 text(
@@ -102,7 +104,7 @@ def main():
             continue
         df.to_parquet(out_path, index=False, compression="snappy")
         size_kb = out_path.stat().st_size // 1024
-        print(f"  [{i}/{len(tickers)}] {ticker} — {len(df):,} rows → {out_path.name} ({size_kb:,} KB)")
+        print(f"  [{i}/{len(tickers)}] {ticker} - {len(df):,} rows -> {out_path.name} ({size_kb:,} KB)")
 
     print(f"\nDone. Files in: {OUT_DIR}")
     total_mb = sum(f.stat().st_size for f in OUT_DIR.glob("*.parquet")) / (1024 * 1024)

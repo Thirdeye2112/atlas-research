@@ -301,20 +301,20 @@ TRAIN_FEATURES_V2: list[str] = [f for f in TRAIN_FEATURES_V1 if f not in _DEGRAD
 REGIME_INTERACTION_FEATURES: list[str] = [
     "omni_82_distance_x_above_200dma",   # OMNI support distance when above 200DMA
     "omni_82_above_x_above_200dma",      # OMNI flag when above 200DMA
-    "omni_82_slope_x_above_200dma",      # OMNI slope when above 200DMA
+    # omni_82_slope_x_above_200dma — dropped: no stability gain over base (0.55 vs 0.55)
     "realized_vol_20_x_below_200dma",    # vol signal when below 200DMA
     "realized_vol_60_x_below_200dma",    # vol signal (60d) when below 200DMA
     "return_1d_x_below_200dma",          # 1d return mean-reversion in downtrend
     "return_3d_x_below_200dma",          # 3d return mean-reversion in downtrend
     "return_5d_x_below_200dma",          # 5d return mean-reversion in downtrend
     "rs_spy_20_x_bull",                  # RS vs SPY in bull market only
-    "rs_spy_60_x_bull",                  # RS vs SPY (60d) in bull market only
+    # rs_spy_60_x_bull — dropped: stability 0.55 < base 0.73 (net negative)
 ]
 TRAIN_FEATURES_V3: list[str] = TRAIN_FEATURES_V1 + REGIME_INTERACTION_FEATURES
 
 # Active feature set version — controls which set the pipeline uses.
 # Override via env: MODEL_FEATURE_SET_VERSION=v2 or MODEL_FEATURE_SET_VERSION=v3
-MODEL_FEATURE_SET_VERSION: str = os.environ.get("MODEL_FEATURE_SET_VERSION", "v1")
+MODEL_FEATURE_SET_VERSION: str = os.environ.get("MODEL_FEATURE_SET_VERSION", "v3")
 
 # TRAIN_FEATURES resolves to the active version's list.
 TRAIN_FEATURES: list[str] = (

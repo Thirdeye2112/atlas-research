@@ -461,6 +461,9 @@ def _r(v, d=3):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def stratify_by_session(events_df: pd.DataFrame, top_feats: list[str]) -> pd.DataFrame:
+    # Cap at 2M rows to avoid OOM on full-universe datasets
+    if len(events_df) > 2_000_000:
+        events_df = events_df.sample(n=2_000_000, random_state=42)
     rows = []
     for bucket in events_df["session_bucket"].unique():
         sub  = events_df[events_df["session_bucket"] == bucket]
@@ -641,7 +644,7 @@ def main():
 
     print(f"\n=== Summary ===")
     print(f"  Tickers  : {n_tickers:,}   Candles: {n_candles:,}")
-    print(f"  Range    : {date_min} → {date_max}")
+    print(f"  Range    : {date_min} -> {date_max}")
     print(f"  Rise     : {n_rise:,}   Drop: {n_drop:,}")
     print(f"  Errors   : {len(errors)}")
 
@@ -658,7 +661,7 @@ def main():
     sess_df = stratify_by_session(events_df, top_feats)
 
     meta = dict(n_tickers=n_tickers, n_candles=n_candles, n_rise=n_rise,
-                n_drop=n_drop, date_range=f"{date_min} → {date_max}")
+                n_drop=n_drop, date_range=f"{date_min} -> {date_max}")
     report_md = build_report(me_df, sess_df, meta)
 
     # Console preview
@@ -690,8 +693,8 @@ def main():
     else:
         out = Path(args.data_dir).parent / "candle_me_results"
         out.mkdir(exist_ok=True)
-        (out / "CANDLE_ME_REPORT.md").write_text(report_md)
-        (out / "candle_me_full.csv").write_text(me_df.to_csv(index=False))
+        (out / "CANDLE_ME_REPORT.md").write_text(report_md, encoding="utf-8")
+        (out / "candle_me_full.csv").write_text(me_df.to_csv(index=False), encoding="utf-8")
         print(f"\n[dry-run] Saved to {out}")
 
     print("\nDone.")
