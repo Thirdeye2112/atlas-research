@@ -82,6 +82,9 @@ def evidence(row, direction: str, pats_here: list[str]) -> list[tuple]:
 
     # CANDLE
     add("Candle","Body / wicks", f"body {g('body_pct'):.2f}%  up-wick {g('upper_wick'):.0f}%  lo-wick {g('lower_wick'):.0f}%", 0)
+    gp=g('gap_pct')
+    if not np.isnan(gp) and abs(gp)>0.4:
+        add("Candle","Overnight gap", f"{gp:+.1f}%", (1 if (gp*s)>0 else -1))
     if pats_here:
         add("Candle","Patterns firing", ", ".join(pats_here), 0)
     return E
@@ -151,47 +154,93 @@ def main():
     longs=[ev for ev in candles if ev.direction in ("long","bullish")]
     aboveema=sum(1 for ev in longs if df["above_ema200"].values[ev.confirm_idx]==1)
     checks.append(("long candlesticks that are above 200-EMA", aboveema, len(longs)))
-    # significant moves really moved
-    cr=df["candle_ret"].values; hi=np.nanpercentile(cr,99.5); lo=np.nanpercentile(cr,0.5)
-    up=np.where(cr>=hi)[0]; dn=np.where(cr<=lo)[0]
-    checks.append(("'big up' bars with positive candle_ret", int((cr[up]>0).all()), 1))
-    checks.append(("'big down' bars with negative candle_ret", int((cr[dn]<0).all()), 1))
+    # GAP FIX: use close-to-close (cc_ret) so gap-driven days are not undercounted
+    cr=df["candle_ret"].values; cc=df["cc_ret"].values; gap=df["gap_pct"].values
+    hi=np.nanpercentile(cc,99.5); lo=np.nanpercentile(cc,0.5)
+    up=np.where(cc>=hi)[0]; dn=np.where(cc<=lo)[0]
+    checks.append(("'big up' days (close-to-close) with positive cc_ret", int((cc[up]>0).all()), 1))
+    checks.append(("'big down' days (close-to-close) with negative cc_ret", int((cc[dn]<0).all()), 1))
+    gthr=np.nanpercentile(np.abs(gap),99)
+    gap_idx=np.where(np.abs(gap)>=gthr)[0]
+    # gap days the OLD intraday-only detector would have MISSED (small candle, big gap)
+    missed=[i for i in gap_idx if abs(cr[i])<np.nanpercentile(np.abs(cr),90) and abs(gap[i])>=gthr]
+    checks.append((f"gap days (|gap|>={gthr:.1f}%) the old open->close detector under-saw", len(missed), len(gap_idx)))
     for label,ok,tot in checks:
         rate=f"{ok}/{tot}" + (f" ({100*ok/tot:.0f}%)" if tot>1 else "")
         print(f"  {label}: {rate}",flush=True)
-    rep+=["## 1. Detection integrity",""]+[f"- {lab}: **{ok}/{tot}**"+("" if tot<=1 else f" ({100*ok/tot:.0f}%)") for lab,ok,tot in checks]+[""]
+    rep+=["## 1. Detection integrity",""]+[f"- {lab}: **{ok}/{tot}**"+("" if tot<=1 else f" ({100*ok/tot:.0f}%)") for lab,ok,tot in checks]
+    rep+=[f"\n_Gap fix: switched significant-move detection from open→close to **close-to-close**; "
+          f"{len(missed)} large-gap days that the old detector under-saw are now captured._",""]
 
-    # marquee spot-checks
+    # marquee spot-checks — now shows candle vs close-to-close vs gap
     marquee={"2020-03-12":"COVID crash","2020-03-13":"COVID rebound","2022-09-13":"CPI selloff",
              "2025-04-03":"tariff crash","2025-04-09":"tariff-pause rally"}
-    print("\n  Marquee-date detections (sanity):",flush=True)
-    rep+=["### Marquee-date sanity check",""]
-    dfd=df.set_index(df["ts"].dt.strftime("%Y-%m-%d"))
+    print("\n  Marquee-date detections (candle / close-to-close / gap):",flush=True)
+    rep+=["### Marquee-date sanity check (candle vs close-to-close vs gap)",""]
+    dset=set(df["ts"].dt.strftime("%Y-%m-%d"))
     for dstr,desc in marquee.items():
-        if dstr in dfd.index:
+        if dstr in dset:
             i=df.index[df["ts"].dt.strftime("%Y-%m-%d")==dstr][0]
             pats=pat_at.get(i,[])
-            line=f"  {dstr} ({desc}): candle_ret {df['candle_ret'].values[i]:+.1f}%, RSI {df['rsi'].values[i]:.0f}, patterns: {pats or 'none'}"
-            print(line,flush=True); rep.append(f"- **{dstr}** ({desc}): candle {df['candle_ret'].values[i]:+.1f}%, RSI {df['rsi'].values[i]:.0f}, patterns: {pats or '—'}")
+            line=(f"  {dstr} ({desc}): candle {cr[i]:+.1f}% | close-to-close {cc[i]:+.1f}% | gap {gap[i]:+.1f}% | "
+                  f"RSI {df['rsi'].values[i]:.0f} | patterns {pats or 'none'}")
+            print(line,flush=True)
+            rep.append(f"- **{dstr}** ({desc}): candle {cr[i]:+.1f}% · **close-to-close {cc[i]:+.1f}%** · gap {gap[i]:+.1f}% · "
+                       f"RSI {df['rsi'].values[i]:.0f} · patterns {pats or '—'}")
     rep.append("")
 
-    # ---- 2. EVIDENCE CARDS for biggest moves ----
-    print("\n[2] EVIDENCE CARDS — biggest moves (see console-> file):",flush=True)
-    rep+=["## 2. Evidence cards — biggest rises & drops",""]
-    order=np.argsort(-np.abs(cr)); picked=[]
+    # ---- 2. EVIDENCE CARDS for biggest moves (gap-inclusive, ranked by cc_ret) ----
+    print("\n[2] EVIDENCE CARDS — biggest moves (close-to-close):",flush=True)
+    rep+=["## 2. Evidence cards — biggest rises & drops (close-to-close, gap-inclusive)",""]
+    order=np.argsort(-np.abs(cc)); picked=[]
     for i in order:
-        if i<3 or i>=N-H or np.isnan(fwd[i]): continue
+        if i<3 or i>=N-H or np.isnan(fwd[i]) or np.isnan(cc[i]): continue
         picked.append(i)
         if len(picked)>=args.n: break
     for i in picked:
-        direction="rise" if cr[i]>0 else "drop"
+        direction="rise" if cc[i]>0 else "drop"
         E=evidence(df.iloc[i],direction,pat_at.get(i,[]))
         outcome=f"next 5d: {fwd[i]:+.2f}%"
-        title=f"{df['ts'].values[i].astype('datetime64[D]')} significant {direction.upper()} ({cr[i]:+.1f}%)"
+        title=f"{df['ts'].values[i].astype('datetime64[D]')} significant {direction.upper()} ({cc[i]:+.1f}% close-to-close)"
         rep+=card_md(title,E,outcome)
-        # daily->5m
         day=pd.Timestamp(df['ts'].values[i]).date()
         rep+=[f"- **5m confirmation:** {intraday_trigger('AAPL',day,direction)}",""]
+
+    # ---- 3. GAP EVENTS (the newly-captured setups) ----
+    print("\n[3] GAP EVENTS — biggest overnight gaps (newly captured):",flush=True)
+    rep+=["## 3. Gap events (overnight gaps the old detector missed)",""]
+    gorder=[i for i in np.argsort(-np.abs(gap)) if 3<=i<N-H and not np.isnan(fwd[i])][:5]
+    for i in gorder:
+        direction="rise" if gap[i]>0 else "drop"
+        E=evidence(df.iloc[i],direction,pat_at.get(i,[]))
+        title=f"{df['ts'].values[i].astype('datetime64[D]')} GAP {direction.upper()} (gap {gap[i]:+.1f}%, day {cc[i]:+.1f}%)"
+        rep+=card_md(title,E,f"next 5d: {fwd[i]:+.2f}%")
+        day=pd.Timestamp(df['ts'].values[i]).date()
+        rep+=[f"- **5m confirmation:** {intraday_trigger('AAPL',day,direction)}",""]
+
+    # ---- 4. SETUP EVIDENCE CARDS (audit why each setup fired) ----
+    print("\n[4] SETUP EVIDENCE CARDS — recent fulfillments per setup type:",flush=True)
+    rep+=["## 4. Setup evidence cards — why each setup fired (recent fulfillments)",""]
+    occ={}
+    for ev in list(candles)+list(structs):
+        i=ev.confirm_idx
+        if i<3 or i>=N-H or np.isnan(fwd[i]): continue
+        occ.setdefault(ev.name,[]).append((i,ev.direction))
+    for name in ["bull_flag","double_bottom","inverted_hammer","bullish_harami"]:
+        items=occ.get(name,[])
+        if not items: continue
+        # prefer recent (2023+, so 5m exists); newest first
+        items=sorted(items,key=lambda t:-t[0])
+        recent=[it for it in items if pd.Timestamp(df['ts'].values[it[0]]).year>=2023][:3]
+        chosen=recent or items[:2]
+        rep+=[f"### Setup: {name} ({len(items)} fulfillments in 15y)",""]
+        print(f"  {name}: {len(items)} fulfillments; carding {len(chosen)} recent",flush=True)
+        for i,d in chosen:
+            E=evidence(df.iloc[i],d,pat_at.get(i,[]))
+            title=f"{df['ts'].values[i].astype('datetime64[D]')} {name} ({d})"
+            rep+=card_md(title,E,f"next 5d: {fwd[i]:+.2f}%")
+            day=pd.Timestamp(df['ts'].values[i]).date()
+            rep+=[f"- **5m confirmation:** {intraday_trigger('AAPL',day,d)}",""]
 
     out=ROOT/"reports/aapl_deep_dive_daily"; (out/"EVIDENCE.md").write_text("\n".join(rep),encoding="utf-8")
     print(f"\n  wrote {out/'EVIDENCE.md'}",flush=True)

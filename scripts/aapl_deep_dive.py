@@ -74,6 +74,7 @@ def compute_indicators(df: pd.DataFrame, intraday: bool = True) -> pd.DataFrame:
     df["lower_wick"]   = (np.minimum(o,c)-l)/rng*100
     df["body_to_range"]= (c-o).abs()/rng
     df["gap_pct"]      = (o-c.shift(1))/c.shift(1)*100
+    df["cc_ret"]       = c.pct_change()*100      # close-to-close: full move incl. overnight gap
 
     # trend / moving averages
     for p in (9,20,50,200):
@@ -154,7 +155,7 @@ def compute_indicators(df: pd.DataFrame, intraday: bool = True) -> pd.DataFrame:
     return df
 
 # columns that constitute the "TA snapshot" captured per window bar
-SNAPSHOT = ["open","high","low","close","volume","candle_ret","body_pct","body_dir",
+SNAPSHOT = ["open","high","low","close","volume","candle_ret","cc_ret","body_pct","body_dir",
     "range_pct","upper_wick","lower_wick","gap_pct","dist_ema9","dist_ema20","dist_ema50",
     "dist_ema200","above_ema200","ema9_slope","ema_stack_bull","ema_stack_bear","rsi","rsi_slope",
     "rsi_oversold","rsi_overbought","macd_hist","macd_bull_cross","macd_bear_cross",
