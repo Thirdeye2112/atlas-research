@@ -72,3 +72,6 @@ scripts/_probe_schema.py
 scripts/_ts_diag.py
 scripts/_validate_gaps.py
 scripts/_validate_gaps2.py
+
+# AAPL deep-dive large generated tables
+reports/aapl_deep_dive*/all_events.parquet
