@@ -13,18 +13,30 @@ Two analyses run back-to-back:
 
 2. WALK-FORWARD BACKTEST
    Top-K setup conditions (by ME score) are combined into a signal.
-   Temporal 70/30 split (train fingerprint → test on held-out period).
+   Temporal 70/30 split (train fingerprint -> test on held-out period).
    For each matching setup bar we record forward returns at t+1, t+2, t+3.
    Output: win-rate, mean return, Sharpe, max drawdown per signal.
+
+MEMORY + RESUME (added after the 2026-06-28 OOM crash)
+   The full study spans ~5,500 tickers / ~46M events.  Holding every event x
+   feature value in RAM needs >100 GB and crashed a 32 GB box.  This version:
+     * Bounds memory with reservoir sampling — each (feature, rise/drop) bucket
+       keeps at most --reservoir-feat values; the walk-forward keeps at most
+       --reservoir-events whole events.  Memory is capped regardless of universe
+       size (a few GB total).
+     * Checkpoints progress + reservoir state to disk every --checkpoint-every
+       tickers, so a crash/restart RESUMES instead of starting over.  Re-run the
+       exact same command to resume; pass --restart to ignore the checkpoint.
 
 Usage:
     python scripts/candle_window_study.py
     python scripts/candle_window_study.py --data-dir "C:/Atlas/atlas-research/data/samples"
     python scripts/candle_window_study.py --sample 50 --dry-run
     python scripts/candle_window_study.py --top-k 5 --horizon 3
+    python scripts/candle_window_study.py --restart        # ignore checkpoint
 """
 from __future__ import annotations
-import os, sys, argparse, json, base64, warnings
+import os, sys, argparse, json, base64, warnings, pickle, time
 from pathlib import Path
 from datetime import datetime
 from collections import defaultdict
@@ -45,6 +57,117 @@ WINDOW        = 3           # bars before and after event
 TOP_K         = 10          # top ME signals to combine into setup
 TRAIN_FRAC    = 0.70        # temporal split for walk-forward
 MIN_SETUP_OBS = 30          # minimum matching events to report a setup
+
+# memory caps (reservoir sampling) — bounded so the run cannot OOM
+RESERVOIR_FEAT   = 300_000      # max sampled values per (feature, rise/drop) bucket
+RESERVOIR_EVENTS = 1_000_000    # max sampled events kept for the walk-forward
+CHECKPOINT_EVERY = 250          # persist checkpoint every N tickers processed
+RNG_SEED         = 42
+
+# ── reservoir sampling (Algorithm R, vectorised per batch) ──────────────────────
+class Reservoir1D:
+    """Memory-bounded uniform sample of a stream of float values."""
+    def __init__(self, cap: int):
+        self.cap  = cap
+        self.buf  = np.empty(cap, dtype=np.float64)
+        self.fill = 0          # how much of buf is populated
+        self.n    = 0          # total values ever seen
+
+    def add(self, vals: np.ndarray, rng: np.random.Generator) -> None:
+        m = vals.size
+        if m == 0:
+            return
+        # phase 1: fill spare capacity
+        if self.fill < self.cap:
+            take = min(self.cap - self.fill, m)
+            self.buf[self.fill:self.fill + take] = vals[:take]
+            self.fill += take
+            self.n    += take
+            vals = vals[take:]
+            m = vals.size
+            if m == 0:
+                return
+        # phase 2: reservoir replacement (buffer full).  The k-th new item
+        # (global index n+k) replaces a random slot with prob cap/(n+k).
+        idx  = np.arange(self.n + 1, self.n + m + 1)
+        keep = rng.random(m) < (self.cap / idx)
+        k    = int(keep.sum())
+        if k:
+            slots = rng.integers(0, self.cap, k)
+            self.buf[slots] = vals[keep]
+        self.n += m
+
+    def values(self) -> np.ndarray:
+        return self.buf[:self.fill]
+
+    # trim the unused tail so checkpoints stay small
+    def __getstate__(self):
+        return {"cap": self.cap, "fill": self.fill, "n": self.n,
+                "buf": self.buf[:self.fill].copy()}
+
+    def __setstate__(self, s):
+        self.cap, self.fill, self.n = s["cap"], s["fill"], s["n"]
+        self.buf = np.empty(self.cap, dtype=np.float64)
+        self.buf[:self.fill] = s["buf"]
+
+
+class SlimReservoir:
+    """Memory-bounded uniform sample of whole events (columnar) for walk-forward."""
+    def __init__(self, cap: int, n_cols: int):
+        self.cap    = cap
+        self.n_cols = n_cols
+        self.ts     = np.empty(cap, dtype="int64")   # ns since epoch
+        self.event  = np.empty(cap, dtype="int8")    # 1=rise 0=drop
+        self.mat    = np.empty((cap, n_cols), dtype="float64")
+        self.fill   = 0
+        self.n      = 0
+
+    def add(self, ts_arr, ev_arr, mat_arr, rng: np.random.Generator) -> None:
+        m = ts_arr.shape[0]
+        if m == 0:
+            return
+        if self.fill < self.cap:
+            take = min(self.cap - self.fill, m)
+            sl = slice(self.fill, self.fill + take)
+            self.ts[sl]    = ts_arr[:take]
+            self.event[sl] = ev_arr[:take]
+            self.mat[sl]   = mat_arr[:take]
+            self.fill += take
+            self.n    += take
+            ts_arr, ev_arr, mat_arr = ts_arr[take:], ev_arr[take:], mat_arr[take:]
+            m = ts_arr.shape[0]
+            if m == 0:
+                return
+        idx  = np.arange(self.n + 1, self.n + m + 1)
+        keep = rng.random(m) < (self.cap / idx)
+        k    = int(keep.sum())
+        if k:
+            slots = rng.integers(0, self.cap, k)
+            self.ts[slots]    = ts_arr[keep]
+            self.event[slots] = ev_arr[keep]
+            self.mat[slots]   = mat_arr[keep]
+        self.n += m
+
+    def __getstate__(self):
+        return {"cap": self.cap, "n_cols": self.n_cols, "fill": self.fill, "n": self.n,
+                "ts": self.ts[:self.fill].copy(),
+                "event": self.event[:self.fill].copy(),
+                "mat": self.mat[:self.fill].copy()}
+
+    def __setstate__(self, s):
+        self.cap, self.n_cols = s["cap"], s["n_cols"]
+        self.fill, self.n = s["fill"], s["n"]
+        self.ts    = np.empty(self.cap, dtype="int64");           self.ts[:self.fill]    = s["ts"]
+        self.event = np.empty(self.cap, dtype="int8");            self.event[:self.fill] = s["event"]
+        self.mat   = np.empty((self.cap, self.n_cols), "float64"); self.mat[:self.fill]  = s["mat"]
+
+
+def save_checkpoint(path: Path, state: dict) -> None:
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with open(tmp, "wb") as fh:
+        pickle.dump(state, fh, protocol=pickle.HIGHEST_PROTOCOL)
+    os.replace(tmp, path)        # atomic — a crash mid-write can't corrupt the checkpoint
+
 
 # ── GitHub push ───────────────────────────────────────────────────────────────
 def github_push(path_in_repo: str, content: str, msg: str) -> None:
@@ -399,6 +522,38 @@ def wf_backtest(win_train: pd.DataFrame, win_test: pd.DataFrame,
 
     return pd.DataFrame(records)
 
+# ── ME scoring from reservoirs ──────────────────────────────────────────────────
+def acc_to_me(acc: dict) -> pd.DataFrame:
+    """Build the ME table from reservoir-sampled (rise, drop) buckets per feature."""
+    rows = []
+    for feat, buckets in acc.items():
+        rv = buckets["rise"].values()
+        dv = buckets["drop"].values()
+        if len(rv) < 10 or len(dv) < 10:
+            continue
+        try:
+            u, p = stats.mannwhitneyu(rv, dv, alternative="two-sided")
+            n    = len(rv) * len(dv)
+            is_binary = set(np.unique(np.concatenate([rv, dv]))).issubset({0.0, 1.0})
+            if is_binary:
+                r_rate = rv.mean(); d_rate = dv.mean()
+                rise_lift = r_rate/d_rate if d_rate > 1e-9 else np.nan
+                drop_lift = d_rate/r_rate if r_rate > 1e-9 else np.nan
+                me  = rise_lift/drop_lift if (not np.isnan(rise_lift) and not np.isnan(drop_lift) and drop_lift > 0) else np.nan
+                eff = _r(rise_lift-1, 4)
+            else:
+                rise_lift = drop_lift = np.nan
+                cd  = (2*u/n)-1
+                me  = np.exp(abs(cd)*3)*np.sign(cd)
+                eff = _r(cd, 4)
+            rows.append({"feature":feat,"me_score":_r(me,4),"rise_lift":_r(rise_lift,4),
+                         "drop_lift":_r(drop_lift,4),"effect_size":eff,"p_value":_r(p,6),
+                         "n_rise":len(rv),"n_drop":len(dv)})
+        except Exception:
+            continue
+    df = pd.DataFrame(rows).dropna(subset=["me_score"])
+    return df.sort_values("me_score", ascending=False)
+
 # ── report builder ────────────────────────────────────────────────────────────
 def build_report(me_pre: pd.DataFrame, me_post: pd.DataFrame,
                  wf: pd.DataFrame, meta: dict) -> str:
@@ -454,6 +609,13 @@ def main() -> None:
     ap.add_argument("--top-k",     type=int, default=TOP_K)
     ap.add_argument("--horizon",   type=int, default=3)
     ap.add_argument("--dry-run",   action="store_true")
+    ap.add_argument("--restart",   action="store_true",
+                    help="ignore any existing checkpoint and start over")
+    ap.add_argument("--checkpoint-dir", default=None,
+                    help="where to store resume state (default: <results>/.checkpoint)")
+    ap.add_argument("--checkpoint-every", type=int, default=CHECKPOINT_EVERY)
+    ap.add_argument("--reservoir-feat",   type=int, default=RESERVOIR_FEAT)
+    ap.add_argument("--reservoir-events", type=int, default=RESERVOIR_EVENTS)
     args = ap.parse_args()
 
     data_dir = Path(args.data_dir)
@@ -461,36 +623,75 @@ def main() -> None:
     tickers  = args.tickers or sorted(groups.keys())
     if args.sample and args.sample < len(tickers):
         import random; random.seed(42)
-        tickers = random.sample(tickers, args.sample)
+        tickers = sorted(random.sample(tickers, args.sample))
+
+    out_base = data_dir.parent / "candle_window_results"
+    out_base.mkdir(exist_ok=True)
+    ckpt_dir = Path(args.checkpoint_dir) if args.checkpoint_dir else (out_base / ".checkpoint")
+    ckpt_dir.mkdir(parents=True, exist_ok=True)
+    ckpt_path = ckpt_dir / "study_state.pkl"
+
+    # feature column layout (deterministic from BASE_FEATS)
+    pre_feats_order  = [f"{pfx}_{b}" for pfx in ("tm3","tm2","tm1") for b in BASE_FEATS]
+    post_feats_order = [f"{pfx}_{b}" for pfx in ("tp1","tp2","tp3") for b in BASE_FEATS]
+    fwd_cols         = [f"fwd_ret_{h}" for h in (1,2,3)]
+    slim_cols        = pre_feats_order + fwd_cols          # numeric matrix columns
 
     print(f"\n=== Candle Window Study (window={WINDOW}) ===")
     print(f"Dir     : {data_dir}")
     print(f"Tickers : {len(tickers):,}")
+    print(f"Caps    : {args.reservoir_feat:,} vals/feature-bucket | "
+          f"{args.reservoir_events:,} events (walk-forward)")
 
-    # Streaming accumulators — we never hold all windows in RAM.
-    # For ME scoring: collect per-feature (rise_vals, drop_vals) in chunks.
-    # For walk-forward: store only (ts, event, pre-feat values, fwd_rets) — a
-    # slim slice, not the full window.
-    CHUNK = 50_000          # flush accumulated rows every N events
-    pre_feats_order = [f"{pfx}_{b}" for pfx in ("tm3","tm2","tm1")
-                        for b in BASE_FEATS]
-    post_feats_order = [f"{pfx}_{b}" for pfx in ("tp1","tp2","tp3")
-                        for b in BASE_FEATS]
-    slim_cols = ["ts","event"] + pre_feats_order + [f"fwd_ret_{h}" for h in (1,2,3)]
+    # ── load checkpoint or initialise fresh state ──────────────────────────────
+    state = None
+    if ckpt_path.exists() and not args.restart:
+        try:
+            with open(ckpt_path, "rb") as fh:
+                state = pickle.load(fh)
+            if state.get("slim_cols") != slim_cols:
+                print("  WARN: checkpoint feature layout differs — starting fresh.")
+                state = None
+        except Exception as e:
+            print(f"  WARN: could not load checkpoint ({e}) — starting fresh.")
+            state = None
 
-    # running Mann-Whitney accumulators: {feat: {"rise": [], "drop": []}}
-    pre_acc:  dict[str, dict[str, list]] = {f: {"rise":[],"drop":[]} for f in pre_feats_order}
-    post_acc: dict[str, dict[str, list]] = {f: {"rise":[],"drop":[]} for f in post_feats_order}
+    if state is not None:
+        rng       = state["rng"]
+        done      = state["done"]
+        n_events  = state["n_events"]
+        date_min  = state["date_min"]
+        date_max  = state["date_max"]
+        errors    = state["errors"]
+        pre_acc   = state["pre_acc"]
+        post_acc  = state["post_acc"]
+        slim_res  = state["slim"]
+        print(f"  RESUMING from checkpoint: {len(done):,} tickers already done, "
+              f"{n_events:,} events accumulated.")
+    else:
+        rng       = np.random.default_rng(RNG_SEED)
+        done      = set()
+        n_events  = 0
+        date_min  = "9999-12-31"
+        date_max  = "0001-01-01"
+        errors    = []
+        pre_acc   = {f: {"rise": Reservoir1D(args.reservoir_feat),
+                         "drop": Reservoir1D(args.reservoir_feat)} for f in pre_feats_order}
+        post_acc  = {f: {"rise": Reservoir1D(args.reservoir_feat),
+                         "drop": Reservoir1D(args.reservoir_feat)} for f in post_feats_order}
+        slim_res  = SlimReservoir(args.reservoir_events, len(slim_cols))
 
-    # slim rows for walk-forward (keep in RAM — one float per pre-feat per event)
-    slim_rows: list[dict] = []
+    def snapshot() -> dict:
+        return {"slim_cols": slim_cols, "rng": rng, "done": done, "n_events": n_events,
+                "date_min": date_min, "date_max": date_max, "errors": errors,
+                "pre_acc": pre_acc, "post_acc": post_acc, "slim": slim_res}
 
-    errors    = []
-    n_events  = 0
-    date_min  = "9999-12-31"
-    date_max  = "0001-01-01"
+    t0 = time.time()
+    all_feat_cols = pre_feats_order + post_feats_order
 
     for i, ticker in enumerate(tickers, 1):
+        if ticker in done:
+            continue
         try:
             df = load_ticker(groups[ticker])
             df = compute_features(df)
@@ -504,6 +705,7 @@ def main() -> None:
 
             win = extract_windows(df, w=WINDOW)
             if win.empty:
+                done.add(ticker)
                 continue
 
             n_events += len(win)
@@ -512,79 +714,51 @@ def main() -> None:
             if ts_min < date_min: date_min = ts_min
             if ts_max > date_max: date_max = ts_max
 
-            # stream into accumulators
-            for feat in pre_feats_order:
-                if feat not in win.columns:
-                    continue
-                r = win.loc[win["event"]=="rise", feat].dropna().tolist()
-                d = win.loc[win["event"]=="drop", feat].dropna().tolist()
-                pre_acc[feat]["rise"].extend(r)
-                pre_acc[feat]["drop"].extend(d)
+            is_rise = (win["event"].values == "rise")
 
-            for feat in post_feats_order:
-                if feat not in win.columns:
-                    continue
-                r = win.loc[win["event"]=="rise", feat].dropna().tolist()
-                d = win.loc[win["event"]=="drop", feat].dropna().tolist()
-                post_acc[feat]["rise"].extend(r)
-                post_acc[feat]["drop"].extend(d)
+            # stream feature values into reservoirs (vectorised per feature)
+            feat_block = win.reindex(columns=all_feat_cols).to_numpy(np.float64)
+            n_pre = len(pre_feats_order)
+            for j, col in enumerate(all_feat_cols):
+                colvals = feat_block[:, j]
+                rv = colvals[is_rise];  rv = rv[~np.isnan(rv)]
+                dv = colvals[~is_rise]; dv = dv[~np.isnan(dv)]
+                acc = pre_acc if j < n_pre else post_acc
+                acc[col]["rise"].add(rv, rng)
+                acc[col]["drop"].add(dv, rng)
 
-            # slim rows for walk-forward
-            for _, row in win.iterrows():
-                slim: dict = {"ts": row["ts"], "event": row["event"]}
-                for f in pre_feats_order:
-                    slim[f] = row.get(f, np.nan)
-                for h in (1,2,3):
-                    slim[f"fwd_ret_{h}"] = row.get(f"fwd_ret_{h}", np.nan)
-                slim_rows.append(slim)
+            # stream slim events into the walk-forward reservoir
+            slim_block = win.reindex(columns=slim_cols).to_numpy(np.float64)
+            ts_arr = pd.to_datetime(win["ts"]).values.astype("datetime64[ns]").view("int64")
+            ev_arr = is_rise.astype("int8")
+            slim_res.add(ts_arr, ev_arr, slim_block, rng)
+
+            done.add(ticker)
 
             if i % 200 == 0 or i == len(tickers):
-                print(f"  [{i}/{len(tickers)}] {ticker:8s}  events={n_events:,}", flush=True)
+                rate = i / max(time.time() - t0, 1e-9)
+                print(f"  [{i}/{len(tickers)}] {ticker:8s}  events={n_events:,}  "
+                      f"({rate:.1f} tk/s)", flush=True)
+
+            if args.checkpoint_every and (i % args.checkpoint_every == 0):
+                save_checkpoint(ckpt_path, snapshot())
+                print(f"  .. checkpoint saved ({len(done):,} tickers)", flush=True)
 
         except Exception as e:
             errors.append((ticker, str(e)))
+            done.add(ticker)        # don't get stuck retrying a bad ticker on resume
+
+    # final checkpoint (so an interrupt during analysis can still resume cheaply)
+    save_checkpoint(ckpt_path, snapshot())
 
     if n_events == 0:
         print("No windows extracted. Check --data-dir and parquet schema.")
         sys.exit(1)
 
     print(f"\n=== Summary ===")
-    n_rise = sum(1 for r in slim_rows if r["event"]=="rise")
-    n_drop = sum(1 for r in slim_rows if r["event"]=="drop")
-    print(f"  Total events : {n_events:,}  (rise={n_rise:,}  drop={n_drop:,})")
-    print(f"  Tickers OK   : {len(tickers) - len(errors):,}   Errors: {len(errors)}")
+    print(f"  Total events : {n_events:,}  (walk-forward sample={slim_res.fill:,} of {slim_res.n:,})")
+    print(f"  Tickers OK   : {len(done) - len(errors):,}   Errors: {len(errors)}")
     print(f"  Date range   : {date_min} -> {date_max}")
-
-    # build ME score tables from accumulators
-    def acc_to_me(acc: dict[str, dict[str, list]]) -> pd.DataFrame:
-        rows = []
-        for feat, buckets in acc.items():
-            rv = np.array(buckets["rise"], dtype=float)
-            dv = np.array(buckets["drop"], dtype=float)
-            if len(rv) < 10 or len(dv) < 10:
-                continue
-            try:
-                u, p = stats.mannwhitneyu(rv, dv, alternative="two-sided")
-                n    = len(rv) * len(dv)
-                is_binary = set(np.unique(np.concatenate([rv,dv]))).issubset({0.0,1.0})
-                if is_binary:
-                    r_rate = rv.mean(); d_rate = dv.mean()
-                    rise_lift = r_rate/d_rate if d_rate>1e-9 else np.nan
-                    drop_lift = d_rate/r_rate if r_rate>1e-9 else np.nan
-                    me  = rise_lift/drop_lift if (not np.isnan(rise_lift) and not np.isnan(drop_lift) and drop_lift>0) else np.nan
-                    eff = _r(rise_lift-1, 4)
-                else:
-                    rise_lift = drop_lift = np.nan
-                    cd  = (2*u/n)-1
-                    me  = np.exp(abs(cd)*3)*np.sign(cd)
-                    eff = _r(cd, 4)
-                rows.append({"feature":feat,"me_score":_r(me,4),"rise_lift":_r(rise_lift,4),
-                             "drop_lift":_r(drop_lift,4),"effect_size":eff,"p_value":_r(p,6),
-                             "n_rise":len(rv),"n_drop":len(dv)})
-            except Exception:
-                continue
-        df = pd.DataFrame(rows).dropna(subset=["me_score"])
-        return df.sort_values("me_score", ascending=False)
 
     print("\nScoring pre-event setup features (tm1/tm2/tm3) ...")
     me_pre = acc_to_me(pre_acc)
@@ -594,9 +768,12 @@ def main() -> None:
     me_post = acc_to_me(post_acc)
     print(f"  Post-event features scored: {len(me_post)}")
 
-    # walk-forward backtest on slim_rows
+    # walk-forward backtest on the slim reservoir sample
     print(f"Walk-forward backtest (top {args.top_k} signals) ...")
-    win_df = pd.DataFrame(slim_rows).sort_values("ts")
+    win_df = pd.DataFrame(slim_res.mat[:slim_res.fill], columns=slim_cols)
+    win_df["ts"]    = pd.to_datetime(slim_res.ts[:slim_res.fill])
+    win_df["event"] = np.where(slim_res.event[:slim_res.fill] == 1, "rise", "drop")
+    win_df = win_df.sort_values("ts")
     split  = int(len(win_df) * TRAIN_FRAC)
     train  = win_df.iloc[:split]
     test   = win_df.iloc[split:]
@@ -626,29 +803,32 @@ def main() -> None:
         best = wf.sort_values("sharpe_ann", ascending=False).head(10)
         print(best.to_string(index=False))
 
-    meta = dict(n_tickers=len(tickers)-len(errors), n_events=len(win_df),
+    meta = dict(n_tickers=len(done)-len(errors), n_events=n_events,
                 date_min=date_min, date_max=date_max, train_frac=TRAIN_FRAC)
     report = build_report(me_pre, me_post, wf, meta)
 
     ts_tag = datetime.now().strftime("%Y%m%d_%H%M")
-    out_base = data_dir.parent / "candle_window_results"
-    out_base.mkdir(exist_ok=True)
-
     (out_base / "CANDLE_WINDOW_REPORT.md").write_text(report, encoding="utf-8")
     me_pre.to_csv(out_base / "window_me_pre.csv",  index=False)
     me_post.to_csv(out_base / "window_me_post.csv", index=False)
     if not wf.empty:
         wf.to_csv(out_base / "window_wf_backtest.csv", index=False)
+    print(f"\nSaved results to {out_base}")
 
     if not args.dry_run:
-        commit = f"[candle-window] {ts_tag} {len(tickers)} tickers {len(win_df):,} events"
+        commit = f"[candle-window] {ts_tag} {len(done)} tickers {n_events:,} events"
         github_push("reports/CANDLE_WINDOW_REPORT.md",    report,                    commit)
         github_push("reports/window_me_pre.csv",          me_pre.to_csv(index=False), commit)
         github_push("reports/window_me_post.csv",         me_post.to_csv(index=False),commit)
         if not wf.empty:
             github_push("reports/window_wf_backtest.csv", wf.to_csv(index=False),    commit)
-    else:
-        print(f"\n[dry-run] Saved to {out_base}")
+
+    # study finished cleanly — drop the checkpoint so the next run starts fresh
+    try:
+        ckpt_path.unlink()
+        print("  checkpoint cleared (run complete).")
+    except OSError:
+        pass
 
     print("\nDone.")
 
