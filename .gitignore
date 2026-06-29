@@ -84,5 +84,9 @@ exports/parquet/mr_score_lookup.parquet
 reports/stocks/universe_forecast_events/
 reports/stocks/.universe_forecast_checkpoint.json
 
+# universe arc study — large generated event shards + checkpoint
+reports/stocks/universe_arc_events/
+reports/stocks/.universe_arc_checkpoint.json
+
 data/intraday_5m/
 reports/stocks/.mine_checkpoint.json
