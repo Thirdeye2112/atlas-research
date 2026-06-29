@@ -16,7 +16,8 @@
 #>
 param(
     [string]$AtlasRoot   = "C:\Atlas\atlas-alpha",
-    [string]$OutputFile  = "$env:USERPROFILE\OneDrive\Desktop\chartwhisperer_transcripts.txt",
+    # write where the API reads it (TRANSCRIPT_FILE_PATH) so new videos show up in the UI
+    [string]$OutputFile  = "C:\Atlas\atlas-alpha\attached_assets\chartwhisperer_transcripts_1780591128929.txt",
     [string]$RunTime     = "19:00",
     [string]$TaskName    = "AtlasTranscriptScraper",
     [string]$PythonExe   = "C:\Python314\python.exe"
@@ -34,8 +35,10 @@ if (-not (Test-Path $PythonExe)) {
 
 $LogDir  = "$AtlasRoot\logs"
 $LogFile = "$LogDir\transcript_scraper.log"
-$Script1 = "$AtlasRoot\scripts\scrape_transcripts.py"
-$Script2 = "$AtlasRoot\scripts\scrape_chartwhisperer.py"
+# use the canonical (fixed: safe append + bounded --recent) scrapers in atlas-research
+$ScriptRoot = "C:\Atlas\atlas-research\scripts"
+$Script1 = "$ScriptRoot\scrape_transcripts.py"
+$Script2 = "$ScriptRoot\scrape_chartwhisperer.py"
 $Desktop = "$env:USERPROFILE\OneDrive\Desktop"
 $OscarOut = "$Desktop\oscar_carboni_all_transcripts.txt"
 $CWOut    = $OutputFile
