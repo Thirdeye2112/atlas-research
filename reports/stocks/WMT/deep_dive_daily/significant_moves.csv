@@ -1,0 +1,39 @@
+event_type,name,direction,loc,ts,candle_ret_pct,atr_mult,confluence,explained_by,outcome_fwd6_pct
+move,significant_drop,drop,1339,2016-10-06,-3.223099916648304,2.098604089288243,6,MACD bearish cross; MACD histogram negative; elevated volume (2.4x); bearish EMA stack (9<20<50); below 200-EMA (downtrend); 3 down-bars in a row,-1.3119951187716345
+move,significant_drop,drop,1092,2015-10-14,-9.878393851493621,4.14913912029477,6,RSI lost 50; MACD bearish cross; MACD histogram negative; volume climax (distribution); bearish EMA stack (9<20<50); below 200-EMA (downtrend),-1.8823938950355845
+move,significant_drop,drop,2805,2022-08-04,-3.902963351494235,1.4272859619439973,6,RSI lost 50; MACD bearish cross; MACD histogram negative; elevated volume (2.0x); below 200-EMA (downtrend); 3 down-bars in a row,5.295852147838309
+move,significant_rise,rise,1620,2017-11-16,4.730872248047559,2.54518452206164,5,MACD bullish cross; MACD histogram positive; volume climax; bullish EMA stack (9>20>50); above 200-EMA (uptrend),-3.011443286901019
+move,significant_rise,rise,2205,2020-03-18,6.591309475817788,1.2581244316761793,5,MACD bullish cross; MACD histogram positive; elevated volume (2.1x); above 200-EMA (uptrend); 4 up-bars in a row,-10.409530058432273
+move,significant_drop,drop,2752,2022-05-18,-4.3739707200008,1.1336670904032398,5,MACD histogram negative; volume climax (distribution); bearish EMA stack (9<20<50); below 200-EMA (downtrend); 3 down-bars in a row,2.9159485093470363
+move,significant_rise,rise,3477,2025-04-09,7.52429677822203,1.9895912724576337,5,RSI reclaimed 50; MACD bullish cross; MACD histogram positive; elevated volume (1.7x); above 200-EMA (uptrend),4.040181705614187
+move,significant_rise,rise,3681,2026-02-02,3.815897538572176,1.9143513559135583,5,MACD bullish cross; MACD histogram positive; bullish EMA stack (9>20>50); above 200-EMA (uptrend); 3 up-bars in a row,2.1280021292935793
+move,significant_drop,drop,39,2011-08-08,-3.7007784348243735,2.055796821882462,4,MACD histogram negative; elevated volume (2.4x); bearish EMA stack (9<20<50); below 200-EMA (downtrend),6.132460912415973
+move,significant_drop,drop,41,2011-08-10,-3.218702511706058,1.4332170476905965,4,MACD histogram negative; elevated volume (1.8x); bearish EMA stack (9<20<50); below 200-EMA (downtrend),6.982018639850472
+move,significant_drop,drop,1057,2015-08-25,-3.590533384704976,1.497023536827987,4,MACD histogram negative; elevated volume (1.5x); bearish EMA stack (9<20<50); below 200-EMA (downtrend),2.1236136053750596
+move,significant_drop,drop,1673,2018-02-05,-3.2011581332185237,1.5474072466670548,4,RSI lost 50; MACD histogram negative; elevated volume (1.5x); 5 down-bars in a row,0.8891952639367172
+move,significant_rise,rise,2204,2020-03-17,5.7550781698343,1.1689838309480294,4,RSI reclaimed 50; elevated volume (1.6x); above 200-EMA (uptrend); 3 up-bars in a row,-8.267650875176493
+move,significant_rise,rise,2318,2020-08-27,4.234052110430075,2.080364160668163,4,RSI reclaimed 50; volume climax; bullish EMA stack (9>20>50); above 200-EMA (uptrend),4.537809185444133
+move,significant_drop,drop,2821,2022-08-26,-3.3134896762282975,1.4705239887407837,4,RSI lost 50; MACD bearish cross; MACD histogram negative; below 200-EMA (downtrend),0.5623083810402366
+move,significant_rise,rise,2321,2020-09-01,4.525498117884522,1.8639205889604784,4,MACD histogram positive; elevated volume (2.8x); bullish EMA stack (9>20>50); above 200-EMA (uptrend),-7.304019637407068
+move,significant_drop,drop,3476,2025-04-08,-4.729176040483693,1.308479202018359,4,MACD bearish cross; MACD histogram negative; bearish EMA stack (9<20<50); below 200-EMA (downtrend),11.492849273332594
+move,significant_drop,drop,3065,2023-08-17,-3.238030859360997,2.197028989170498,4,RSI lost 50; MACD histogram negative; volume climax (distribution); 4 down-bars in a row,1.3681014965746376
+move,significant_rise,rise,2218,2020-04-06,5.887786003759075,1.2501495290261762,4,MACD histogram positive; bullish EMA stack (9>20>50); above 200-EMA (uptrend); 4 up-bars in a row,2.1337280260417306
+move,significant_rise,rise,2281,2020-07-07,7.176020371932498,3.4991105081415745,4,RSI reclaimed 50; MACD histogram positive; volume climax; above 200-EMA (uptrend),3.9779465720008726
+move,significant_drop,drop,2210,2020-03-25,-3.160127433920929,0.5096668111858117,4,MACD bearish cross; MACD histogram negative; bearish EMA stack (9<20<50); below 200-EMA (downtrend),8.455206632803035
+move,significant_rise,rise,2216,2020-04-02,4.833010594026038,0.9482419090036437,4,RSI reclaimed 50; MACD bullish cross; MACD histogram positive; above 200-EMA (uptrend),5.604721158163332
+move,significant_rise,rise,3726,2026-04-08,4.072623001838592,1.7519891456935315,4,RSI reclaimed 50; MACD histogram positive; bullish EMA stack (9>20>50); above 200-EMA (uptrend),-1.9173364768564545
+move,significant_rise,rise,3558,2025-08-06,3.921175911701532,2.488652158273728,4,MACD histogram positive; elevated volume (1.6x); bullish EMA stack (9>20>50); above 200-EMA (uptrend),-2.4284076252018623
+move,significant_drop,drop,2751,2022-05-17,-3.7235198614931844,1.1291003589098016,3,MACD histogram negative; volume climax (distribution); below 200-EMA (downtrend),-6.075370867863823
+move,significant_rise,rise,2700,2022-03-04,3.6354359757854624,1.7719114114753585,3,MACD histogram positive; above 200-EMA (uptrend); 7 up-bars in a row,0.8612235995410824
+move,significant_rise,rise,2193,2020-03-02,7.695162170003888,3.33633086138313,3,RSI reclaimed 50; elevated volume (2.3x); above 200-EMA (uptrend),3.3741800236209687
+move,significant_rise,rise,2799,2022-07-27,4.412733751282434,1.7241106592768767,2,MACD histogram positive; elevated volume (1.9x),-0.8057512098382125
+move,significant_drop,drop,2248,2020-05-19,-5.161289594059183,1.8549638272006579,2,MACD histogram negative; elevated volume (2.6x),-1.0084080870479997
+move,significant_drop,drop,1684,2018-02-21,-3.7745770177100666,1.1064424702123394,2,MACD histogram negative; volume climax (distribution),-2.6660845418539965
+move,significant_rise,rise,2690,2022-02-17,3.6417831978361446,1.8454123536826306,2,RSI reclaimed 50; elevated volume (2.1x),-2.6785669405651293
+move,significant_drop,drop,2121,2019-11-14,-3.1701420518577175,2.094275020687915,1,volume climax (distribution),-1.0692091995130593
+move,significant_rise,rise,2202,2020-03-13,5.413888288583948,1.2756926614118114,1,above 200-EMA (uptrend),0.15775996694151878
+move,significant_drop,drop,2207,2020-03-20,-4.6276078045452484,0.7602443045601694,1,RSI lost 50,1.070454814516253
+move,significant_rise,rise,3475,2025-04-07,4.4740828300870845,1.375584552556579,1,MACD histogram positive,12.095907393732265
+move,significant_rise,rise,1897,2018-12-26,4.616986437784836,1.861051813744499,0,,3.3513998759390096
+move,significant_drop,drop,2206,2020-03-19,-4.02539437106276,0.7249615250253678,0,,-8.262864424154746
+move,significant_drop,drop,3691,2026-02-17,-3.200356462551658,1.2453900254211117,0,,-2.4059029543430053

@@ -1,0 +1,39 @@
+event_type,name,direction,loc,ts,candle_ret_pct,atr_mult,confluence,explained_by,outcome_fwd6_pct
+move,significant_rise,rise,2612,2021-10-27,4.886840543491134,2.3283618471528436,6,RSI reclaimed 50; MACD bullish cross; MACD histogram positive; elevated volume (2.5x); bullish EMA stack (9>20>50); above 200-EMA (uptrend),1.402023060763829
+move,significant_drop,drop,2734,2022-04-22,-4.2916015624999995,1.3530696698537685,5,MACD histogram negative; elevated volume (1.9x); bearish EMA stack (9<20<50); below 200-EMA (downtrend); 3 down-bars in a row,-2.5514984378411802
+move,significant_drop,drop,2935,2023-02-09,-4.989997863769531,1.1688729745748159,5,RSI lost 50; MACD bearish cross; MACD histogram negative; elevated volume (2.6x); below 200-EMA (downtrend),-0.694667558435612
+move,significant_drop,drop,2868,2022-11-02,-4.365516949772511,1.0150922606143598,5,MACD histogram negative; elevated volume (1.6x); bearish EMA stack (9<20<50); below 200-EMA (downtrend); 3 down-bars in a row,8.014259081146157
+move,significant_rise,rise,3397,2024-12-11,5.444928212629347,2.2975443714592974,5,MACD histogram positive; elevated volume (2.3x); bullish EMA stack (9>20>50); above 200-EMA (uptrend); 4 up-bars in a row,-3.526100104843658
+move,significant_rise,rise,2933,2023-02-07,4.282114044442369,1.3416940247697973,4,MACD histogram positive; bullish EMA stack (9>20>50); above 200-EMA (uptrend); 6 up-bars in a row,-9.940539770451903
+move,significant_drop,drop,1858,2018-10-29,-5.636821086056362,1.4105914163995412,4,MACD histogram negative; elevated volume (1.7x); bearish EMA stack (9<20<50); below 200-EMA (downtrend),3.3670630735105913
+move,significant_rise,rise,3684,2026-02-05,6.095060760007135,1.9987893927237534,3,elevated volume (2.4x); bullish EMA stack (9>20>50); above 200-EMA (uptrend),-7.707169442806603
+move,significant_rise,rise,3751,2026-05-13,4.413897495920372,1.7662796815816844,3,MACD histogram positive; bullish EMA stack (9>20>50); above 200-EMA (uptrend),-3.71566033393941
+move,significant_rise,rise,1674,2018-02-06,4.879202732054842,2.1150090718330223,3,snap-back off lower BB; elevated volume (1.8x); above 200-EMA (uptrend),-1.0816780629528642
+move,significant_drop,drop,707,2014-04-04,-5.755765349071342,2.3401298515187015,3,MACD histogram negative; bearish EMA stack (9<20<50); 3 down-bars in a row,-0.009172064145400793
+move,significant_drop,drop,342,2012-10-18,-8.012820027828308,3.147395646900366,3,RSI lost 50; MACD histogram negative; volume climax (distribution),-2.8561113729684156
+move,significant_drop,drop,3496,2025-05-07,-7.740124821133758,1.9995503315526588,3,RSI lost 50; volume climax (distribution); below 200-EMA (downtrend),8.310213651263402
+move,significant_drop,drop,1708,2018-03-27,-5.353885871026731,1.621678832517147,3,MACD histogram negative; bearish EMA stack (9<20<50); below 200-EMA (downtrend),2.552286818075605
+move,significant_drop,drop,2275,2020-06-26,-4.892402547523219,1.7910296922283204,3,RSI lost 50; MACD histogram negative; elevated volume (2.7x),9.348721356593654
+move,significant_rise,rise,2959,2023-03-16,4.282747273680983,1.407254728897498,3,MACD histogram positive; elevated volume (1.8x); 4 up-bars in a row,5.103671014909489
+move,significant_drop,drop,3476,2025-04-08,-4.311601785365084,1.0703364639978825,3,MACD histogram negative; bearish EMA stack (9<20<50); below 200-EMA (downtrend),5.964067080042421
+move,significant_drop,drop,2867,2022-11-01,-5.217386995035178,1.2766937032448655,3,MACD histogram negative; bearish EMA stack (9<20<50); below 200-EMA (downtrend),-3.481818816598027
+move,significant_rise,rise,2192,2020-02-28,5.096093814174002,1.8326898393289102,3,snap-back off lower BB; elevated volume (1.8x); above 200-EMA (uptrend),-9.218592787050657
+move,significant_drop,drop,2660,2022-01-05,-4.601166290479718,2.1194284205850007,3,MACD histogram negative; elevated volume (1.9x); 5 down-bars in a row,0.5893752529287684
+move,significant_drop,drop,1855,2018-10-24,-5.191033196556194,1.730352740332597,3,MACD histogram negative; bearish EMA stack (9<20<50); below 200-EMA (downtrend),2.7300605814873005
+move,significant_drop,drop,2207,2020-03-20,-5.543370232016176,0.8429164826481343,3,MACD histogram negative; bearish EMA stack (9<20<50); below 200-EMA (downtrend),7.311294240896629
+move,significant_rise,rise,2777,2022-06-24,4.407270769936506,1.280034043148401,3,RSI reclaimed 50; MACD histogram positive; 5 up-bars in a row,-3.9940648839028925
+move,significant_rise,rise,2887,2022-11-30,6.507064109684977,2.0626267163313186,2,RSI reclaimed 50; MACD histogram positive,-7.208633462015941
+move,significant_drop,drop,1168,2016-02-03,-4.692978187604437,1.4134982504456,2,elevated volume (2.0x); 3 down-bars in a row,-5.740748018228772
+move,significant_drop,drop,1883,2018-12-04,-4.539125948721646,1.4618387610736303,2,RSI lost 50; below 200-EMA (downtrend),1.0419067001761524
+move,significant_drop,drop,3633,2025-11-20,-4.9550127781206585,1.4299602864641192,2,MACD histogram negative; elevated volume (1.6x),8.789083215933708
+move,significant_rise,rise,2783,2022-07-05,5.753939858569782,1.5477621114711158,2,RSI reclaimed 50; MACD histogram positive,-1.685899290887918
+move,significant_rise,rise,2211,2020-03-26,4.323955513084858,0.714627615962504,2,MACD bullish cross; MACD histogram positive,-6.038251285457721
+move,significant_drop,drop,1057,2015-08-25,-5.259333548280197,1.5704375581163772,1,MACD histogram negative,5.29657873727526
+move,significant_drop,drop,1676,2018-02-08,-4.9213543289311605,1.7763726190012468,1,MACD histogram negative,8.711830788876988
+move,significant_rise,rise,1993,2019-05-15,4.298253704237479,1.8657293726884407,1,above 200-EMA (uptrend),-2.174585932017065
+move,significant_rise,rise,2218,2020-04-06,4.429829706262258,0.8093027121496155,1,MACD histogram positive,6.2635782059525775
+move,significant_rise,rise,2694,2022-02-24,6.19229993091302,1.8021201284192425,1,above 200-EMA (uptrend),-0.5912233354112914
+move,significant_rise,rise,3477,2025-04-09,9.894757461639866,2.405007939767723,1,elevated volume (1.7x),-4.757105873840365
+move,significant_rise,rise,2742,2022-05-04,4.468454850020728,1.2612630973373566,1,3 up-bars in a row,-7.702374178736042
+move,significant_rise,rise,1897,2018-12-26,4.996041925394021,1.3787522700338348,0,,2.8839962197055855
+move,significant_rise,rise,2865,2022-10-28,4.356783806996073,1.1521048108516394,0,,-8.100532742335881
