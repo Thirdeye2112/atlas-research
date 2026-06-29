@@ -79,3 +79,7 @@ reports/aapl_deep_dive*/all_events.parquet
 reports/**/all_events.parquet
 
 exports/parquet/mr_score_lookup.parquet
+
+# universe forecast study (Step 1) — large generated event shards + checkpoint
+reports/stocks/universe_forecast_events/
+reports/stocks/.universe_forecast_checkpoint.json
