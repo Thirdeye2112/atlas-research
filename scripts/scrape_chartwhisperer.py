@@ -19,6 +19,7 @@ import re
 import time
 import random
 import tempfile
+from datetime import datetime, timedelta
 
 CHANNEL_URL      = "https://www.youtube.com/@ChartWhisperer/videos"
 DEFAULT_OUTPUT   = os.path.join(os.path.expanduser("~"), "OneDrive", "Desktop",
@@ -40,6 +41,22 @@ def load_known_ids(output_file: str) -> set[str]:
             if m:
                 known.add(m.group(1))
     return known
+
+
+def latest_date_in_file(output_file: str) -> str | None:
+    """Newest YYYYMMDD found in the existing 'VIDEO TITLE:' lines (Oscar's titles
+    are date-prefixed). Lets us fetch only genuinely newer videos even when the
+    older entries have no URL to dedup on."""
+    if not os.path.exists(output_file):
+        return None
+    latest = None
+    date_re = re.compile(r"VIDEO TITLE:\s*(\d{8})")
+    with open(output_file, "r", encoding="utf-8") as f:
+        for line in f:
+            m = date_re.search(line)
+            if m and (latest is None or m.group(1) > latest):
+                latest = m.group(1)
+    return latest
 
 
 def clean_vtt(lines: list[str]) -> str:
@@ -71,6 +88,11 @@ def main():
                     help="Re-scrape everything from scratch (overwrites file)")
     ap.add_argument("--dry-run", action="store_true",
                     help="Show what would be scraped without downloading")
+    ap.add_argument("--date-after", default=None,
+                    help="Only fetch videos uploaded on/after YYYYMMDD (full-mode hint)")
+    ap.add_argument("--recent", type=int, default=40,
+                    help="Incremental mode: only consider the newest N channel videos "
+                         "(URL dedup skips ones already saved). Default 40.")
     args = ap.parse_args()
 
     try:
@@ -89,25 +111,40 @@ def main():
         print(f"Full re-scrape mode — overwriting {output_file}")
     else:
         known_ids = load_known_ids(output_file)
-        file_mode = "a" if known_ids else "w"
-        if known_ids:
-            print(f"Incremental mode — {len(known_ids):,} videos already in file")
+        # Never overwrite an existing non-empty file — append. (Older dumps have no
+        # URLs, so known_ids can be empty even when the file is full of videos.)
+        file_exists = os.path.exists(output_file) and os.path.getsize(output_file) > 0
+        file_mode = "a" if file_exists else "w"
+        if file_exists:
+            print(f"Incremental mode — appending to existing file ({len(known_ids):,} URL-keyed videos)")
         else:
             print("No existing file — starting fresh")
 
-    # Fetch video list
+    # Fetch the channel video list. In incremental mode, only consider the newest
+    # --recent videos (the channel lists newest-first), so we never re-enumerate the
+    # whole channel; the URL dedup below skips any already saved. (yt-dlp ignores
+    # `dateafter` when extract_flat is on, so we bound by count rather than date.)
+    if not args.full:
+        latest = latest_date_in_file(output_file)
+        if latest:
+            print(f"Newest video already in file: {latest} "
+                  f"(checking newest {args.recent}, skipping ones already saved)")
     print("Fetching video list from channel...")
     ydl_opts = {
         "quiet":        True,
         "extract_flat": True,
-        "dateafter":    DATE_AFTER,
         "cookies_from_browser": ("chrome",),
     }
+    if args.date_after:
+        ydl_opts["dateafter"] = args.date_after
+    if not args.full:
+        ydl_opts["playlistend"] = args.recent
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info   = ydl.extract_info(CHANNEL_URL, download=False)
         videos = info.get("entries", [])
 
-    print(f"Found {len(videos):,} videos on channel (since {DATE_AFTER})")
+    scope = "all" if args.full else f"newest {args.recent}"
+    print(f"Found {len(videos):,} videos to consider ({scope})")
 
     new_videos = [v for v in videos if v.get("id", "") not in known_ids]
     print(f"New videos to scrape: {len(new_videos):,}  |  Already have: {len(known_ids):,}\n")
