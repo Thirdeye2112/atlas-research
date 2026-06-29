@@ -57,9 +57,12 @@ added in-loader (not stored in parquet).
 `score_oos.py` with `v4` reproduced the validated edge on the embargoed
 2025-06→2026-06 block: **OOS mean_ic = 0.0209** (vs V3 0.0105), rank_ic 0.0335,
 and wrote a `model_registry` row with `feature_set_version='v4'` + `model.joblib`.
-The full nightly walk-forward retrain can be run later via `run_training.py`
-(env `MODEL_FEATURE_SET_VERSION=v4`); a single-shot OOS was used for the promotion
-to limit memory (the box OOM'd on a prior full run).
+
+The full nightly walk-forward retrain was then run via `run_training.py`
+(env `MODEL_FEATURE_SET_VERSION=v4`): **11 folds OK, 0 errors, mean rank_ic 0.0426,
+mean clf_auc 0.5224**, writing a `feature_set_version='v4'` `model_registry` row +
+`model.joblib` per fold (12 `v4` rows total incl. the OOS). Memory stayed well
+within budget (per-fold loads are small). V4 is fully live end-to-end.
 
 ## Deferred
 - **Options volume/direction**: no options data ingested yet (no DB tables). When
