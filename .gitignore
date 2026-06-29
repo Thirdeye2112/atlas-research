@@ -77,3 +77,5 @@ scripts/_validate_gaps2.py
 reports/aapl_deep_dive*/all_events.parquet
 
 reports/**/all_events.parquet
+
+exports/parquet/mr_score_lookup.parquet
