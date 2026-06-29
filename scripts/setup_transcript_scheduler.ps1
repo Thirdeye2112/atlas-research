@@ -78,24 +78,33 @@ $settings = New-ScheduledTaskSettingsSet `
     -RunOnlyIfNetworkAvailable `
     -WakeToRun:$false
 
+# RunLevel Limited (not Highest) so this registers WITHOUT an elevated/admin prompt.
+# The scraper only runs python + yt-dlp and writes a text file — it needs no admin rights.
 $principal = New-ScheduledTaskPrincipal `
     -UserId    "$env:USERDOMAIN\$env:USERNAME" `
     -LogonType Interactive `
-    -RunLevel  Highest
+    -RunLevel  Limited
 
 Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
 
-Register-ScheduledTask `
-    -TaskName   $TaskName `
-    -Trigger    $trigger `
-    -Action     $action `
-    -Settings   $settings `
-    -Principal  $principal `
-    -Description "Atlas - daily Oscar Carboni transcript update (skips if nothing new)" |
-    Out-Null
+try {
+    Register-ScheduledTask `
+        -TaskName   $TaskName `
+        -Trigger    $trigger `
+        -Action     $action `
+        -Settings   $settings `
+        -Principal  $principal `
+        -Description "Atlas - daily Oscar Carboni transcript update (skips if nothing new)" `
+        -ErrorAction Stop | Out-Null
+} catch {
+    Write-Host ""
+    Write-Host "FAILED to register the task: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "If it says 'Access is denied', open PowerShell as Administrator and re-run this script." -ForegroundColor Yellow
+    exit 1
+}
 
 Write-Host ""
-Write-Host "Scheduled Task registered: '$TaskName'"
+Write-Host "Scheduled Task registered: '$TaskName'" -ForegroundColor Green
 Write-Host "  Runs daily at : $RunTime"
 Write-Host "  Oscar output  : $OscarOut"
 Write-Host "  CW output     : $CWOut"
