@@ -321,6 +321,23 @@ def analyze(args):
     REPORT.write_text("\n".join(rep), encoding="utf-8")
     print(f"wrote {REPORT}", flush=True)
 
+    # Operational lookup for daily_scan.py (Step 4): per-tier expected first-leg /
+    # whole-run height + typical first-leg duration, plus the $-volume tier edges so
+    # the scanner can assign a live ticker to a tier consistently.
+    import json
+    leg = R[R["run_type"] == "leg"]; whole = R[R["run_type"] == "whole"]
+    lookup = {"winsor": list(WINSOR), "tiers": {}, "tier_dollar_vol_max": {}}
+    for t in sorted(set(R["tier"])):
+        lt = leg[leg["tier"] == t]; wt = whole[whole["tier"] == t]
+        lookup["tiers"][t] = {
+            "firstleg_median_pct": round(float(lt["A"].median()), 3) if len(lt) else None,
+            "firstleg_median_bars": int(lt["run_bars"].median()) if len(lt) else None,
+            "wholerun_median_pct": round(float(wt["A"].median()), 3) if len(wt) else None,
+            "n_leg": int(len(lt)), "n_whole": int(len(wt))}
+        lookup["tier_dollar_vol_max"][t] = float(tier_dv[t][1])      # upper $-vol edge of the tier
+    (ROOT / "reports/stocks/universe_forecast_targets.json").write_text(json.dumps(lookup, indent=2))
+    print(f"wrote {ROOT/'reports/stocks/universe_forecast_targets.json'}", flush=True)
+
 
 def main():
     ap = argparse.ArgumentParser()

@@ -45,10 +45,21 @@ Embargoed walk-forward, identical folds/purge/normalisation to the V1/V3 harness
 lifts WF IC ~+38% (t 1.70→2.44) and roughly **doubles the held-out OOS year**
 (+0.0105 → +0.0209). Recommend promoting V4.
 
-## To promote into production
-`mr_score` already flows into the nightly feature matrix. Register V4 as the next
-`model_feature_set_version` (= V3 cols + `mr_score`) and run the standard nightly
-retrain + OOS score that V3 used (retrain_v3 / score_oos_v3 equivalents).
+## Promoted to production (2026-06-28)
+V4 is now the active feature set. `MODEL_FEATURE_SET_VERSION` defaults to `v4`
+(`config/settings.py`: `TRAIN_FEATURES_V4 = V3 + mr_score`). Because the existing
+parquet matrices do **not** carry `mr_score` (the nightly export predates the
+`feature_factory` wiring), it is merged on-the-fly in `dataset.load_date_range`
+from `exports/parquet/mr_score_lookup.parquet` on `(ticker, date)` — the same path
+the experiment validated — exactly mirroring how the V3 interaction features are
+added in-loader (not stored in parquet).
+
+`score_oos.py` with `v4` reproduced the validated edge on the embargoed
+2025-06→2026-06 block: **OOS mean_ic = 0.0209** (vs V3 0.0105), rank_ic 0.0335,
+and wrote a `model_registry` row with `feature_set_version='v4'` + `model.joblib`.
+The full nightly walk-forward retrain can be run later via `run_training.py`
+(env `MODEL_FEATURE_SET_VERSION=v4`); a single-shot OOS was used for the promotion
+to limit memory (the box OOM'd on a prior full run).
 
 ## Deferred
 - **Options volume/direction**: no options data ingested yet (no DB tables). When

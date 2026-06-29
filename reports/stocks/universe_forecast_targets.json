@@ -1,0 +1,42 @@
+{
+  "winsor": [
+    0.01,
+    0.99
+  ],
+  "tiers": {
+    "T1": {
+      "firstleg_median_pct": 9.185,
+      "firstleg_median_bars": 5,
+      "wholerun_median_pct": 14.425,
+      "n_leg": 159044,
+      "n_whole": 64254
+    },
+    "T2": {
+      "firstleg_median_pct": 11.823,
+      "firstleg_median_bars": 5,
+      "wholerun_median_pct": 16.957,
+      "n_leg": 126508,
+      "n_whole": 55344
+    },
+    "T3": {
+      "firstleg_median_pct": 12.857,
+      "firstleg_median_bars": 5,
+      "wholerun_median_pct": 18.446,
+      "n_leg": 110176,
+      "n_whole": 49453
+    },
+    "T4": {
+      "firstleg_median_pct": 17.569,
+      "firstleg_median_bars": 5,
+      "wholerun_median_pct": 23.192,
+      "n_leg": 87139,
+      "n_whole": 42743
+    }
+  },
+  "tier_dollar_vol_max": {
+    "T1": 46301341521.91467,
+    "T2": 44691627.30293274,
+    "T3": 4427335.9577178955,
+    "T4": 347778.8011741638
+  }
+}
