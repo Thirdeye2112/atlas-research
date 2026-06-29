@@ -29,6 +29,7 @@ import numpy as np
 import pandas as pd
 
 from atlas_research.features import (
+    mean_reversion,
     momentum,
     omni_proxy,
     regime,
@@ -125,6 +126,7 @@ def build_features(
     features.update(volatility.compute(close, high, low))
     features.update(volume.compute(close, vol))
     features.update(omni_proxy.compute(close, high, low, open_))
+    features.update(mean_reversion.compute(close, high, low))
 
     # ── Quality tier + quality-adjusted Jarvis ───────────────
     _add_quality_tier_and_jarvis(features, close, vol)
