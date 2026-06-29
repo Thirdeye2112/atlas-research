@@ -20,7 +20,7 @@ Usage:
     python scripts/daily_scan.py --top 40 --min-base-n 50
 """
 from __future__ import annotations
-import sys, argparse, re, time, urllib.parse as up
+import sys, argparse, re, time, json, urllib.parse as up
 from pathlib import Path
 import numpy as np, pandas as pd
 ROOT=Path(__file__).resolve().parents[1]; sys.path.insert(0,str(ROOT/"scripts")); sys.path.insert(0,str(ROOT/"src"))
@@ -31,36 +31,93 @@ from atlas_research.ta import patterns as ta_patterns, structure as ta_structure
 import psycopg2
 from psycopg2.extras import execute_values
 
+# Per-liquidity-tier forecast targets from the whole-universe forecast study (Step 1).
+_TGT_PATH=ROOT/"reports/stocks/universe_forecast_targets.json"
+TARGETS=json.loads(_TGT_PATH.read_text()) if _TGT_PATH.exists() else None
+
 def _conn():
     env=dict(re.findall(r'^([A-Z_]+)=(.*)$',(ROOT/".env").read_text(),re.M))
     u=up.urlparse(env["DATABASE_URL"].strip())
     return psycopg2.connect(host=u.hostname,port=u.port,user=u.username,
                             password=up.unquote(u.password or ""),dbname=u.path.lstrip("/"))
 
-def base_rates(cur):
-    """historical edge per (method,name,direction) from deep_dive_events (LONG only,
-    above-200EMA context — how these setups actually performed)."""
-    cur.execute("""select event_type, name, direction,
-                          count(*) n, avg(fwd_ret_5) a5,
-                          100.0*sum((fwd_ret_5>0)::int)/count(*) w5
-                   from deep_dive_events
-                   where fwd_ret_5 is not null
-                   group by 1,2,3""")
-    br={}
-    for et,name,d,n,a5,w5 in cur.fetchall():
-        br[(et,name,d)]=(int(n),float(a5) if a5 is not None else None,float(w5) if w5 is not None else None)
-    # special LONG base rates the raw grouping doesn't key directly:
-    # mean-reversion = forward return of all mr_oversold bars
-    cur.execute("""select count(*),avg(fwd_ret_5),100.0*sum((fwd_ret_5>0)::int)/count(*)
-                   from deep_dive_events where mr_oversold=1 and fwd_ret_5 is not null""")
-    n,a,w=cur.fetchone()
-    if n: br[("mean_reversion","mr_oversold","long")]=(int(n),float(a),float(w))
-    # buy-the-dip = forward return after significant_drop (go LONG -> raw fwd is the bounce)
-    cur.execute("""select count(*),avg(fwd_ret_5),100.0*sum((fwd_ret_5>0)::int)/count(*)
-                   from deep_dive_events where name='significant_drop' and fwd_ret_5 is not null""")
-    n,a,w=cur.fetchone()
-    if n: br[("move","significant_drop","long")]=(int(n),float(a),float(w))
-    return br
+def _tier_sql_case():
+    """SQL CASE that maps a per-ticker median $-volume to T1..T4 using the EXACT
+    upper edges the Step-1 study quantiled into universe_forecast_targets.json,
+    so live tiering matches the tiers the base rates/targets were computed on."""
+    e=TARGETS["tier_dollar_vol_max"]
+    return (f"case when dv <= {e['T4']} then 'T4' when dv <= {e['T3']} then 'T3' "
+            f"when dv <= {e['T2']} then 'T2' else 'T1' end")
+
+def build_tiers_and_base_rates(cur):
+    """Build a temp _tiered(ticker,tier) table (median $-vol over the last ~1y, same
+    as Step 1), return (tier_map, br_pooled, br_tier). Base rates are mined from
+    deep_dive_events both pooled and PER TIER so a live alert can use the base rate
+    of names in its own liquidity bucket, not the microcap-polluted pooled one."""
+    if TARGETS is not None:
+        cur.execute(f"""create temp table _tiered as
+            with recent as (
+              select ticker, close*volume dv,
+                     row_number() over (partition by ticker order by date desc) rn
+              from raw_bars),
+            liq as (select ticker, percentile_cont(0.5) within group (order by dv) dv
+                    from recent where rn<=252 group by ticker)
+            select ticker, {_tier_sql_case()} as tier from liq""")
+        cur.execute("create index on _tiered(ticker)")
+        cur.execute("select ticker,tier from _tiered")
+        tier_map={tk:t for tk,t in cur.fetchall()}
+    else:
+        tier_map={}
+
+    def _rec(n,a,w):
+        return (int(n),float(a) if a is not None else None,float(w) if w is not None else None)
+
+    def _grouped(extra_where, base_key=None):
+        """return (pooled,tier) {key:(n,a5,w5)}. Pooled is ALWAYS computed (no tier
+        join) for fallback; tier is added when the targets/tiers are available."""
+        pooled={}; tier={}
+        if base_key is None:                       # group by (event_type,name,direction)
+            cur.execute(f"""select event_type,name,direction,
+                              count(*),avg(fwd_ret_5),100.0*sum((fwd_ret_5>0)::int)/count(*)
+                            from deep_dive_events where fwd_ret_5 is not null {extra_where}
+                            group by 1,2,3""")
+            for et,name,d,n,a,w in cur.fetchall(): pooled[(et,name,d)]=_rec(n,a,w)
+            if TARGETS is not None:
+                cur.execute(f"""select event_type,name,direction,t.tier,
+                                  count(*),avg(fwd_ret_5),100.0*sum((fwd_ret_5>0)::int)/count(*)
+                                from deep_dive_events e join _tiered t using(ticker)
+                                where fwd_ret_5 is not null {extra_where} group by 1,2,3,4""")
+                for et,name,d,tr,n,a,w in cur.fetchall():
+                    if tr is not None: tier[(et,name,d,tr)]=_rec(n,a,w)
+        else:                                      # one special LONG bucket
+            cur.execute(f"""select count(*),avg(fwd_ret_5),100.0*sum((fwd_ret_5>0)::int)/count(*)
+                            from deep_dive_events where fwd_ret_5 is not null {extra_where}""")
+            n,a,w=cur.fetchone()
+            if n: pooled[base_key]=_rec(n,a,w)
+            if TARGETS is not None:
+                cur.execute(f"""select t.tier,count(*),avg(fwd_ret_5),
+                                  100.0*sum((fwd_ret_5>0)::int)/count(*)
+                                from deep_dive_events e join _tiered t using(ticker)
+                                where fwd_ret_5 is not null {extra_where} group by 1""")
+                for tr,n,a,w in cur.fetchall():
+                    if tr is not None and n: tier[base_key+(tr,)]=_rec(n,a,w)
+        return pooled,tier
+
+    br_pooled={}; br_tier={}
+    for ew,key in [("", None),
+                   ("and mr_oversold=1", ("mean_reversion","mr_oversold","long")),
+                   ("and name='significant_drop'", ("move","significant_drop","long"))]:
+        p,t=_grouped(ew,key); br_pooled.update(p); br_tier.update(t)
+    return tier_map, br_pooled, br_tier
+
+def _retrace_for(pct):
+    """Expected first-pullback retrace of the run, by run size (SWING_PULLBACK_STUDY:
+    small ~0.87, med ~0.78, big ~0.62, huge ~0.49; overall median ~0.70)."""
+    if pct is None: return 0.70
+    if pct < 8: return 0.87
+    if pct < 15: return 0.78
+    if pct < 30: return 0.62
+    return 0.49
 
 def universe(which):
     if which=="500": f=ROOT/"config/universe_500.csv"
@@ -77,7 +134,9 @@ def main():
     ap.add_argument("--allow-short",action="store_true")
     args=ap.parse_args()
     cn=_conn(); cur=cn.cursor()
-    br=base_rates(cur); print(f"loaded {len(br)} base-rate buckets",flush=True)
+    tier_map,br,br_tier=build_tiers_and_base_rates(cur)
+    print(f"loaded {len(br)} pooled + {len(br_tier)} tiered base-rate buckets; "
+          f"{len(tier_map)} tickers tiered"+("" if TARGETS else " (NO targets json — run universe_forecast_study.py)"),flush=True)
     univ=universe(args.universe); print(f"scanning {len(univ)} tickers ({args.universe})",flush=True)
 
     alerts=[]; t0=time.time(); scan_date=None
@@ -105,6 +164,15 @@ def main():
             for ps in ta_patterns.detect_all(piv,h,l,c):
                 if ps.confirm_idx==last: fired.append(("structure",ps.name,ps.direction))
             if not fired: continue
+            # forecast targets for this ticker's liquidity tier (Step 1 study)
+            tier=tier_map.get(tk)
+            tinfo=(TARGETS["tiers"].get(tier) if (TARGETS and tier) else None)
+            entry=float(c[last])
+            exp_leg=(tinfo or {}).get("firstleg_median_pct"); exp_whole=(tinfo or {}).get("wholerun_median_pct")
+            exp_bars=(tinfo or {}).get("firstleg_median_bars")
+            target=round(entry*(1+exp_leg/100),4) if exp_leg else None
+            rfrac=_retrace_for(exp_leg)
+            add_dip=round(target-rfrac*(target-entry),4) if target else None
             seen=set()
             for method,name,direction in fired:
                 key=(method,name,direction)
@@ -112,18 +180,23 @@ def main():
                 seen.add(key)
                 dlong = direction in ("long","bullish","rise")
                 if not args.allow_short and not dlong: continue
-                bn,ba,bw=br.get((method,name,direction),(0,None,None))
+                # prefer the tier-specific base rate; fall back to pooled
+                scope="tier"; bn,ba,bw=(br_tier.get(key+(tier,),(0,None,None)) if tier else (0,None,None))
+                if bn<args.min_base_n or ba is None:
+                    scope="pooled"; bn,ba,bw=br.get(key,(0,None,None))
                 if bn<args.min_base_n or ba is None: continue
                 conf=0
                 for cond in [row["mr_score"]>=1, row["rsi"]<40, row["above_ema200"]==1,
                              row["bb_pct"]<0.15, row["vol_ratio"]>1.3, row["macd_hist"]>0]:
                     conf+=int(bool(cond))
                 conviction = round(ba*(bw/50.0) + 0.4*float(row["mr_score"]) + 0.4*int(row["above_ema200"]) + 0.15*conf, 3)
+                tgt_txt=(f"; tier {tier} tgt {exp_leg:+.1f}% (~{exp_bars}b), add-dip @{rfrac:.0%} retrace" if tinfo else "")
                 alerts.append([str(sd),str(sd),tk,method,name,direction,
                     float(row["mr_score"]), 1 if row["mr_score"]>=1 else 0, int(conf),
                     int(row["above_ema200"]), float(row["rsi"]), float(cc[last]),
                     bn, round(ba,3), round(bw,1), conviction, True,
-                    f"base {bn}x avg5 {ba:+.2f}% win {bw:.0f}%; mr {row['mr_score']:+.2f}; {'>200EMA' if row['above_ema200'] else '<200EMA'}"])
+                    f"[{scope}] base {bn}x avg5 {ba:+.2f}% win {bw:.0f}%; mr {row['mr_score']:+.2f}; {'>200EMA' if row['above_ema200'] else '<200EMA'}{tgt_txt}",
+                    tier, entry, exp_leg, target, exp_bars, rfrac, add_dip, exp_whole, scope])
         except Exception as e:
             cn.rollback()
         if i%200==0: print(f"  [{i}/{len(univ)}] {tk} alerts={len(alerts)} ({i/max(time.time()-t0,1e-9):.1f} tk/s)",flush=True)
@@ -132,24 +205,37 @@ def main():
         print("no setups fired today.",flush=True); return
     COLS=["scan_date","ts","ticker","method","name","direction","mr_score","mr_oversold",
           "confluence_n","above_ema200","rsi","cc_ret","base_n","base_avg_fwd5","base_win5",
-          "conviction","needs_5m_confirm","explained_by"]
+          "conviction","needs_5m_confirm","explained_by",
+          "liq_tier","entry_px","exp_firstleg_pct","target_px","exp_firstleg_bars",
+          "retrace_frac","add_dip_px","exp_wholerun_pct","base_scope"]
     sql=(f"INSERT INTO trade_alerts ({','.join(COLS)}) VALUES %s "
          "ON CONFLICT (scan_date,ticker,method,name,direction) DO UPDATE SET "
-         "conviction=EXCLUDED.conviction, mr_score=EXCLUDED.mr_score, confluence_n=EXCLUDED.confluence_n")
+         "conviction=EXCLUDED.conviction, mr_score=EXCLUDED.mr_score, confluence_n=EXCLUDED.confluence_n, "
+         "liq_tier=EXCLUDED.liq_tier, entry_px=EXCLUDED.entry_px, exp_firstleg_pct=EXCLUDED.exp_firstleg_pct, "
+         "target_px=EXCLUDED.target_px, exp_firstleg_bars=EXCLUDED.exp_firstleg_bars, "
+         "retrace_frac=EXCLUDED.retrace_frac, add_dip_px=EXCLUDED.add_dip_px, "
+         "exp_wholerun_pct=EXCLUDED.exp_wholerun_pct, base_scope=EXCLUDED.base_scope")
     execute_values(cur,sql,alerts,page_size=1000); cn.commit()
 
     df=pd.DataFrame(alerts,columns=COLS).sort_values("conviction",ascending=False)
     out=ROOT/"reports/alerts"; out.mkdir(parents=True,exist_ok=True)
-    show=["ticker","method","name","direction","mr_score","confluence_n","above_ema200","base_n","base_avg_fwd5","base_win5","conviction"]
+    show=["ticker","method","name","direction","liq_tier","mr_score","entry_px","target_px",
+          "exp_firstleg_pct","add_dip_px","exp_firstleg_bars","base_scope","base_avg_fwd5","base_win5","conviction"]
+    show=[c for c in show if c in df.columns]
     top=df.head(args.top)
     rep=[f"# Trade alerts — {scan_date} (act next session on 5m VWAP reclaim)","",
          f"{len(df)} setups fired across {df['ticker'].nunique()} names ({args.universe} universe), all methods. "
          "Long-only; ranked by conviction (historical base-rate edge x win-rate + mr_score + trend + confluence).","",
+         "Each alert carries a forecast plan from the deep-dive studies: a liquidity-tier first-leg "
+         "**target_px** (`exp_firstleg_pct` over ~`exp_firstleg_bars` bars), and an **add_dip_px** to "
+         "add into the first pullback (retraces ~`retrace_frac` of the run). Base rates are tier-specific "
+         "where available (`base_scope`).","",
          f"## Top {len(top)} alerts","",top[show].to_markdown(index=False),"",
          "## By method","",
          df.groupby("method").agg(n=("ticker","size"),avg_conv=("conviction","mean")).round(2).to_markdown(),"",
-         "_Each alert carries its mined base rate (base_n trades, base_avg_fwd5 %, base_win5 %). "
-         "Confirm intraday next session: enter only if price reclaims & closes above VWAP._"]
+         "_Plan per alert: enter near entry_px next session only if price reclaims & closes above VWAP; "
+         "first-leg target = target_px; on the first pullback, add near add_dip_px; base_avg_fwd5/base_win5 "
+         "are the historical 5-day edge for this setup in this liquidity tier._"]
     (out/f"ALERTS_{scan_date}.md").write_text("\n".join(rep),encoding="utf-8")
     (out/"ALERTS_latest.md").write_text("\n".join(rep),encoding="utf-8")
     df.to_csv(out/f"alerts_{scan_date}.csv",index=False)
