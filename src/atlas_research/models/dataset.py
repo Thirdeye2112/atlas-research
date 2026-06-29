@@ -38,6 +38,44 @@ from atlas_research.utils.logging import get_logger
 
 log = get_logger(__name__)
 
+# ── V4 mean-reversion feature (mr_score) ──────────────────────────────────────
+# Like the V3 interaction features, mr_score is computed off-pipeline and is NOT
+# stored in the daily parquet matrices. It is merged on-the-fly from a lookup
+# parquet (built by scripts/build_mr_lookup.py) keyed on (ticker, date) — exactly
+# the path validated in run_v3_v4_experiment.py. Names here are excluded from the
+# columnar parquet read and added after concat, mirroring add_interactions().
+LOADER_MERGED_NAMES = {"mr_score"}
+_MR_LOOKUP_PATH = Path(__file__).resolve().parents[3] / "exports" / "parquet" / "mr_score_lookup.parquet"
+_MR_CACHE: pd.DataFrame | None = None
+
+
+def _mr_lookup() -> pd.DataFrame | None:
+    """Cached (ticker, date)->mr_score table; None if the lookup is absent."""
+    global _MR_CACHE
+    if _MR_CACHE is None:
+        if not _MR_LOOKUP_PATH.exists():
+            log.warning("dataset.mr_lookup_missing", path=str(_MR_LOOKUP_PATH))
+            return None
+        m = pd.read_parquet(_MR_LOOKUP_PATH)
+        m["date"] = pd.to_datetime(m["date"]).dt.normalize()
+        _MR_CACHE = m
+    return _MR_CACHE
+
+
+def add_mr_score(full: pd.DataFrame) -> None:
+    """Left-merge mr_score onto a loaded frame by (ticker, date), in place.
+    No-op (column of NaN) if the lookup is unavailable — to_arrays() tolerates NaN."""
+    if "mr_score" in full.columns:
+        return
+    m = _mr_lookup()
+    if m is None:
+        full["mr_score"] = np.nan
+        return
+    key = pd.to_datetime(full["date"]).dt.normalize()
+    merged = pd.DataFrame({"ticker": full["ticker"].values, "date": key.values}).merge(
+        m, on=["ticker", "date"], how="left")
+    full["mr_score"] = merged["mr_score"].values
+
 
 def load_date_range(
     start_date: date,
@@ -69,9 +107,11 @@ def load_date_range(
     current = start_date
     files_found = 0
 
-    # Interaction feature names are computed on-the-fly and are never in parquet.
-    # Remove them from the columnar-read set and add their required base columns.
-    base_feature_cols = [f for f in feature_cols if f not in INTERACTION_NAMES]
+    # Interaction features (computed on-the-fly) and loader-merged features
+    # (mr_score, joined from a lookup) are never in parquet. Remove them from the
+    # columnar-read set and add the interaction features' required base columns.
+    base_feature_cols = [f for f in feature_cols
+                         if f not in INTERACTION_NAMES and f not in LOADER_MERGED_NAMES]
     needed_base = (
         {"ticker", "date"}
         | set(base_feature_cols)
@@ -117,6 +157,10 @@ def load_date_range(
 
     # Add V3 regime-interaction features (idempotent, cheap, always available)
     add_interactions(full)
+
+    # Add V4 mean-reversion feature (mr_score), merged from the lookup parquet.
+    # Idempotent; harmless for V1/V2/V3 callers (column simply goes unused).
+    add_mr_score(full)
 
     # ── Quality filter ────────────────────────────────────────
     if "data_quality_score" in full.columns:

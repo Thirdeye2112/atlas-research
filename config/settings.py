@@ -312,14 +312,22 @@ REGIME_INTERACTION_FEATURES: list[str] = [
 ]
 TRAIN_FEATURES_V3: list[str] = TRAIN_FEATURES_V1 + REGIME_INTERACTION_FEATURES
 
+# V4 — V3 + the validated mean-reversion feature (mr_score).
+# Embargoed walk-forward (run_v3_v4_experiment.py / reports/validity/v3_v4_experiment.json):
+# WF mean_ic 0.0053->0.0073 (t 1.70->2.44), OOS 0.0105->0.0209 vs V3 — promoted 2026-06-28.
+# Like the V3 interaction features, mr_score is NOT stored in parquet; it is merged
+# on-the-fly in dataset.load_date_range from exports/parquet/mr_score_lookup.parquet.
+TRAIN_FEATURES_V4: list[str] = TRAIN_FEATURES_V3 + ["mr_score"]
+
 # Active feature set version — controls which set the pipeline uses.
-# Override via env: MODEL_FEATURE_SET_VERSION=v2 or MODEL_FEATURE_SET_VERSION=v3
-MODEL_FEATURE_SET_VERSION: str = os.environ.get("MODEL_FEATURE_SET_VERSION", "v3")
+# Override via env: MODEL_FEATURE_SET_VERSION=v2 | v3 | v4
+MODEL_FEATURE_SET_VERSION: str = os.environ.get("MODEL_FEATURE_SET_VERSION", "v4")
 
 # TRAIN_FEATURES resolves to the active version's list.
 TRAIN_FEATURES: list[str] = (
     TRAIN_FEATURES_V2 if MODEL_FEATURE_SET_VERSION == "v2"
     else TRAIN_FEATURES_V3 if MODEL_FEATURE_SET_VERSION == "v3"
+    else TRAIN_FEATURES_V4 if MODEL_FEATURE_SET_VERSION == "v4"
     else TRAIN_FEATURES_V1
 )
 
