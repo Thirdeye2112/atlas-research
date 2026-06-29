@@ -222,7 +222,8 @@ def main():
     rep+=[f"| {lf} | {mi:+.3f} | {mo:+.3f} | {no} |" for lf,mi,mo,no in leaf_stats]
     rep+=[""]
 
-    out=ROOT/("reports/aapl_deep_dive" if intraday else "reports/aapl_deep_dive_daily")
+    out=ROOT/"reports/stocks"/args.ticker/("deep_dive_5m" if intraday else "deep_dive_daily")
+    out.mkdir(parents=True,exist_ok=True)
     ic.to_csv(out/"univariate_ic.csv",index=False)
     (out/"SETUP_FORENSICS.md").write_text("\n".join(rep),encoding="utf-8")
     print(f"\n  wrote {out/'SETUP_FORENSICS.md'} + univariate_ic.csv",flush=True)

@@ -136,7 +136,8 @@ def main():
     print(cfb.to_string(),flush=True)
 
     # write report
-    out=ROOT/("reports/aapl_deep_dive" if intraday else "reports/aapl_deep_dive_daily")
+    out=ROOT/"reports/stocks"/args.ticker/("deep_dive_5m" if intraday else "deep_dive_daily")
+    out.mkdir(parents=True,exist_ok=True)
     table.to_csv(out/"edge_by_setup.csv",index=False)
     lines=[f"# {args.ticker} edge analysis ({args.timeframe})","",
            f"Bars {N:,} ({df['ts'].min():%Y-%m-%d}->{df['ts'].max():%Y-%m-%d}). "

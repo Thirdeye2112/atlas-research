@@ -120,9 +120,11 @@ def intraday_trigger(ticker, day, direction):
 
 # ── main ────────────────────────────────────────────────────────────────────────
 def main():
-    ap=argparse.ArgumentParser(); ap.add_argument("--n",type=int,default=10); args=ap.parse_args()
-    print("=== AAPL evidence + detection QA (daily) ===",flush=True)
-    df=dd.load_daily("AAPL"); df=df.drop_duplicates("ts").sort_values("ts").reset_index(drop=True)
+    ap=argparse.ArgumentParser(); ap.add_argument("--n",type=int,default=10)
+    ap.add_argument("--ticker",default="AAPL"); args=ap.parse_args()
+    TK=args.ticker
+    print(f"=== {TK} evidence + detection QA (daily) ===",flush=True)
+    df=dd.load_daily(TK); df=df.drop_duplicates("ts").sort_values("ts").reset_index(drop=True)
     for cc in ("open","high","low","close","volume"): df[cc]=pd.to_numeric(df[cc],errors="coerce")
     df=dd.compute_indicators(df,intraday=False)
     o,h,l,c=(df[x].values for x in ("open","high","low","close")); N=len(df)
@@ -133,7 +135,7 @@ def main():
     pat_at={}                                  # loc -> [pattern names]
     for ev in list(candles)+list(structs): pat_at.setdefault(ev.confirm_idx,[]).append(ev.name)
 
-    rep=["# AAPL — detection QA + evidence cards (daily, 15y)",""]
+    rep=[f"# {TK} — detection QA + evidence cards (daily, 15y)",""]
 
     # ---- 1. DETECTION QA ----
     print("\n[1] DETECTION QA — does each tag match its definition?",flush=True)
@@ -204,7 +206,7 @@ def main():
         title=f"{df['ts'].values[i].astype('datetime64[D]')} significant {direction.upper()} ({cc[i]:+.1f}% close-to-close)"
         rep+=card_md(title,E,outcome)
         day=pd.Timestamp(df['ts'].values[i]).date()
-        rep+=[f"- **5m confirmation:** {intraday_trigger('AAPL',day,direction)}",""]
+        rep+=[f"- **5m confirmation:** {intraday_trigger(TK,day,direction)}",""]
 
     # ---- 3. GAP EVENTS (the newly-captured setups) ----
     print("\n[3] GAP EVENTS — biggest overnight gaps (newly captured):",flush=True)
@@ -216,7 +218,7 @@ def main():
         title=f"{df['ts'].values[i].astype('datetime64[D]')} GAP {direction.upper()} (gap {gap[i]:+.1f}%, day {cc[i]:+.1f}%)"
         rep+=card_md(title,E,f"next 5d: {fwd[i]:+.2f}%")
         day=pd.Timestamp(df['ts'].values[i]).date()
-        rep+=[f"- **5m confirmation:** {intraday_trigger('AAPL',day,direction)}",""]
+        rep+=[f"- **5m confirmation:** {intraday_trigger(TK,day,direction)}",""]
 
     # ---- 4. SETUP EVIDENCE CARDS (audit why each setup fired) ----
     print("\n[4] SETUP EVIDENCE CARDS — recent fulfillments per setup type:",flush=True)
@@ -240,9 +242,9 @@ def main():
             title=f"{df['ts'].values[i].astype('datetime64[D]')} {name} ({d})"
             rep+=card_md(title,E,f"next 5d: {fwd[i]:+.2f}%")
             day=pd.Timestamp(df['ts'].values[i]).date()
-            rep+=[f"- **5m confirmation:** {intraday_trigger('AAPL',day,d)}",""]
+            rep+=[f"- **5m confirmation:** {intraday_trigger(TK,day,d)}",""]
 
-    out=ROOT/"reports/aapl_deep_dive_daily"; (out/"EVIDENCE.md").write_text("\n".join(rep),encoding="utf-8")
+    out=ROOT/"reports/stocks"/TK/"deep_dive_daily"; out.mkdir(parents=True,exist_ok=True); (out/"EVIDENCE.md").write_text("\n".join(rep),encoding="utf-8")
     print(f"\n  wrote {out/'EVIDENCE.md'}",flush=True)
 
 if __name__=="__main__":

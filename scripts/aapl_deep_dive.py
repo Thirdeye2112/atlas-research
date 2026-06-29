@@ -319,7 +319,7 @@ def main():
     intraday = args.timeframe=="intraday"
     tflabel  = "5-minute" if intraday else "daily"
 
-    out=ROOT/("reports/aapl_deep_dive" if intraday else "reports/aapl_deep_dive_daily")
+    out=ROOT/"reports/stocks"/args.ticker/("deep_dive_5m" if intraday else "deep_dive_daily")
     (out/"charts").mkdir(parents=True,exist_ok=True)
     for old in (out/"charts").glob("*.png"): old.unlink()   # clear stale charts
 
