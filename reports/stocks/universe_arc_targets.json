@@ -1,0 +1,38 @@
+{
+  "winsor": [
+    0.01,
+    0.99
+  ],
+  "tier_dollar_vol_max": {
+    "T1": 463921522.01412964,
+    "T2": 29070.2925,
+    "T3": 5192.78,
+    "T4": 1457.17
+  },
+  "tiers": {
+    "T1": {
+      "median_retrace": 0.514,
+      "median_drop_pct": 0.798,
+      "wall_break_rate": 0.944,
+      "n_arcs": 1070421
+    },
+    "T2": {
+      "median_retrace": 0.527,
+      "median_drop_pct": 0.952,
+      "wall_break_rate": 0.945,
+      "n_arcs": 827546
+    },
+    "T3": {
+      "median_retrace": 0.56,
+      "median_drop_pct": 1.193,
+      "wall_break_rate": 0.928,
+      "n_arcs": 391528
+    },
+    "T4": {
+      "median_retrace": 0.615,
+      "median_drop_pct": 1.728,
+      "wall_break_rate": 0.888,
+      "n_arcs": 240902
+    }
+  }
+}
