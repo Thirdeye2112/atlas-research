@@ -91,8 +91,11 @@ def main():
     ap.add_argument("--date-after", default=None,
                     help="Only fetch videos uploaded on/after YYYYMMDD (full-mode hint)")
     ap.add_argument("--recent", type=int, default=40,
-                    help="Incremental mode: only consider the newest N channel videos "
-                         "(URL dedup skips ones already saved). Default 40.")
+                    help="Incremental mode: scan the newest N channel videos. Default 40.")
+    ap.add_argument("--since", default=None,
+                    help="Only scrape videos uploaded on/after YYYYMMDD "
+                         "(default: auto — the day after the newest video already in the file). "
+                         "Avoids re-grabbing older videos as duplicates.")
     args = ap.parse_args()
 
     try:
@@ -124,29 +127,41 @@ def main():
     # --recent videos (the channel lists newest-first), so we never re-enumerate the
     # whole channel; the URL dedup below skips any already saved. (yt-dlp ignores
     # `dateafter` when extract_flat is on, so we bound by count rather than date.)
+    # Date floor for incremental catch-up: explicit --since, else the day after the
+    # newest video already in the file. (yt-dlp gives upload_date with full metadata.)
+    since = None
     if not args.full:
-        latest = latest_date_in_file(output_file)
-        if latest:
-            print(f"Newest video already in file: {latest} "
-                  f"(checking newest {args.recent}, skipping ones already saved)")
+        since = args.since
+        if not since:
+            latest = latest_date_in_file(output_file)
+            if latest:
+                since = (datetime.strptime(latest, "%Y%m%d") + timedelta(days=1)).strftime("%Y%m%d")
+        if since:
+            print(f"Catch-up mode: scanning newest {args.recent}, keeping uploads on/after {since}")
+
     print("Fetching video list from channel...")
     ydl_opts = {
         "quiet":        True,
-        "extract_flat": True,
         "cookies_from_browser": ("chrome",),
     }
-    if args.date_after:
-        ydl_opts["dateafter"] = args.date_after
-    if not args.full:
-        ydl_opts["playlistend"] = args.recent
+    if args.full:
+        ydl_opts["extract_flat"] = True            # fast: just enumerate ids
+    else:
+        ydl_opts["playlistend"] = args.recent      # full metadata for the newest N (needs upload_date)
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info   = ydl.extract_info(CHANNEL_URL, download=False)
-        videos = info.get("entries", [])
+        videos = [v for v in (info.get("entries") or []) if v]
 
-    scope = "all" if args.full else f"newest {args.recent}"
-    print(f"Found {len(videos):,} videos to consider ({scope})")
+    def _passes_date(v):
+        if not since:
+            return True
+        ud = v.get("upload_date") or ""
+        return (ud >= since) if ud else True       # keep if upload_date unknown
+    new_videos = [v for v in videos
+                  if v.get("id", "") not in known_ids and _passes_date(v)]
 
-    new_videos = [v for v in videos if v.get("id", "") not in known_ids]
+    scope = "all" if args.full else (f"newest {args.recent}" + (f", since {since}" if since else ""))
+    print(f"Scanned {len(videos):,} videos ({scope})")
     print(f"New videos to scrape: {len(new_videos):,}  |  Already have: {len(known_ids):,}\n")
 
     if not new_videos:
