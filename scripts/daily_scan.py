@@ -34,6 +34,9 @@ from psycopg2.extras import execute_values
 # Per-liquidity-tier forecast targets from the whole-universe forecast study (Step 1).
 _TGT_PATH=ROOT/"reports/stocks/universe_forecast_targets.json"
 TARGETS=json.loads(_TGT_PATH.read_text()) if _TGT_PATH.exists() else None
+# Per-tier 5m-arc drop context (throw->top->bounce) from the whole-universe arc study.
+_ARC_PATH=ROOT/"reports/stocks/universe_arc_targets.json"
+ARC_TARGETS=json.loads(_ARC_PATH.read_text()) if _ARC_PATH.exists() else None
 
 def _conn():
     env=dict(re.findall(r'^([A-Z_]+)=(.*)$',(ROOT/".env").read_text(),re.M))
@@ -164,9 +167,17 @@ def main():
             for ps in ta_patterns.detect_all(piv,h,l,c):
                 if ps.confirm_idx==last: fired.append(("structure",ps.name,ps.direction))
             if not fired: continue
+            # CONFIDENT entry (validated Layer-4 edge, +63% expectancy): an oversold dip
+            # that is NOT in a daily downtrend.
+            d_trend=ta_structure.classify_trend(piv)
+            confident=bool(((row["mr_score"]>=1.0) or (row["rsi"]<45)) and d_trend!="down")
             # forecast targets for this ticker's liquidity tier (Step 1 study)
             tier=tier_map.get(tk)
             tinfo=(TARGETS["tiers"].get(tier) if (TARGETS and tier) else None)
+            arc_tinfo=(ARC_TARGETS["tiers"].get(tier) if (ARC_TARGETS and tier) else None)
+            arc_retrace=(arc_tinfo or {}).get("median_retrace")
+            arc_drop_pct=(arc_tinfo or {}).get("median_drop_pct")
+            wall_break=(arc_tinfo or {}).get("wall_break_rate")
             entry=float(c[last])
             exp_leg=(tinfo or {}).get("firstleg_median_pct"); exp_whole=(tinfo or {}).get("wholerun_median_pct")
             exp_bars=(tinfo or {}).get("firstleg_median_bars")
@@ -189,14 +200,18 @@ def main():
                 for cond in [row["mr_score"]>=1, row["rsi"]<40, row["above_ema200"]==1,
                              row["bb_pct"]<0.15, row["vol_ratio"]>1.3, row["macd_hist"]>0]:
                     conf+=int(bool(cond))
-                conviction = round(ba*(bw/50.0) + 0.4*float(row["mr_score"]) + 0.4*int(row["above_ema200"]) + 0.15*conf, 3)
+                # +0.5 conviction for confident entries (the validated Layer-4 edge)
+                conviction = round(ba*(bw/50.0) + 0.4*float(row["mr_score"]) + 0.4*int(row["above_ema200"]) + 0.15*conf + (0.5 if confident else 0.0), 3)
                 tgt_txt=(f"; tier {tier} tgt {exp_leg:+.1f}% (~{exp_bars}b), add-dip @{rfrac:.0%} retrace" if tinfo else "")
+                arc_txt=(f"; 5m arc drop ~{arc_drop_pct:.1f}% (retrace {arc_retrace:.0%}, wall-break {wall_break:.0%})" if arc_tinfo else "")
+                conf_txt=" [CONFIDENT: dip & not-downtrend]" if confident else ""
                 alerts.append([str(sd),str(sd),tk,method,name,direction,
                     float(row["mr_score"]), 1 if row["mr_score"]>=1 else 0, int(conf),
                     int(row["above_ema200"]), float(row["rsi"]), float(cc[last]),
                     bn, round(ba,3), round(bw,1), conviction, True,
-                    f"[{scope}] base {bn}x avg5 {ba:+.2f}% win {bw:.0f}%; mr {row['mr_score']:+.2f}; {'>200EMA' if row['above_ema200'] else '<200EMA'}{tgt_txt}",
-                    tier, entry, exp_leg, target, exp_bars, rfrac, add_dip, exp_whole, scope])
+                    f"[{scope}] base {bn}x avg5 {ba:+.2f}% win {bw:.0f}%; mr {row['mr_score']:+.2f}; {'>200EMA' if row['above_ema200'] else '<200EMA'}{tgt_txt}{arc_txt}{conf_txt}",
+                    tier, entry, exp_leg, target, exp_bars, rfrac, add_dip, exp_whole, scope,
+                    confident, arc_retrace, arc_drop_pct, wall_break])
         except Exception as e:
             cn.rollback()
         if i%200==0: print(f"  [{i}/{len(univ)}] {tk} alerts={len(alerts)} ({i/max(time.time()-t0,1e-9):.1f} tk/s)",flush=True)
@@ -207,25 +222,31 @@ def main():
           "confluence_n","above_ema200","rsi","cc_ret","base_n","base_avg_fwd5","base_win5",
           "conviction","needs_5m_confirm","explained_by",
           "liq_tier","entry_px","exp_firstleg_pct","target_px","exp_firstleg_bars",
-          "retrace_frac","add_dip_px","exp_wholerun_pct","base_scope"]
+          "retrace_frac","add_dip_px","exp_wholerun_pct","base_scope",
+          "confident","arc_retrace_frac","arc_drop_pct","wall_break_rate"]
     sql=(f"INSERT INTO trade_alerts ({','.join(COLS)}) VALUES %s "
          "ON CONFLICT (scan_date,ticker,method,name,direction) DO UPDATE SET "
          "conviction=EXCLUDED.conviction, mr_score=EXCLUDED.mr_score, confluence_n=EXCLUDED.confluence_n, "
          "liq_tier=EXCLUDED.liq_tier, entry_px=EXCLUDED.entry_px, exp_firstleg_pct=EXCLUDED.exp_firstleg_pct, "
          "target_px=EXCLUDED.target_px, exp_firstleg_bars=EXCLUDED.exp_firstleg_bars, "
          "retrace_frac=EXCLUDED.retrace_frac, add_dip_px=EXCLUDED.add_dip_px, "
-         "exp_wholerun_pct=EXCLUDED.exp_wholerun_pct, base_scope=EXCLUDED.base_scope")
+         "exp_wholerun_pct=EXCLUDED.exp_wholerun_pct, base_scope=EXCLUDED.base_scope, "
+         "confident=EXCLUDED.confident, arc_retrace_frac=EXCLUDED.arc_retrace_frac, "
+         "arc_drop_pct=EXCLUDED.arc_drop_pct, wall_break_rate=EXCLUDED.wall_break_rate")
     execute_values(cur,sql,alerts,page_size=1000); cn.commit()
 
     df=pd.DataFrame(alerts,columns=COLS).sort_values("conviction",ascending=False)
     out=ROOT/"reports/alerts"; out.mkdir(parents=True,exist_ok=True)
-    show=["ticker","method","name","direction","liq_tier","mr_score","entry_px","target_px",
-          "exp_firstleg_pct","add_dip_px","exp_firstleg_bars","base_scope","base_avg_fwd5","base_win5","conviction"]
+    show=["ticker","method","name","direction","liq_tier","confident","mr_score","entry_px","target_px",
+          "exp_firstleg_pct","add_dip_px","arc_drop_pct","base_scope","base_avg_fwd5","base_win5","conviction"]
     show=[c for c in show if c in df.columns]
     top=df.head(args.top)
+    n_conf=int(df["confident"].sum()) if "confident" in df.columns else 0
     rep=[f"# Trade alerts — {scan_date} (act next session on 5m VWAP reclaim)","",
          f"{len(df)} setups fired across {df['ticker'].nunique()} names ({args.universe} universe), all methods. "
-         "Long-only; ranked by conviction (historical base-rate edge x win-rate + mr_score + trend + confluence).","",
+         f"**{n_conf} are CONFIDENT** (oversold dip & not a daily downtrend — the +63% Layer-4 edge; "
+         "ranked to the top). Long-only; ranked by conviction (base-rate edge x win-rate + mr_score + "
+         "trend + confluence + confident bonus).","",
          "Each alert carries a forecast plan from the deep-dive studies: a liquidity-tier first-leg "
          "**target_px** (`exp_firstleg_pct` over ~`exp_firstleg_bars` bars), and an **add_dip_px** to "
          "add into the first pullback (retraces ~`retrace_frac` of the run). Base rates are tier-specific "
