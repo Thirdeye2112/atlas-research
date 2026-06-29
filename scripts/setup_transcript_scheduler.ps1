@@ -4,7 +4,7 @@
     Run ONCE as Administrator to set it up.
 
 .USAGE
-    Right-click PowerShell → "Run as Administrator"
+    Right-click PowerShell -> "Run as Administrator"
     cd C:\Atlas\atlas-alpha
     .\scripts\setup_transcript_scheduler.ps1
 
@@ -42,7 +42,7 @@ $CWOut    = $OutputFile
 
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 
-# Wrapper batch file — runs both scrapers, timestamps the log
+# Wrapper batch file - runs both scrapers, timestamps the log
 $batchPath = "$AtlasRoot\run_transcript_scraper.bat"
 @"
 @echo off
@@ -60,14 +60,14 @@ if errorlevel 1 echo [ERROR] scrape_chartwhisperer.py failed >> "$LogFile"
 echo Done. >> "$LogFile"
 "@ | Set-Content $batchPath -Encoding ASCII
 
-Write-Host "Batch wrapper → $batchPath"
+Write-Host "Batch wrapper -> $batchPath"
 
-# Scheduled Task — runs daily at $RunTime
+# Scheduled Task - runs daily at $RunTime
 $trigger  = New-ScheduledTaskTrigger -Daily -At $RunTime
 
 $action   = New-ScheduledTaskAction `
     -Execute "cmd.exe" `
-    -Argument "/c `"$batchPath`""
+    -Argument ("/c ""{0}""" -f $batchPath)
 
 $settings = New-ScheduledTaskSettingsSet `
     -ExecutionTimeLimit  (New-TimeSpan -Hours 2) `
@@ -88,7 +88,7 @@ Register-ScheduledTask `
     -Action     $action `
     -Settings   $settings `
     -Principal  $principal `
-    -Description "Atlas — daily Oscar Carboni transcript update (skips if nothing new)" |
+    -Description "Atlas - daily Oscar Carboni transcript update (skips if nothing new)" |
     Out-Null
 
 Write-Host ""
@@ -102,5 +102,5 @@ Write-Host "Test it now (runs both scrapers immediately):"
 Write-Host "  Start-ScheduledTask -TaskName '$TaskName'"
 Write-Host ""
 Write-Host "Or run manually:"
-Write-Host "  python scripts\scrape_transcripts.py --output `"$OscarOut`""
-Write-Host "  python scripts\scrape_chartwhisperer.py --output `"$CWOut`""
+Write-Host ("  python scripts\scrape_transcripts.py --output ""{0}""" -f $OscarOut)
+Write-Host ("  python scripts\scrape_chartwhisperer.py --output ""{0}""" -f $CWOut)
