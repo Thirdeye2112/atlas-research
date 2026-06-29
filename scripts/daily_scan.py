@@ -38,6 +38,16 @@ TARGETS=json.loads(_TGT_PATH.read_text()) if _TGT_PATH.exists() else None
 _ARC_PATH=ROOT/"reports/stocks/universe_arc_targets.json"
 ARC_TARGETS=json.loads(_ARC_PATH.read_text()) if _ARC_PATH.exists() else None
 
+# Liquidity floor + conviction normalisation. The universe-wide base rates are huge
+# for microcaps (T4 avg5 ~14-46% = penny-stock noise), so raw conviction over-ranks
+# illiquid junk. We (a) drop tiers below --min-tier by default (T4 out) and (b) CAP
+# the base-rate term so a fat microcap base rate can't dominate the ranking.
+_TIER_RANK={"T1":1,"T2":2,"T3":3,"T4":4}
+CONV_BASE_CAP=3.0   # % — base_avg_fwd5 contribution to conviction is capped here
+def _tier_ok(tier, floor):
+    if floor is None or tier is None: return True
+    return _TIER_RANK.get(tier,99) <= _TIER_RANK.get(floor,99)
+
 def _conn():
     env=dict(re.findall(r'^([A-Z_]+)=(.*)$',(ROOT/".env").read_text(),re.M))
     u=up.urlparse(env["DATABASE_URL"].strip())
@@ -134,6 +144,7 @@ def main():
     ap.add_argument("--universe",choices=["clean","500","all"],default="clean")
     ap.add_argument("--top",type=int,default=50)
     ap.add_argument("--min-base-n",type=int,default=30)
+    ap.add_argument("--min-tier",default="T3",help="liquidity floor: keep tiers >= this (T1>T2>T3>T4). Use T4 to keep all.")
     ap.add_argument("--allow-short",action="store_true")
     args=ap.parse_args()
     cn=_conn(); cur=cn.cursor()
@@ -143,8 +154,12 @@ def main():
     univ=universe(args.universe); print(f"scanning {len(univ)} tickers ({args.universe})",flush=True)
 
     alerts=[]; t0=time.time(); scan_date=None
+    skipped_liq=0
     for i,tk in enumerate(univ,1):
         try:
+            # liquidity floor: drop sub-threshold tiers before the expensive load
+            if not _tier_ok(tier_map.get(tk), args.min_tier):
+                skipped_liq+=1; continue
             d=dd.load_daily(tk)
             if d is None or len(d)<260: continue
             d=d.drop_duplicates("ts").sort_values("ts").reset_index(drop=True)
@@ -200,8 +215,9 @@ def main():
                 for cond in [row["mr_score"]>=1, row["rsi"]<40, row["above_ema200"]==1,
                              row["bb_pct"]<0.15, row["vol_ratio"]>1.3, row["macd_hist"]>0]:
                     conf+=int(bool(cond))
-                # +0.5 conviction for confident entries (the validated Layer-4 edge)
-                conviction = round(ba*(bw/50.0) + 0.4*float(row["mr_score"]) + 0.4*int(row["above_ema200"]) + 0.15*conf + (0.5 if confident else 0.0), 3)
+                # +0.5 conviction for confident entries (the validated Layer-4 edge).
+                # base-rate term is CAPPED so microcap penny-stock base rates can't dominate.
+                conviction = round(min(ba,CONV_BASE_CAP)*(bw/50.0) + 0.4*float(row["mr_score"]) + 0.4*int(row["above_ema200"]) + 0.15*conf + (0.5 if confident else 0.0), 3)
                 tgt_txt=(f"; tier {tier} tgt {exp_leg:+.1f}% (~{exp_bars}b), add-dip @{rfrac:.0%} retrace" if tinfo else "")
                 arc_txt=(f"; 5m arc drop ~{arc_drop_pct:.1f}% (retrace {arc_retrace:.0%}, wall-break {wall_break:.0%})" if arc_tinfo else "")
                 conf_txt=" [CONFIDENT: dip & not-downtrend]" if confident else ""
@@ -235,6 +251,7 @@ def main():
          "arc_drop_pct=EXCLUDED.arc_drop_pct, wall_break_rate=EXCLUDED.wall_break_rate")
     execute_values(cur,sql,alerts,page_size=1000); cn.commit()
 
+    print(f"liquidity floor (min-tier {args.min_tier}) skipped {skipped_liq} sub-threshold tickers",flush=True)
     df=pd.DataFrame(alerts,columns=COLS).sort_values("conviction",ascending=False)
     out=ROOT/"reports/alerts"; out.mkdir(parents=True,exist_ok=True)
     show=["ticker","method","name","direction","liq_tier","confident","mr_score","entry_px","target_px",
@@ -246,7 +263,8 @@ def main():
          f"{len(df)} setups fired across {df['ticker'].nunique()} names ({args.universe} universe), all methods. "
          f"**{n_conf} are CONFIDENT** (oversold dip & not a daily downtrend — the +63% Layer-4 edge; "
          "ranked to the top). Long-only; ranked by conviction (base-rate edge x win-rate + mr_score + "
-         "trend + confluence + confident bonus).","",
+         f"trend + confluence + confident bonus). Liquidity floor: tiers >= {args.min_tier} "
+         f"(base-rate term capped at {CONV_BASE_CAP:.0f}% so microcaps don't dominate).","",
          "Each alert carries a forecast plan from the deep-dive studies: a liquidity-tier first-leg "
          "**target_px** (`exp_firstleg_pct` over ~`exp_firstleg_bars` bars), and an **add_dip_px** to "
          "add into the first pullback (retraces ~`retrace_frac` of the run). Base rates are tier-specific "
