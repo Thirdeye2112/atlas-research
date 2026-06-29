@@ -32,10 +32,23 @@ mr_oversold = 1 if mr_score >= 1.0
   the model feature set), confirmed intraday by next-day close > VWAP — not as a
   market-timing on/off switch.
 
-## To promote into a model
-`mr_score` flows into the nightly feature matrix automatically. To let a model
-train on it, add it to the next `model_feature_set_version` (V4 candidate) and
-walk-forward it through the standard pipeline alongside the V3 set.
+## V4 = V3 + mr_score — VALIDATED (promote candidate)
+Embargoed walk-forward, identical folds/purge/normalisation to the V1/V3 harness
+(`scripts/run_v3_v4_experiment.py`, `reports/validity/v3_v4_experiment.json`):
+
+| set | WF mean_ic | WF t | OOS mean_ic | OOS t |
+|-----|-----------:|-----:|------------:|------:|
+| V3            | +0.0053 | 1.70 | +0.0105* | 3.23* |
+| **V4 (+mr_score)** | **+0.0073** | **2.44** | **+0.0209** | **3.73** |
+
+\*V3 OOS from the identical prior pipeline (run_v1_v3_experiment). Adding mr_score
+lifts WF IC ~+38% (t 1.70→2.44) and roughly **doubles the held-out OOS year**
+(+0.0105 → +0.0209). Recommend promoting V4.
+
+## To promote into production
+`mr_score` already flows into the nightly feature matrix. Register V4 as the next
+`model_feature_set_version` (= V3 cols + `mr_score`) and run the standard nightly
+retrain + OOS score that V3 used (retrain_v3 / score_oos_v3 equivalents).
 
 ## Deferred
 - **Options volume/direction**: no options data ingested yet (no DB tables). When
