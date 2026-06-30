@@ -33,7 +33,8 @@ htmlcov/
 # Data (large files stay out of git by default)
 data/transcripts/
 # exports/ are generated daily feature matrices — not committed
-exports/
+# Anchored to root so it does NOT match src/atlas_research/exports/ (source code).
+/exports/
 # Block all parquet except the curated sample set in data/samples/
 data/**/*.parquet
 exports/**/*.parquet
@@ -44,7 +45,8 @@ exports/**/*.parquet
 *.csv.gz
 
 # Model artifacts (binary, re-trainable)
-models/
+# Anchored to root so it does NOT match src/atlas_research/models/ (source code).
+/models/
 
 # Node (stray installs)
 node_modules/
@@ -59,8 +61,10 @@ logs/
 *.pem
 .env
 *recovery*
-Alpaca*Keys*
-Alpaca*
+# Anchored to root: these target stray Alpaca key/credential dumps at the repo
+# root, NOT scripts/alpaca_*.py source (Windows FS is case-insensitive).
+/Alpaca*Keys*
+/Alpaca*
 
 # Scratch diagnostic probes (not deliverables -- ignored, not deleted).
 # Explicit list, not a scripts/_*.py glob: scripts/_apply_migrations.py,
