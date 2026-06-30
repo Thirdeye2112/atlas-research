@@ -415,6 +415,88 @@ def pennants(piv: list[Pivot], high, low, close,
     return out
 
 
+def forming_patterns(piv: list[Pivot], high, low, close, vol=None, edge: dict | None = None):
+    """RIGHT-EDGE projector: detect patterns that are still FORMING (not yet broken out)
+    from the most recent pivots, and project WHERE/WHEN they fulfil and the target after.
+
+    Unlike detect_all (which only returns CONFIRMED breakouts), this looks at the live
+    geometry forming now so a chart can overlay an in-progress pattern and its projection
+    as candles build. Returns a list of dicts:
+        {name, status:'forming', direction, breakout_level, bars_to_breakout,
+         target, expected_low, upper_line, lower_line, points, confidence}
+    `edge` = pattern_edge.json (data-driven direction/target/low/duration); when present
+    it sets the projected direction & target from history+stats rather than geometry alone.
+    """
+    out = []
+    if len(piv) < 4:
+        return out
+    n = len(close); last = n - 1
+    w = piv[-4:]
+    ln = _two_lines(w)
+    if ln is None:
+        return out
+    hi_sl, hi_ic, lo_sl, lo_ic = ln
+    hline = lambda j: hi_sl*j + hi_ic
+    lline = lambda j: lo_sl*j + lo_ic
+    i0, i1 = w[0].idx, w[-1].idx
+    w0, w1 = hline(i0) - lline(i0), hline(i1) - lline(i1)
+    if w0 <= 0 or w1 <= 0:
+        return out
+    px = close[last]
+    pts = [(p.idx, p.price) for p in w]
+    rvol = float(vol[last] / np.mean(vol[max(0, last-20):last])) if vol is not None and last > 20 and np.mean(vol[max(0, last-20):last]) > 0 else None
+
+    def _proj(name_geo, geo_dir):
+        e = (edge or {}).get(name_geo, {})
+        direction = e.get("direction", geo_dir)                 # data-driven side if known
+        # breakout level = the line price will cross in the projected direction
+        up = hline(last); dn = lline(last)
+        breakout_level = up if direction in ("long", "bullish", "rise") else dn
+        # bars to breakout: where converging lines meet (apex), capped
+        conv = (w0 - w1) / max(i1 - i0, 1)                       # width lost per bar
+        bars_to = int(max(1, min(round(w1 / conv), 30))) if conv > 1e-9 else 10
+        if e.get("avg_target_pct") is not None:                 # data-driven target/low
+            tgt = px * (1 + e["avg_target_pct"]/100)
+            elow = px * (1 + e["avg_low_pct"]/100)
+            bars_to = e.get("median_bars_to_target") or bars_to
+        else:                                                   # geometry measured-move
+            h_meas = float(w0)
+            tgt = breakout_level + (h_meas if direction in ("long","bullish","rise") else -h_meas)
+            elow = dn if direction in ("long","bullish","rise") else up
+        conf = 50
+        if e:
+            conf = int(min(95, 40 + (e.get("win_rate", 50) - 50) * 1.5 + (e.get("n", 0) >= 1000) * 10))
+        if rvol and rvol > 1.3:
+            conf = min(99, conf + 8)                            # volume expansion confirms
+        return dict(name=name_geo, status="forming", direction=direction,
+                    breakout_level=round(float(breakout_level), 4),
+                    bars_to_breakout=int(bars_to), target=round(float(tgt), 4),
+                    expected_low=round(float(elow), 4),
+                    upper_line=[round(float(hline(i0)),4), round(float(hline(last)),4)],
+                    lower_line=[round(float(lline(i0)),4), round(float(lline(last)),4)],
+                    points=pts, rvol=round(rvol,2) if rvol else None, confidence=conf)
+
+    converging = w1 < w0 * 0.75
+    parallel   = w0 * 0.75 <= w1 <= w0 * 1.3
+    FLAT = 0.20 * w0
+    hi_chg, lo_chg = hline(i1)-hline(i0), lline(i1)-lline(i0)
+    # converging geometries forming (price still inside the lines)
+    if converging and lline(last) < px < hline(last):
+        if hi_sl > 0 and lo_sl > 0 and lo_sl > hi_sl:
+            out.append(_proj("rising_wedge", "short"))
+        elif hi_sl < 0 and lo_sl < 0 and hi_sl < lo_sl:
+            out.append(_proj("falling_wedge", "long"))
+        elif abs(hi_chg) < FLAT and lo_chg >= FLAT:
+            out.append(_proj("ascending_triangle", "long"))
+        elif abs(lo_chg) < FLAT and hi_chg <= -FLAT:
+            out.append(_proj("descending_triangle", "short"))
+        else:
+            out.append(_proj("symmetric_triangle", "long"))
+    elif parallel and abs(hi_chg) < FLAT and abs(lo_chg) < FLAT:
+        out.append(_proj("rectangle", "long"))
+    return out
+
+
 def detect_all(piv: list[Pivot], high, low, close) -> list[Pattern]:
     pats = []
     pats += head_and_shoulders(piv, high, low, close)

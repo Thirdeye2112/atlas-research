@@ -127,6 +127,22 @@ def main():
         print(f"  nearest overhead daily wall ${p:.2f} (+{(p/px-1)*100:.1f}%); formed by a {dep*100:.1f}% "
               f"drop = {strong} ceiling -> {'likely STALL' if strong=='STRONG' else 'likely BREAKS'}", flush=True)
 
+    # ---- FORMING patterns on the 5m right edge (live projection) ----
+    import json as _json
+    pe_path = ROOT / "reports/stocks/pattern_edge.json"
+    pedge = _json.loads(pe_path.read_text()) if pe_path.exists() else {}
+    fr5 = f.tail(120).reset_index(drop=True)
+    fh, fl, fc, fv = fr5["high"].values, fr5["low"].values, fr5["close"].values, fr5["volume"].values
+    fpiv = ta_structure.swing_pivots(fh, fl, width=a.width)
+    forming = ta_patterns.forming_patterns(fpiv, fh, fl, fc, fv, pedge)
+    print(f"\n[FORMING 5m PATTERNS] (right edge, live projection):", flush=True)
+    if forming:
+        for fm in forming:
+            print(f"  {fm['name']} -> {fm['direction'].upper()}: breaks @${fm['breakout_level']} in ~{fm['bars_to_breakout']} bars "
+                  f"=> target ${fm['target']} (exp-low ${fm['expected_low']}, conf {fm['confidence']}%, rvol {fm['rvol']})", flush=True)
+    else:
+        print("  none forming on the right edge right now", flush=True)
+
     # ---- recent candles / structure on daily last bar ----
     from atlas_research.ta.candlesticks import detect_all_candles
     o = d["open"].values; c2 = d["close"].values; lastix = len(d)-1

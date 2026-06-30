@@ -38,6 +38,16 @@ TARGETS=json.loads(_TGT_PATH.read_text()) if _TGT_PATH.exists() else None
 _ARC_PATH=ROOT/"reports/stocks/universe_arc_targets.json"
 ARC_TARGETS=json.loads(_ARC_PATH.read_text()) if _ARC_PATH.exists() else None
 
+# DATA-DRIVEN pattern direction + projected target/low/duration (pattern_outcomes_study).
+# Per pattern: the historically PROFITABLE side (may flip the textbook direction),
+# avg favorable move %, avg adverse %, and median bars to fulfillment.
+_PEDGE_PATH=ROOT/"reports/stocks/pattern_edge.json"
+PATTERN_EDGE=json.loads(_PEDGE_PATH.read_text()) if _PEDGE_PATH.exists() else {}
+def _pattern_dir(name, textbook):
+    """Data-driven direction for a chart/candle pattern; falls back to textbook."""
+    e=PATTERN_EDGE.get(name)
+    return e["direction"] if e else textbook
+
 # Liquidity floor + conviction normalisation. The universe-wide base rates are huge
 # for microcaps (T4 avg5 ~14-46% = penny-stock noise), so raw conviction over-ranks
 # illiquid junk. We (a) drop tiers below --min-tier by default (T4 out) and (b) CAP
@@ -180,13 +190,13 @@ def main():
             cc=d["cc_ret"].values; hi=np.nanpercentile(cc,99); lo=np.nanpercentile(cc,1)
             if cc[last]<=lo: fired.append(("move","significant_drop","long"))   # buy the dip
             if cc[last]>=hi: fired.append(("move","significant_rise","short"))  # fade the spike
-            # candlestick on last bar
+            # candlestick on last bar (direction is DATA-DRIVEN from pattern_edge)
             for cd in detect_all_candles(o,h,l,c,skip_neutral=True):
-                if cd.confirm_idx==last: fired.append(("candlestick",cd.name,cd.direction))
-            # structure on last bar
+                if cd.confirm_idx==last: fired.append(("candlestick",cd.name,_pattern_dir(cd.name,cd.direction)))
+            # structure on last bar (direction is DATA-DRIVEN — may flip the textbook side)
             piv=ta_structure.swing_pivots(h,l,width=3)
             for ps in ta_patterns.detect_all(piv,h,l,c):
-                if ps.confirm_idx==last: fired.append(("structure",ps.name,ps.direction))
+                if ps.confirm_idx==last: fired.append(("structure",ps.name,_pattern_dir(ps.name,ps.direction)))
             if not fired: continue
             d_trend=ta_structure.classify_trend(piv)
             # forecast magnitudes for this ticker's liquidity tier (Step 1 study)
@@ -232,12 +242,23 @@ def main():
                 conviction = round(min(edge,CONV_BASE_CAP)*(win/50.0) + 0.4*mr_term + 0.4*trend_term + 0.15*conf + (0.5 if confident else 0.0), 3)
                 tgt_txt=(f"; tier {tier} {side} tgt {exp_leg:+.1f}% (~{exp_bars}b)" if tinfo else "")
                 arc_txt=(f"; 5m arc move ~{arc_drop_pct:.1f}% (retrace {arc_retrace:.0%})" if arc_tinfo else "")
+                # DATA-DRIVEN pattern projection: profitable side + target/low/duration.
+                # For chart/candle patterns this OVERRIDES the tier target with the learned one.
+                pe=PATTERN_EDGE.get(name)
+                pat_txt=""
+                if pe:
+                    pt=pe.get("avg_target_pct"); pl=pe.get("avg_low_pct"); pbar=pe.get("median_bars_to_target")
+                    target=round(entry*(1+pt/100),4) if pt is not None else target
+                    add_dip=round(entry*(1+pl/100),4) if pl is not None else add_dip   # expected low / bid zone
+                    flip=" FLIPPED" if pe.get("flipped") else ""
+                    pat_txt=(f"; pattern[{side}{flip}] tgt {pt:+.1f}% / exp-low {pl:+.1f}% / ~{pbar}b "
+                             f"(win {pe.get('win_rate')}%, n={pe.get('n')})")
                 conf_txt=(" [CONFIDENT]" if confident else "")+(" SHORT" if side=="short" else "")
                 alerts.append([str(sd),str(sd),tk,method,name,direction,
                     float(row["mr_score"]), 1 if row["mr_score"]>=1 else 0, int(conf),
                     int(row["above_ema200"]), float(row["rsi"]), float(cc[last]),
                     bn, round(ba,3), round(bw,1), conviction, True,
-                    f"[{scope}/{side}] base {bn}x avg5 {ba:+.2f}% (edge {edge:+.2f}) win {win:.0f}%; mr {row['mr_score']:+.2f}{tgt_txt}{arc_txt}{conf_txt}",
+                    f"[{scope}/{side}] base {bn}x avg5 {ba:+.2f}% (edge {edge:+.2f}) win {win:.0f}%; mr {row['mr_score']:+.2f}{tgt_txt}{arc_txt}{pat_txt}{conf_txt}",
                     tier, entry, exp_leg, target, exp_bars, rfrac, add_dip, exp_whole, scope,
                     confident, arc_retrace, arc_drop_pct, wall_break])
         except Exception as e:
