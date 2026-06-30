@@ -119,7 +119,10 @@ def build_tiers_and_base_rates(cur):
     br_pooled={}; br_tier={}
     for ew,key in [("", None),
                    ("and mr_oversold=1", ("mean_reversion","mr_oversold","long")),
-                   ("and name='significant_drop'", ("move","significant_drop","long"))]:
+                   ("and name='significant_drop'", ("move","significant_drop","long")),
+                   # SHORT-side base rates (same mined fwd_ret_5; a short has edge when fwd_ret_5<0)
+                   ("and mr_score<=-1", ("mean_reversion","mr_overbought","short")),
+                   ("and name='significant_rise'", ("move","significant_rise","short"))]:
         p,t=_grouped(ew,key); br_pooled.update(p); br_tier.update(t)
     return tier_map, br_pooled, br_tier
 
@@ -145,7 +148,8 @@ def main():
     ap.add_argument("--top",type=int,default=50)
     ap.add_argument("--min-base-n",type=int,default=30)
     ap.add_argument("--min-tier",default="T3",help="liquidity floor: keep tiers >= this (T1>T2>T3>T4). Use T4 to keep all.")
-    ap.add_argument("--allow-short",action="store_true")
+    ap.add_argument("--side",choices=["both","long","short"],default="both",
+                    help="which opportunities to surface (default both — short edge is learned from its mined base rate)")
     args=ap.parse_args()
     cn=_conn(); cur=cn.cursor()
     tier_map,br,br_tier=build_tiers_and_base_rates(cur)
@@ -169,11 +173,13 @@ def main():
             sd=pd.Timestamp(d["ts"].values[last]).date(); scan_date=scan_date or sd
             o,h,l,c=(d[x].values for x in ("open","high","low","close"))
             fired=[]   # (method,name,direction)
-            # mean-reversion
+            # mean-reversion (both sides): mr_score + = oversold (long), - = overbought (short)
             if row["mr_score"]>=1.0: fired.append(("mean_reversion","mr_oversold","long"))
+            if row["mr_score"]<=-1.0: fired.append(("mean_reversion","mr_overbought","short"))
             # significant move follow-through (today a tail move)
             cc=d["cc_ret"].values; hi=np.nanpercentile(cc,99); lo=np.nanpercentile(cc,1)
             if cc[last]<=lo: fired.append(("move","significant_drop","long"))   # buy the dip
+            if cc[last]>=hi: fired.append(("move","significant_rise","short"))  # fade the spike
             # candlestick on last bar
             for cd in detect_all_candles(o,h,l,c,skip_neutral=True):
                 if cd.confirm_idx==last: fired.append(("candlestick",cd.name,cd.direction))
@@ -182,11 +188,8 @@ def main():
             for ps in ta_patterns.detect_all(piv,h,l,c):
                 if ps.confirm_idx==last: fired.append(("structure",ps.name,ps.direction))
             if not fired: continue
-            # CONFIDENT entry (validated Layer-4 edge, +63% expectancy): an oversold dip
-            # that is NOT in a daily downtrend.
             d_trend=ta_structure.classify_trend(piv)
-            confident=bool(((row["mr_score"]>=1.0) or (row["rsi"]<45)) and d_trend!="down")
-            # forecast targets for this ticker's liquidity tier (Step 1 study)
+            # forecast magnitudes for this ticker's liquidity tier (Step 1 study)
             tier=tier_map.get(tk)
             tinfo=(TARGETS["tiers"].get(tier) if (TARGETS and tier) else None)
             arc_tinfo=(ARC_TARGETS["tiers"].get(tier) if (ARC_TARGETS and tier) else None)
@@ -196,36 +199,45 @@ def main():
             entry=float(c[last])
             exp_leg=(tinfo or {}).get("firstleg_median_pct"); exp_whole=(tinfo or {}).get("wholerun_median_pct")
             exp_bars=(tinfo or {}).get("firstleg_median_bars")
-            target=round(entry*(1+exp_leg/100),4) if exp_leg else None
             rfrac=_retrace_for(exp_leg)
-            add_dip=round(target-rfrac*(target-entry),4) if target else None
             seen=set()
             for method,name,direction in fired:
                 key=(method,name,direction)
                 if key in seen: continue
                 seen.add(key)
-                dlong = direction in ("long","bullish","rise")
-                if not args.allow_short and not dlong: continue
+                side = "long" if direction in ("long","bullish","rise") else "short"
+                if args.side!="both" and args.side!=side: continue
                 # prefer the tier-specific base rate; fall back to pooled
                 scope="tier"; bn,ba,bw=(br_tier.get(key+(tier,),(0,None,None)) if tier else (0,None,None))
                 if bn<args.min_base_n or ba is None:
                     scope="pooled"; bn,ba,bw=br.get(key,(0,None,None))
                 if bn<args.min_base_n or ba is None: continue
-                conf=0
-                for cond in [row["mr_score"]>=1, row["rsi"]<40, row["above_ema200"]==1,
-                             row["bb_pct"]<0.15, row["vol_ratio"]>1.3, row["macd_hist"]>0]:
-                    conf+=int(bool(cond))
-                # +0.5 conviction for confident entries (the validated Layer-4 edge).
-                # base-rate term is CAPPED so microcap penny-stock base rates can't dominate.
-                conviction = round(min(ba,CONV_BASE_CAP)*(bw/50.0) + 0.4*float(row["mr_score"]) + 0.4*int(row["above_ema200"]) + 0.15*conf + (0.5 if confident else 0.0), 3)
-                tgt_txt=(f"; tier {tier} tgt {exp_leg:+.1f}% (~{exp_bars}b), add-dip @{rfrac:.0%} retrace" if tinfo else "")
-                arc_txt=(f"; 5m arc drop ~{arc_drop_pct:.1f}% (retrace {arc_retrace:.0%}, wall-break {wall_break:.0%})" if arc_tinfo else "")
-                conf_txt=" [CONFIDENT: dip & not-downtrend]" if confident else ""
+                # SIDE-AWARE edge: long wants fwd5>0; short has edge when fwd5<0 (edge=-ba,
+                # win=% down). So a short only ranks if its MINED base rate says price fell —
+                # the data teaches which shorts work. Raw ba/bw are stored for learning.
+                if side=="long":
+                    edge=ba; win=bw; trend_term=int(row["above_ema200"]); mr_term=float(row["mr_score"])
+                    confident=bool(((row["mr_score"]>=1.0) or (row["rsi"]<45)) and d_trend!="down")
+                    cconds=[row["mr_score"]>=1,row["rsi"]<40,row["above_ema200"]==1,row["bb_pct"]<0.15,row["vol_ratio"]>1.3,row["macd_hist"]>0]
+                    target=round(entry*(1+exp_leg/100),4) if exp_leg else None
+                    add_dip=round(target-rfrac*(target-entry),4) if target else None
+                else:
+                    edge=-ba; win=100.0-bw; trend_term=int(row["above_ema200"]==0); mr_term=-float(row["mr_score"])
+                    confident=bool(((row["mr_score"]<=-1.0) or (row["rsi"]>70)) and d_trend!="up")
+                    cconds=[row["mr_score"]<=-1,row["rsi"]>60,row["above_ema200"]==0,row["bb_pct"]>0.85,row["vol_ratio"]>1.3,row["macd_hist"]<0]
+                    target=round(entry*(1-exp_leg/100),4) if exp_leg else None     # short target = down
+                    add_dip=round(target+rfrac*(entry-target),4) if target else None # bounce to add the short
+                conf=sum(int(bool(x)) for x in cconds)
+                # +0.5 for confident entries (Layer-4 edge). Base-rate term CAPPED so microcaps don't dominate.
+                conviction = round(min(edge,CONV_BASE_CAP)*(win/50.0) + 0.4*mr_term + 0.4*trend_term + 0.15*conf + (0.5 if confident else 0.0), 3)
+                tgt_txt=(f"; tier {tier} {side} tgt {exp_leg:+.1f}% (~{exp_bars}b)" if tinfo else "")
+                arc_txt=(f"; 5m arc move ~{arc_drop_pct:.1f}% (retrace {arc_retrace:.0%})" if arc_tinfo else "")
+                conf_txt=(" [CONFIDENT]" if confident else "")+(" SHORT" if side=="short" else "")
                 alerts.append([str(sd),str(sd),tk,method,name,direction,
                     float(row["mr_score"]), 1 if row["mr_score"]>=1 else 0, int(conf),
                     int(row["above_ema200"]), float(row["rsi"]), float(cc[last]),
                     bn, round(ba,3), round(bw,1), conviction, True,
-                    f"[{scope}] base {bn}x avg5 {ba:+.2f}% win {bw:.0f}%; mr {row['mr_score']:+.2f}; {'>200EMA' if row['above_ema200'] else '<200EMA'}{tgt_txt}{arc_txt}{conf_txt}",
+                    f"[{scope}/{side}] base {bn}x avg5 {ba:+.2f}% (edge {edge:+.2f}) win {win:.0f}%; mr {row['mr_score']:+.2f}{tgt_txt}{arc_txt}{conf_txt}",
                     tier, entry, exp_leg, target, exp_bars, rfrac, add_dip, exp_whole, scope,
                     confident, arc_retrace, arc_drop_pct, wall_break])
         except Exception as e:
@@ -259,12 +271,14 @@ def main():
     show=[c for c in show if c in df.columns]
     top=df.head(args.top)
     n_conf=int(df["confident"].sum()) if "confident" in df.columns else 0
+    n_long=int((df["direction"].isin(["long","bullish","rise"])).sum())
+    n_short=len(df)-n_long
     rep=[f"# Trade alerts — {scan_date} (act next session on 5m VWAP reclaim)","",
-         f"{len(df)} setups fired across {df['ticker'].nunique()} names ({args.universe} universe), all methods. "
-         f"**{n_conf} are CONFIDENT** (oversold dip & not a daily downtrend — the +63% Layer-4 edge; "
-         "ranked to the top). Long-only; ranked by conviction (base-rate edge x win-rate + mr_score + "
-         f"trend + confluence + confident bonus). Liquidity floor: tiers >= {args.min_tier} "
-         f"(base-rate term capped at {CONV_BASE_CAP:.0f}% so microcaps don't dominate).","",
+         f"{len(df)} setups fired across {df['ticker'].nunique()} names ({args.universe} universe), all methods, "
+         f"**both sides ({n_long} long / {n_short} short)**. **{n_conf} are CONFIDENT** (the +63% Layer-4 edge; "
+         "ranked to the top). Ranked by SIDE-AWARE conviction (long edge = base avg5 > 0; short edge = base "
+         "avg5 < 0 — a short only ranks if its mined base rate says price fell, so the data teaches which "
+         f"shorts work). Liquidity floor: tiers >= {args.min_tier}; base-rate term capped at {CONV_BASE_CAP:.0f}%.","",
          "Each alert carries a forecast plan from the deep-dive studies: a liquidity-tier first-leg "
          "**target_px** (`exp_firstleg_pct` over ~`exp_firstleg_bars` bars), and an **add_dip_px** to "
          "add into the first pullback (retraces ~`retrace_frac` of the run). Base rates are tier-specific "

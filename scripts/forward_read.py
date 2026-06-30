@@ -134,10 +134,44 @@ def main():
     pats = [ps.name for ps in ta_patterns.detect_all(pv_d, dh, dl, c2) if ps.confirm_idx >= lastix-2]
     print(f"\n[PATTERNS] recent daily candles: {cands or 'none'} | structures: {pats or 'none'}", flush=True)
 
-    # ---- confident-entry read ----
-    confident = ((D["mr"] >= 1.0) or (D["rsi"] < 45)) and d_trend != "down"
-    print(f"\n[CONFIDENT READ] daily mr {D['mr']:+.2f}, rsi {D['rsi']:.0f}, trend {d_trend} -> "
-          f"confident long setup = {confident}", flush=True)
+    # ---- OPPORTUNITY SCAN: LONG vs SHORT (symmetric) ----
+    # mr convention: + = oversold (long), - = overbought/extended-up (short).
+    nearest_sup = sup[0]["level"] if sup else np.nan
+    nearest_res = res[0]["level"] if res else np.nan
+    strong_wall = None
+    if above:
+        wi, wp, wdep = min(above, key=lambda x: x[1])
+        if wdep >= D["atr_pct"]/100:
+            strong_wall = wp
+    print("\n[OPPORTUNITY SCAN] both sides — entry zone / target / stop / trigger:", flush=True)
+
+    # LONG: buy a dip to support that holds, in a non-downtrend, toward overhead res
+    long_conf = ((D["mr"] >= 1.0) or (D["rsi"] < 40)) and d_trend != "down"
+    long_tgt = nearest_res if np.isfinite(nearest_res) else px*1.1
+    long_stop = sup[1]["level"] if len(sup) > 1 else (nearest_sup*0.95 if np.isfinite(nearest_sup) else px*0.9)
+    print(f"  LONG : zone ${nearest_sup:.2f} (support) -> tgt ${long_tgt:.2f} / stop ${long_stop:.2f}"
+          f"  | confident={long_conf} (trend {d_trend}); trigger = dip to support + mr oversold holds", flush=True)
+
+    # SHORT: fade a rally into a STRONG overhead wall that rejects, toward support
+    short_at = strong_wall if strong_wall else nearest_res
+    short_conf = ((D["mr"] <= -1.0) or (D["rsi"] > 70)) and np.isfinite(short_at)
+    ctr = " [COUNTER-TREND: daily up]" if d_trend == "up" else ""
+    short_tgt = nearest_sup if np.isfinite(nearest_sup) else px*0.9
+    short_stop = (short_at*1.03) if np.isfinite(short_at) else px*1.05
+    print(f"  SHORT: zone ${short_at:.2f} (strong wall) -> tgt ${short_tgt:.2f} / stop ${short_stop:.2f}"
+          f"  | confident={short_conf}{ctr}; trigger = rally into wall + mr overbought rejects", flush=True)
+
+    # which side is actionable NOW?
+    dist_sup = abs(px-nearest_sup)/px if np.isfinite(nearest_sup) else 9
+    dist_res = abs(px-short_at)/px if np.isfinite(short_at) else 9
+    if long_conf and dist_sup < 0.03:
+        verdict = "LONG actionable (at support, oversold)"
+    elif short_conf and dist_res < 0.03:
+        verdict = "SHORT actionable (at wall, overbought)"
+    else:
+        verdict = (f"NEITHER yet — px ${px:.2f} mid-range; wait for dip to ${nearest_sup:.2f} (long) "
+                   f"or rally to ${short_at:.2f} (short)")
+    print(f"\n[VERDICT] {verdict}", flush=True)
 
 
 if __name__ == "__main__":
