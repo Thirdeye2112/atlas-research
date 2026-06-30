@@ -192,9 +192,53 @@ def swing_legs(piv: list[Pivot], high, low, close, min_amp=0.05, early_n=5) -> l
     return out
 
 
+# -------------------------------------------------------------- wedges ------
+def wedges(piv: list[Pivot], high, low, close,
+           converge=0.7, confirm_within=30) -> list[Pattern]:
+    """Rising wedge (bearish) / falling wedge (bullish): two CONVERGING trendlines.
+    Rising wedge = highs & lows both slope UP but the lows rise faster, so the lines
+    pinch upward and price tends to break DOWN. Falling wedge is the mirror (breaks UP).
+    Target = measured move = the wedge's widest height projected from the breakout."""
+    out = []
+    for i in range(len(piv) - 4):
+        w = piv[i:i+5]
+        if min(p.price for p in w) <= 0:
+            continue
+        highs = [(p.idx, p.price) for p in w if p.kind == 'H']
+        lows  = [(p.idx, p.price) for p in w if p.kind == 'L']
+        if len(highs) < 2 or len(lows) < 2:
+            continue
+        hi_sl, hi_ic = np.polyfit([x for x, _ in highs], [y for _, y in highs], 1)
+        lo_sl, lo_ic = np.polyfit([x for x, _ in lows],  [y for _, y in lows],  1)
+        hline = lambda j: hi_sl*j + hi_ic
+        lline = lambda j: lo_sl*j + lo_ic
+        i0, i1 = w[0].idx, w[-1].idx
+        w0, w1 = hline(i0) - lline(i0), hline(i1) - lline(i1)
+        if w0 <= 0 or w1 <= 0 or w1 >= w0 * converge:    # must converge to <converge of start
+            continue
+        height = float(w0); last = w[-1].idx
+        pts = [(p.idx, p.price) for p in w]
+        # rising wedge (bearish): both lines up, lows steeper -> break DOWN
+        if hi_sl > 0 and lo_sl > 0 and lo_sl > hi_sl:
+            cj = _first_close_below(close, last+1, lline, confirm_within)
+            if cj is not None:
+                entry = float(close[cj])
+                out.append(Pattern("rising_wedge", "short", cj, entry,
+                                   float(hline(cj)), entry - height, pts, float(lline(cj))))
+        # falling wedge (bullish): both lines down, highs steeper -> break UP
+        if hi_sl < 0 and lo_sl < 0 and hi_sl < lo_sl:
+            cj = _first_close_above(close, last+1, hline, confirm_within)
+            if cj is not None:
+                entry = float(close[cj])
+                out.append(Pattern("falling_wedge", "long", cj, entry,
+                                   float(lline(cj)), entry + height, pts, float(hline(cj))))
+    return out
+
+
 def detect_all(piv: list[Pivot], high, low, close) -> list[Pattern]:
     pats = []
     pats += head_and_shoulders(piv, high, low, close)
     pats += double_top_bottom(piv, high, low, close)
     pats += flags(piv, high, low, close)
+    pats += wedges(piv, high, low, close)
     return sorted(pats, key=lambda p: p.confirm_idx)
